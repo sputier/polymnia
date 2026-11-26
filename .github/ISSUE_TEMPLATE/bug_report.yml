@@ -1,0 +1,42 @@
+name: Bug report / Signaler un bug
+description: Something does not work as expected. / Quelque chose ne marche pas comme prévu.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security issue? Do not use this form, see SECURITY.md.
+        Faille de sécurité ? N'utilisez pas ce formulaire, voir SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / Que s'est-il passé ?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / Étapes pour reproduire
+      placeholder: |
+        1. Open a score
+        2. Press N, then 4, then C
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / Comportement attendu
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS / Navigateur et OS
+      placeholder: Firefox 140, Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, MusicXML file, console errors / Captures, fichier MusicXML, erreurs console

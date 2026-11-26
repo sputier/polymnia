@@ -1,0 +1,19 @@
+name: Feature request / Proposer une fonctionnalité
+description: Suggest an idea for Polymnia. / Proposer une idée pour Polymnia.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do? / Que voulez-vous faire ?
+      description: Describe the musical need, not only the solution. / Décrivez le besoin musical, pas seulement la solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution / Solution proposée
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you do it today? / Comment faites-vous aujourd'hui ?
