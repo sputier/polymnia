@@ -181,6 +181,12 @@ test.describe('engraving', () => {
       const w = await page.locator('svg.pm-score').getAttribute('width');
       expect(Number(w)).toBeLessThan(Number(first));
     }).toPass({ timeout: 5000 });
+    // The re-engraving is progressive: wait until every system is drawn.
+    await page.evaluate(() =>
+      (
+        window as unknown as { __polymnia: { engraver: { settled(): Promise<void> } } }
+      ).__polymnia.engraver.settled(),
+    );
     const systems = await page.locator('svg.pm-score .vf-pm-system').count();
     expect(systems).toBeGreaterThan(20);
   });

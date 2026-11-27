@@ -12,10 +12,21 @@ Le graveur transforme une partition (voir [score-format.fr.md](score-format.fr.m
 | `layout.ts` | Largeurs de mesures, découpage en systèmes, justification, positions x des événements | non |
 | `hitTest.ts` | Point vers `{partId, staffId, measureIndex, eventId, pitch}`, boîtes englobantes des événements | non |
 | `draw.ts` | Dessine un système (portées, notes, ligatures, tuplets, liaisons, accolades, noms) | oui |
+| `vexflowSetup.ts` | Configure VexFlow (polices) et charge Bravura | oui |
+| `fonts.ts` | URL du fichier Bravura haché, `<link rel="preload">` | non (bundle initial) |
 | `engraver.ts` | Possède le SVG, re-rendu incrémental, surbrillance | oui |
 | `ScoreView.tsx` | Composant React : chargement différé, redimensionnement, props vers le graveur | non (différé) |
 
-Tout ce qui n'a pas besoin de VexFlow est du TypeScript pur, testé sous jsdom. `ScoreView` charge `engraver.ts` (donc VexFlow) par un `import()` dynamique après le premier affichage : **VexFlow n'est pas dans le bundle initial**. VexFlow est sous licence MIT ; le point d'entrée `vexflow/bravura` est utilisé (police musicale Bravura et police de texte Academico embarquées), le seul point d'entrée ESM qui fonctionne sans téléchargement de police séparé. Il ne se tree-shake pas en pratique : le chunk différé est gros (environ 468 Ko gzip, voir « Chiffres »).
+Tout ce qui n'a pas besoin de VexFlow est du TypeScript pur, testé sous jsdom. `ScoreView` charge `engraver.ts` (donc VexFlow) par un `import()` dynamique après le premier affichage : **VexFlow n'est pas dans le bundle initial**. VexFlow est sous licence MIT (voir [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). Le point d'entrée `vexflow/core` est utilisé : il ne contient **aucune police**. Il ne se tree-shake pas en pratique (la bibliothèque enregistre ses classes globalement) : le chunk de l'éditeur reste à environ 180 Ko gzip (voir « Chiffres »).
+
+## Polices
+
+- **Bravura** (police musicale SMuFL, SIL OFL 1.1) est un fichier séparé `bravura-<hash>.woff2` (247 Ko), pris dans le paquet `@vexflow-fonts/bravura` et émis par Vite dans `/assets` : l'API le sert donc avec l'en-tête de cache immuable. Il est de même origine, ce qu'exige la CSP (`font-src 'self'`) : rien n'est embarqué en URL `data:`.
+- `ScoreView` ajoute `<link rel="preload" as="font" crossorigin>` dès que l'éditeur est monté (`fonts.ts`, bundle initial), en parallèle du téléchargement du chunk du graveur.
+- `vexflowSetup.ts` appelle `VexFlow.setFonts('Bravura')` et `Font.load(...)`. Les métriques des glyphes sont fournies par VexFlow : **le fichier de police ne change jamais la mise en page**, il ne fournit que les pixels (`font-display: block`).
+- Le premier rendu attend la police 2,5 s au plus. Passé ce délai, la partition est gravée quand même et les glyphes apparaissent à l'arrivée de la police ; un téléchargement en échec ne lève pas d'erreur.
+- **Academico est supprimée.** Le texte dessiné par VexFlow (numéros de tablature, annotations) utilise la police de l'interface (Inter, déjà auto-hébergée), comme les noms d'instruments.
+- Seule Bravura est nécessaire : aucune autre police de notation ou de texte n'est chargée.
 
 ## Algorithme de mise en page
 
@@ -56,6 +67,14 @@ Le modèle partage les objets inchangés entre versions : les références déte
 - Chaque système est dessiné dans son propre `<g>`, en coordonnées locales au système, et positionné par `transform`. Un système garde son nœud DOM quand sa *signature* est inchangée : le placement (chaque x, largeur et élément de début), les références des mesures de portée qu'il utilise (et celle d'avant), les liaisons qui le touchent et les noms de parties. Une édition ne regrave donc que le ou les systèmes touchés ; les systèmes suivants sont seulement translatés si la hauteur au-dessus a changé. Un changement de largeur (redimensionnement) regrave tout, avec un anti-rebond de 120 ms dans `ScoreView`.
 - `engraver.render(score, width)` renvoie `{ms, systems, drawn, reused, overflow}`. `overflow` compte les systèmes dont les éléments de début dépassaient la place réservée par le layout : doit rester 0 (vérifié sur chaque fixture par les tests navigateur).
 
+## Rendu progressif
+
+`engraver.render(score, width, { progressive: true })` (ce qu'utilise `ScoreView`) calcule tout le layout d'un coup (il est pur et prend quelques ms), fixe la taille finale du SVG, puis grave de façon synchrone les systèmes qui croisent la zone visible : le premier système s'affiche vite. Les autres sont gravés par tranches d'au plus 20 ms dans `requestIdleCallback` (`setTimeout` s'il n'existe pas), dans l'ordre de la partition, et insérés dans le DOM à leur place. `engraver.stats.complete` vaut `false` tant que la file n'est pas vide, et `await engraver.settled()` se résout quand tout est dessiné.
+
+- Le hit test et les boîtes n'utilisent que le layout : ils fonctionnent sur des systèmes pas encore dessinés ; les surbrillances (sélection, lecture) sont appliquées à un système dès qu'il est dessiné.
+- Un nouvel appel à `render` annule les tranches en attente. Les systèmes déjà dessinés et inchangés sont réutilisés comme avant : une édition reste incrémentale, et `render(score, width)` sans option reste entièrement synchrone (ce qu'utilisent les benchmarks).
+- `RenderStats` gagne `firstSystemMs` (délai jusqu'au premier système gravé) et `complete`.
+
 ## Accessibilité
 
 Le SVG a `role="img"` et un résumé `aria-label` (titre, nombre d'instruments et de mesures, dans la langue courante). `ScoreView` affiche aussi une région `role="status"` / `aria-live="polite"` masquée visuellement, alimentée par la prop `liveMessage` : la description de l'événement sélectionné ira là (#19). Le recouvrement est `aria-hidden`.
@@ -80,6 +99,8 @@ Le SVG a `role="img"` et un résumé `aria-label` (titre, nombre d'instruments e
 
 - Unitaires (Vitest) : `notation.test.ts`, `layout.test.ts` (découpage, largeurs, justification, précautions, cache), `hitTest.test.ts`, `ScoreView.test.tsx`.
 - Navigateur (Playwright, `e2e/engraving.spec.ts`) : chaque fixture se grave sans erreur ni dépassement, le layout concorde avec VexFlow, hit test sur un vrai clic, bascules de surbrillance, thème sombre, redimensionnement, **budgets de performance**.
+- Navigateur, polices et rendu progressif (`e2e/engraving-fonts.spec.ts`) : aucune police embarquée dans une réponse JavaScript, un seul fichier Bravura haché et un lien de préchargement, la partition s'affiche quand Bravura arrive en retard (requête retardée de 3,5 s), rendu progressif (hauteur complète d'emblée, dessin partiel puis complet, premier système sous 100 ms).
+- `npm run size` (après `npm run build`) échoue si le JS initial, le chunk de l'éditeur ou le fichier Bravura dépassent leur budget, ou si une police est embarquée dans un chunk JS.
 - Visuels (`e2e/visual/`) : captures de portée simple, système à deux portées, accords, altérations et changements d'armure, liaisons, triolets, guitare standard + tablature, changements de clé au violoncelle, levée, thème sombre avec surbrillance.
 
 ## Mettre à jour les références visuelles
@@ -99,12 +120,14 @@ Mesurés dans Chromium (portable Windows 11, build de production), `benchmark100
 
 | Quoi | Budget | Mesuré |
 | ---- | ------ | ------ |
-| Rendu complet, tout premier (JIT froid) | n/a | 210 à 260 ms |
+| Premier système affiché (après chargement du chunk) | < 100 ms | environ 45 ms (230 ms avant : tout le rendu) |
+| Rendu complet, tout premier (JIT froid), tous les systèmes | n/a | 230 à 320 ms (le travail de dessin est inchangé ; il s'exécute désormais par tranches en temps libre) |
 | Rendu complet, à chaud (médiane de 7) | < 200 ms | environ 120 ms |
 | Une édition, médiane / max de 25 | < 16 ms | environ 6 ms / 10 ms |
 | Surbrillance (sélection + lecture) | bascule de classe | < 1 ms |
 | Layout seul (jsdom) | n/a | quelques ms |
 | JS initial | <= 150 Ko gzip | 72,7 Ko |
-| Chunk différé (VexFlow + polices) | n/a | 468 Ko gzip |
+| Chunk de l'éditeur (VexFlow + gravure, sans police) | <= 200 Ko gzip | 180 Ko (468 Ko avec les polices avant) |
+| Fichier de police Bravura | <= 250 Ko woff2 | 247 Ko, fichier séparé, cache immuable |
 
 Le test navigateur vérifie : rendu complet à chaud < 200 ms, à froid < 600 ms (JIT, workers parallèles, CI plus lente), médiane d'édition < 16 ms.

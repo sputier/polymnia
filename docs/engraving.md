@@ -12,10 +12,21 @@ The engraver turns a score (see [score-format.md](score-format.md)) into SVG. It
 | `layout.ts` | Measure widths, system breaking, justification, event x positions | no |
 | `hitTest.ts` | Point to `{partId, staffId, measureIndex, eventId, pitch}`, event bounding boxes | no |
 | `draw.ts` | Draws one system (staves, notes, beams, tuplets, ties, slurs, connectors, names) | yes |
-| `engraver.ts` | Owns the SVG, incremental re-render, highlighting | yes |
+| `engraver.ts` | Owns the SVG, incremental and progressive re-render, highlighting | yes |
+| `vexflowSetup.ts` | Configures VexFlow (fonts) and loads Bravura | yes |
+| `fonts.ts` | URL of the hashed Bravura file, `<link rel="preload">` | no (initial bundle) |
 | `ScoreView.tsx` | React component: lazy loading, resize, props to engraver | no (lazy) |
 
-Everything that does not need VexFlow is pure TypeScript and unit-tested in jsdom. `ScoreView` loads `engraver.ts` (and so VexFlow) with a dynamic `import()` after the first paint: **VexFlow is not in the initial bundle**. VexFlow is MIT licensed; the `vexflow/bravura` entry point is used (Bravura music font and Academico text font embedded as data), the only ESM entry that works without a separate font download. It is not tree-shakable in practice, so the lazy chunk is large (about 468 KB gzip, see "Numbers").
+Everything that does not need VexFlow is pure TypeScript and unit-tested in jsdom. `ScoreView` loads `engraver.ts` (and so VexFlow) with a dynamic `import()` after the first paint: **VexFlow is not in the initial bundle**. VexFlow is MIT licensed (see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). The `vexflow/core` entry point is used: it carries **no font**. It is not tree-shakable in practice (the library registers its classes globally), so the editor chunk stays at about 180 KB gzip (see "Numbers").
+
+## Fonts
+
+- **Bravura** (SMuFL music font, SIL OFL 1.1) is a separate `bravura-<hash>.woff2` (247 KB), taken from the `@vexflow-fonts/bravura` package and emitted by Vite into `/assets`, so the API serves it with the immutable cache header. It is same-origin, which the CSP (`font-src 'self'`) requires: nothing is embedded as a `data:` URL.
+- `ScoreView` adds `<link rel="preload" as="font" crossorigin>` for it as soon as the editor mounts (`fonts.ts`, initial bundle), in parallel with the download of the engraver chunk.
+- `vexflowSetup.ts` calls `VexFlow.setFonts('Bravura')` and `Font.load(...)`. The glyph metrics ship with VexFlow, so **the font file never changes the layout**: it only provides the pixels (`font-display: block`).
+- The first render waits for the font for at most 2.5 s. After that the score is engraved anyway and the glyphs appear when the font arrives; a failed download does not throw.
+- **Academico is dropped.** Text drawn by VexFlow (tab numbers, annotations) uses the UI font (Inter, already self-hosted), like the part names.
+- Only Bravura is needed: no other notation or text font is loaded.
 
 ## Layout algorithm
 
@@ -56,6 +67,14 @@ The model shares unchanged objects between versions, so references are the chang
 - Each system is drawn in its own `<g>`, in coordinates local to the system, and positioned with `transform`. A system keeps its DOM node when its *signature* is unchanged: the placement (every x, width and modifier), the staff measure references it uses (and the one before it), the slurs touching it and the part names. An edit therefore re-engraves only the affected system(s), and the following systems are only translated if the height above them changed. A width change (resize) re-engraves everything, debounced at 120 ms in `ScoreView`.
 - `engraver.render(score, width)` returns `{ms, systems, drawn, reused, overflow}`. `overflow` counts systems whose start modifiers were wider than what the layout reserved: it must stay 0 (checked on every fixture by the browser tests).
 
+## Progressive rendering
+
+`engraver.render(score, width, { progressive: true })` (what `ScoreView` uses) computes the whole layout at once (it is pure and takes a few ms), sets the final size of the SVG, then engraves the systems that intersect the viewport synchronously, so the first system is painted quickly. The other systems are engraved in chunks of at most 20 ms in `requestIdleCallback` (`setTimeout` where it does not exist), in score order, and are inserted in the DOM at their place. `engraver.stats.complete` is `false` until the queue is empty and `await engraver.settled()` resolves when everything is drawn.
+
+- Hit testing and boxes only use the layout, so they work on systems that are not drawn yet; selection and playback highlights are applied to a system as soon as it is drawn.
+- A new `render` cancels the pending chunks. Systems already drawn and unchanged are reused as usual, so an edit is still incremental, and `render(score, width)` without options stays fully synchronous (what the benchmarks use).
+- `RenderStats` gains `firstSystemMs` (time to the first engraved system) and `complete`.
+
 ## Accessibility
 
 The SVG has `role="img"` and an `aria-label` summary (title, number of instruments and measures, in the current language). `ScoreView` also renders a visually hidden `role="status"` / `aria-live="polite"` region fed by the `liveMessage` prop: the description of the selected event will go there (#19). The overlay is `aria-hidden`.
@@ -80,6 +99,8 @@ The SVG has `role="img"` and an `aria-label` summary (title, number of instrumen
 
 - Unit (Vitest): `notation.test.ts`, `layout.test.ts` (system breaking, widths, justification, courtesy changes, cache), `hitTest.test.ts`, `ScoreView.test.tsx`.
 - Browser (Playwright, `e2e/engraving.spec.ts`): every fixture engraves without error and without overflow, layout agrees with VexFlow, real click hit test, highlight toggles, dark theme, resize, **performance budgets**.
+- Browser, fonts and progressive render (`e2e/engraving-fonts.spec.ts`): no font embedded in any JavaScript response, one hashed Bravura file and a preload link, the score renders when Bravura arrives late (the request is delayed by 3.5 s), progressive render (full height at once, partial drawing, then complete, first system under 100 ms).
+- `npm run size` (after `npm run build`) fails when the initial JS, the editor chunk or the Bravura file exceed their budget, or when a font is embedded in a JS chunk.
 - Visual (`e2e/visual/`): screenshots of single staff, grand staff, chords, accidentals and key changes, ties and slurs, triplets, guitar standard + tab, cello clef changes, pickup measure, dark theme with highlights.
 
 ## Updating the visual baselines
@@ -99,12 +120,14 @@ Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 
 
 | What | Budget | Measured |
 | ---- | ------ | -------- |
-| Full render, first ever (JIT cold) | n/a | 210 to 260 ms |
+| First system painted (after the chunk is loaded) | < 100 ms | about 45 ms (was 230 ms: the whole render) |
+| Full render, first ever (JIT cold), all systems | n/a | 230 to 320 ms (the drawing work is unchanged; it now runs in idle chunks) |
 | Full render, warm (median of 7) | < 200 ms | about 120 ms |
 | One edit, median / max of 25 | < 16 ms | about 6 ms / 10 ms |
 | Highlight (selection + playing) | class toggle | < 1 ms |
 | Layout alone (jsdom) | n/a | a few ms |
 | Initial JS | <= 150 KB gzip | 72.7 KB |
-| Lazy chunk (VexFlow + fonts) | n/a | 468 KB gzip |
+| Editor chunk (VexFlow + engraving, no font) | <= 200 KB gzip | 180 KB (was 468 KB with the fonts) |
+| Bravura font file | <= 250 KB woff2 | 247 KB, separate file, immutable cache |
 
 The browser test asserts warm full render < 200 ms, cold < 600 ms (JIT, parallel workers, slower CI machines), edit median < 16 ms.

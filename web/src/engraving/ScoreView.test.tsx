@@ -10,17 +10,30 @@ const calls = vi.hoisted(() => ({
   selection: [] as (readonly string[])[],
   playing: [] as (readonly string[])[],
   destroyed: 0,
+  fonts: undefined as Promise<void> | undefined,
 }));
 
 vi.mock('./engraver', () => ({
+  loadEngravingFonts: () => calls.fonts ?? Promise.resolve(),
   Engraver: class {
     svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     constructor(container: HTMLElement) {
       container.appendChild(this.svg);
     }
+    settled() {
+      return Promise.resolve();
+    }
     render(score: { meta: { title: string } }, width: number) {
       calls.render.push({ width, title: score.meta.title });
-      return { ms: 0, systems: 1, drawn: 1, reused: 0, overflow: 0 };
+      return {
+        ms: 0,
+        systems: 1,
+        drawn: 1,
+        reused: 0,
+        overflow: 0,
+        firstSystemMs: 0,
+        complete: true,
+      };
     }
     setSelection(ids: readonly string[]) {
       calls.selection.push(ids);
@@ -46,6 +59,7 @@ beforeEach(() => {
   calls.selection = [];
   calls.playing = [];
   calls.destroyed = 0;
+  calls.fonts = undefined;
   observers = [];
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
     configurable: true,
@@ -129,6 +143,34 @@ describe('ScoreView', () => {
     expect(region).toHaveAttribute('aria-live', 'polite');
     expect(region).toHaveTextContent('C4, quarter note');
     await waitFor(() => expect(calls.render).toHaveLength(1));
+  });
+
+  it('engraves once the music font is loaded, and still engraves if it is very late', async () => {
+    let loaded!: () => void;
+    calls.fonts = new Promise<void>((resolve) => (loaded = resolve));
+    render(<ScoreView score={pianoGrandStaff} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(calls.render).toHaveLength(0); // waiting for the font
+    await act(async () => {
+      loaded();
+    });
+    await waitFor(() => expect(calls.render).toHaveLength(1));
+  });
+
+  it('does not wait for a font that never arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      calls.fonts = new Promise<void>(() => {});
+      render(<ScoreView score={pianoGrandStaff} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      await waitFor(() => expect(calls.render).toHaveLength(1));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('destroys the engraver on unmount', async () => {
