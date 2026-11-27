@@ -143,9 +143,10 @@ jobs:
           } > .env
           docker compose up -d --wait --wait-timeout 120
           docker compose ps -a
-          curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/api/health; echo
-          curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/api/health/ready; echo
-          curl --fail --silent --show-error --max-time 10 --dump-header - --output /dev/null http://127.0.0.1:8080/ | tee "$RUNNER_TEMP/headers.txt"
+          # AllowedHosts=localhost: the Host header must match it.
+          curl --fail --silent --show-error --max-time 10 -H 'Host: localhost' http://127.0.0.1:8080/api/health; echo
+          curl --fail --silent --show-error --max-time 10 -H 'Host: localhost' http://127.0.0.1:8080/api/health/ready; echo
+          curl --fail --silent --show-error --max-time 10 -H 'Host: localhost' --dump-header - --output /dev/null http://127.0.0.1:8080/ | tee "$RUNNER_TEMP/headers.txt"
           grep -qi '^content-security-policy:' "$RUNNER_TEMP/headers.txt"
           grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/headers.txt"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Host: evil.example' http://127.0.0.1:8080/)" = 400
