@@ -11,4 +11,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
   </ItemGroup>
+  <ItemGroup>
+    <!-- The score JSON Schema is the single source of truth shared with the front end: embedded from the repo root. -->
+    <EmbeddedResource Include="..\..\schema\score.v1.schema.json" LogicalName="score.v1.schema.json" />
+  </ItemGroup>
 </Project>

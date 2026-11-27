@@ -90,6 +90,7 @@ For front-end development with hot reload, run `npm run dev` in `web/`: the Vite
 - `GET /api/health`: liveness, `200 Healthy`, no dependency check.
 - `GET /api/health/ready`: readiness, checks the database. Body is only `Healthy` or `Unhealthy` (`503`); details stay in the server logs. The result is cached for 5 seconds so the public endpoint cannot exhaust the connection pool. Both health endpoints are exempt from HTTPS redirection (orchestrator probes use plain HTTP).
 - `GET /api/me` (`401` when anonymous), `GET /api/auth/login`, `GET /api/auth/antiforgery`, `POST /api/auth/logout`: see [Authentication](authentication.md). Every unsafe method under `/api` needs the `X-XSRF-TOKEN` header.
+- Score API (`/api/scores`): see [api.md](api.md).
 - Client-side route segments must not contain a dot (a path with an extension is treated as a missing file and returns 404). Responses under `/api` are `Cache-Control: no-store` unless an endpoint overrides it.
 - In production, use `SSL Mode=VerifyFull` in the connection string when the database is not on the same host.
 

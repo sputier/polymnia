@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Polymnia.Core.Users;
 using Polymnia.Infrastructure.Sessions;
+using Polymnia.Core.Scores;
 
 namespace Polymnia.Infrastructure;
 
@@ -18,10 +19,12 @@ public sealed class PolymniaDbContext(DbContextOptions<PolymniaDbContext> option
     public DbSet<UserSession> Sessions => Set<UserSession>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+    public DbSet<Score> Scores => Set<Score>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
+        modelBuilder.HasPostgresExtension("pg_trgm");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PolymniaDbContext).Assembly);
         modelBuilder.Entity<DataProtectionKey>(key =>
         {

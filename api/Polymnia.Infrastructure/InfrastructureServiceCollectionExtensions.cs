@@ -3,6 +3,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Polymnia.Infrastructure.Users;
+using Polymnia.Core.Scores;
+using Polymnia.Infrastructure.Scores;
 
 namespace Polymnia.Infrastructure;
 
@@ -35,6 +37,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<UserProvisioner>();
+        services.AddSingleton<IScoreContentValidator, ScoreContentValidator>();
+        services.AddScoped<ScoreStore>();
 
         return services;
     }

@@ -90,6 +90,7 @@ Pour développer le front avec rechargement à chaud, lancer `npm run dev` dans 
 - `GET /api/health` : liveness, `200 Healthy`, sans vérification de dépendance.
 - `GET /api/health/ready` : readiness, vérifie la base. Le corps est uniquement `Healthy` ou `Unhealthy` (`503`) ; les détails restent dans les logs serveur. Le résultat est mis en cache 5 secondes pour qu'un endpoint public ne puisse pas épuiser le pool de connexions. Les deux endpoints de santé sont exemptés de la redirection HTTPS (les sondes d'orchestrateur utilisent HTTP simple).
 - `GET /api/me` (`401` si anonyme), `GET /api/auth/login`, `GET /api/auth/antiforgery`, `POST /api/auth/logout` : voir [Authentification](authentication.fr.md). Toute méthode non sûre sous `/api` exige l'en-tête `X-XSRF-TOKEN`.
+- API des partitions (`/api/scores`) : voir [api.fr.md](api.fr.md).
 - Les segments de route côté client ne doivent pas contenir de point (un chemin avec extension est traité comme un fichier absent et renvoie 404). Les réponses sous `/api` sont en `Cache-Control: no-store` sauf si un endpoint en décide autrement.
 - En production, utiliser `SSL Mode=VerifyFull` dans la chaîne de connexion quand la base n'est pas sur la même machine.
 
