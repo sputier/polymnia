@@ -146,6 +146,12 @@ internal static class AuthExtensions
                 {
                     // Never derived from the request Host header.
                     context.ProtocolMessage.RedirectUri = redirectUri;
+                    if (context.Properties.Items.ContainsKey(AuthDefaults.ReauthProperty))
+                    {
+                        // Re-authentication (account deletion): Google asks the person to pick their account again.
+                        context.ProtocolMessage.Prompt = "select_account";
+                    }
+
                     return Task.CompletedTask;
                 };
                 options.Events.OnAuthorizationCodeReceived = context =>
@@ -354,7 +360,7 @@ internal static class AuthExtensions
         return endpoints;
     }
 
-    private static async Task<IResult> Login(HttpContext context, IAuthenticationSchemeProvider schemes, string? returnUrl)
+    private static async Task<IResult> Login(HttpContext context, IAuthenticationSchemeProvider schemes, string? returnUrl, bool? reauth)
     {
         if (await schemes.GetSchemeAsync(AuthDefaults.GoogleScheme) is null)
         {
@@ -364,14 +370,19 @@ internal static class AuthExtensions
         }
 
         string target = ReturnUrl.Sanitize(returnUrl);
-        if (context.User.Identity?.IsAuthenticated == true)
+        if (context.User.Identity?.IsAuthenticated == true && reauth != true)
         {
             return Results.LocalRedirect(target);
         }
 
-        return Results.Challenge(
-            new AuthenticationProperties { RedirectUri = target },
-            [AuthDefaults.GoogleScheme]);
+        var properties = new AuthenticationProperties { RedirectUri = target };
+        if (reauth == true)
+        {
+            // A fresh sign-in replaces the session (and its auth_time); the old session row dies with its expiry.
+            properties.Items[AuthDefaults.ReauthProperty] = "1";
+        }
+
+        return Results.Challenge(properties, [AuthDefaults.GoogleScheme]);
     }
 
     private static NoContent IssueAntiforgeryToken(HttpContext context, IAntiforgery antiforgery)

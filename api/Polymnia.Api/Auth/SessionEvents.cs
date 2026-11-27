@@ -38,12 +38,17 @@ internal static class SessionEvents
             google.FindFirstValue("picture"),
             context.HttpContext.RequestAborted);
 
-        var identity = new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, userId.ToString("D", CultureInfo.InvariantCulture))],
-            AuthDefaults.CookieScheme);
-
         TimeSpan idle = context.HttpContext.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value.IdleTimeout;
         TimeProvider time = context.HttpContext.RequestServices.GetRequiredService<TimeProvider>();
+
+        // auth_time: when Google signed this person in. Sliding renewal never changes it, so "signed in recently"
+        // (account deletion) cannot be obtained by keeping a stolen session alive.
+        var identity = new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString("D", CultureInfo.InvariantCulture)),
+                new Claim(AuthDefaults.AuthTimeClaim, time.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
+            ],
+            AuthDefaults.CookieScheme);
 
         context.Principal = new ClaimsPrincipal(identity);
 

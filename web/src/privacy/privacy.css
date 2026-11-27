@@ -1,0 +1,93 @@
+/* Privacy policy page (#/privacy). Colors come from the design tokens. */
+
+.privacy {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100%;
+}
+
+.privacy-main {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 760px;
+  padding: 32px clamp(16px, 5vw, 48px) 64px;
+}
+
+.privacy-main h1 {
+  margin: 0 0 12px;
+  font-size: clamp(28px, 3.6vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.privacy-main .lead {
+  margin: 0 0 20px;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.privacy-main h2 {
+  margin: 28px 0 8px;
+  font-size: 18px;
+}
+
+.privacy-main p,
+.privacy-main li {
+  line-height: 1.55;
+}
+
+.privacy-main ul {
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+
+.privacy-main li + li {
+  margin-top: 6px;
+}
+
+.privacy-main a {
+  color: var(--accent);
+}
+
+.privacy-card {
+  margin: 0 0 8px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.privacy-card dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.privacy-card dt {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.privacy-card dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.privacy-placeholder {
+  border-color: var(--danger);
+}
+
+.privacy-placeholder p {
+  margin: 6px 0 0;
+}
+
+.privacy .brand {
+  color: inherit;
+  text-decoration: none;
+}
+
+.privacy a.btn {
+  text-decoration: none;
+}

@@ -21,5 +21,11 @@ internal static class AuthDefaults
 
     public const string RequestTokenHeaderName = "X-XSRF-TOKEN";
 
+    /// <summary>Claim of the session ticket: when the user last signed in with Google (Unix seconds, UTC).</summary>
+    public const string AuthTimeClaim = "auth_time";
+
+    /// <summary>Authentication property that makes the Google redirect ask the person to choose their account again.</summary>
+    public const string ReauthProperty = "polymnia.reauth";
+
     public const string DataProtectionApplicationName = "Polymnia";
 }

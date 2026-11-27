@@ -28,4 +28,16 @@ internal static partial class AuthLog
 
     [LoggerMessage(EventId = 12, EventName = "AuthRateLimited", Level = LogLevel.Warning, Message = "Auth rate limit reached ({Count} rejected requests, logged at most every 10 seconds).")]
     public static partial void RateLimited(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 13, EventName = "AuthAccountDeleted", Level = LogLevel.Information, Message = "User {UserId} deleted their account.")]
+    public static partial void AccountDeleted(ILogger logger, Guid userId);
+
+    [LoggerMessage(EventId = 14, EventName = "AuthDataExported", Level = LogLevel.Information, Message = "User {UserId} exported their data ({ScoreCount} scores).")]
+    public static partial void DataExported(ILogger logger, Guid userId, int scoreCount);
+
+    [LoggerMessage(EventId = 15, EventName = "AuthDataExportFailed", Level = LogLevel.Warning, Message = "The data export of user {UserId} was interrupted.")]
+    public static partial void DataExportFailed(ILogger logger, Guid userId, Exception exception);
+
+    [LoggerMessage(EventId = 16, EventName = "AuthReauthRequired", Level = LogLevel.Information, Message = "User {UserId} must sign in again before deleting the account.")]
+    public static partial void ReauthRequired(ILogger logger, Guid userId);
 }

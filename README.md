@@ -39,7 +39,7 @@ Polymnia is a free and open-source web application for composing music in standa
 
 ## Self-hosting
 
-Run your own instance with Docker Compose (the app and PostgreSQL) from the image `ghcr.io/sputier/polymnia`. See the [self-hosting guide](docs/self-hosting.md). Maintainers: [how to cut a release](docs/releasing.md).
+Run your own instance with Docker Compose (the app and PostgreSQL) from the image `ghcr.io/sputier/polymnia`. See the [self-hosting guide](docs/self-hosting.md). Operators must set the privacy settings: see [Privacy](docs/privacy.md). Maintainers: [how to cut a release](docs/releasing.md).
 
 ## Contributing
 

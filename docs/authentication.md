@@ -124,3 +124,11 @@ Without Google settings, the application runs but cannot sign anyone in.
 ## Tests
 
 The tests never call Google. A fake remote handler replaces the Google scheme and returns configurable claims; everything after it is the real code (correlation cookie, user creation, server-side session). One test also drives the real OpenID Connect handler up to the redirect to Google, with a static discovery document, to check the redirect URI, PKCE, `state`, `nonce` and cookie flags. Signing in with a real Google account is checked by hand.
+
+## Recent sign-in (account deletion)
+
+Deleting an account is irreversible, so it needs a **recent sign-in with Google**, not just a valid session (a stolen or forgotten session must not be enough). The session ticket carries an `auth_time` claim (Unix seconds) set when Google signs the person in; sliding renewal never changes it. `DELETE /api/me` is refused with `403` and the problem `code` `reauth-required` when `auth_time` is missing (a session created before this claim existed) or older than `Auth:RecentSignInWindow` (default `00:10:00`, at most one day; environment variable `Auth__RecentSignInWindow`).
+
+The front end then sends the person to `GET /api/auth/login?reauth=true`: unlike a plain login (which returns straight to the app when a session exists) this goes to Google again with `prompt=select_account`, so the person has to choose their account, and creates a new session with a fresh `auth_time`. The old session is removed with the account. Google does not offer a universal "ask for the password again" parameter, so this confirms that someone is at the browser and can complete a Google sign-in, which is what a stolen cookie cannot do. The typed confirmation in the dialog protects against a mis-click.
+
+Audit events: `AuthAccountDeleted` (id 13), `AuthDataExported` (id 14), `AuthDataExportFailed` (id 15, `Warning`), `AuthReauthRequired` (id 16), with the user id only. See [Privacy](privacy.md).

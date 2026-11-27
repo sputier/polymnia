@@ -18,6 +18,14 @@ x-polymnia: &polymnia
     Auth__PublicBaseUrl: ${POLYMNIA_PUBLIC_BASE_URL:?Set POLYMNIA_PUBLIC_BASE_URL in .env (see .env.example)}
     Auth__Google__ClientId: ${POLYMNIA_GOOGLE_CLIENT_ID:?Set POLYMNIA_GOOGLE_CLIENT_ID in .env (see .env.example)}
     Auth__Google__ClientSecret: ${POLYMNIA_GOOGLE_CLIENT_SECRET:?Set POLYMNIA_GOOGLE_CLIENT_SECRET in .env (see .env.example)}
+    # Who runs this instance, shown on the privacy page (docs/privacy.md). The first three are required:
+    # Production refuses to start without them.
+    Legal__OperatorName: ${POLYMNIA_LEGAL_OPERATOR_NAME:?Set POLYMNIA_LEGAL_OPERATOR_NAME in .env (see .env.example)}
+    Legal__Contact: ${POLYMNIA_LEGAL_CONTACT:?Set POLYMNIA_LEGAL_CONTACT in .env (see .env.example)}
+    Legal__HostingProvider: ${POLYMNIA_LEGAL_HOSTING_PROVIDER:?Set POLYMNIA_LEGAL_HOSTING_PROVIDER in .env (see .env.example)}
+    Legal__Address: ${POLYMNIA_LEGAL_ADDRESS:-}
+    Legal__HostingCountry: ${POLYMNIA_LEGAL_HOSTING_COUNTRY:-}
+    Legal__LogRetentionDays: ${POLYMNIA_LOG_RETENTION_DAYS:-30}
     # The Data Protection keys (stored in the database) are encrypted with this certificate. Required: see
     # docs/authentication.md for the one-line openssl command that creates it.
     DataProtection__CertificatePath: /run/secrets/polymnia_keys

@@ -124,3 +124,11 @@ Sans réglages Google, l'application fonctionne mais ne peut connecter personne.
 ## Tests
 
 Les tests n'appellent jamais Google. Un faux handler distant remplace le schéma Google et renvoie des claims configurables ; tout ce qui suit est le vrai code (cookie de corrélation, création de l'utilisateur, session côté serveur). Un test pilote aussi le vrai handler OpenID Connect jusqu'à la redirection vers Google, avec un document de découverte statique, pour vérifier l'URI de redirection, PKCE, `state`, `nonce` et les attributs des cookies. La connexion avec un vrai compte Google se vérifie à la main.
+
+## Connexion récente (suppression du compte)
+
+Supprimer un compte est irréversible : il faut une **connexion récente avec Google**, pas seulement une session valide (une session volée ou oubliée ne doit pas suffire). Le ticket de session porte une claim `auth_time` (secondes Unix) posée quand Google connecte la personne ; le renouvellement glissant ne la change jamais. `DELETE /api/me` est refusé en `403` avec le `code` de problème `reauth-required` quand `auth_time` manque (session créée avant cette claim) ou dépasse `Auth:RecentSignInWindow` (`00:10:00` par défaut, un jour au plus ; variable d'environnement `Auth__RecentSignInWindow`).
+
+Le front envoie alors la personne vers `GET /api/auth/login?reauth=true` : contrairement à une connexion simple (qui revient directement à l'application quand une session existe), cela repart chez Google avec `prompt=select_account`, la personne doit donc choisir son compte, et crée une nouvelle session avec un `auth_time` neuf. L'ancienne session est supprimée avec le compte. Google n'offre pas de paramètre universel « redemander le mot de passe » : cela confirme que quelqu'un est devant le navigateur et sait terminer une connexion Google, ce qu'un cookie volé ne permet pas. La confirmation saisie dans la boîte de dialogue protège d'un clic malheureux.
+
+Événements d'audit : `AuthAccountDeleted` (id 13), `AuthDataExported` (id 14), `AuthDataExportFailed` (id 15, `Warning`), `AuthReauthRequired` (id 16), avec l'identifiant utilisateur seulement. Voir [Confidentialité](privacy.fr.md).

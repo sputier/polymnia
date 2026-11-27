@@ -113,6 +113,11 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         {
             // Required outside Development: a real host list, never "*".
             builder.UseSetting("AllowedHosts", "polymnia.example;localhost");
+
+            // Required outside Development: who runs the instance (privacy page, docs/privacy.md).
+            builder.UseSetting("Legal:OperatorName", "Example Operator");
+            builder.UseSetting("Legal:Contact", "privacy@polymnia.example");
+            builder.UseSetting("Legal:HostingProvider", "Example Hosting");
         }
 
         if (_configureAuth)

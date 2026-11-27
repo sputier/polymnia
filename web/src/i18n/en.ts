@@ -1,3 +1,4 @@
+import { accountEn } from './account';
 import { libraryEn } from './library';
 import { partsEn } from './parts.en';
 import { tabEn } from './tab.en';
@@ -271,6 +272,7 @@ export const en = {
   'io.error.empty': 'The file contains no music.',
   'io.error.invalid-score': 'The score cannot be represented in Polymnia.',
   'io.error.read': 'The file could not be read.',
+  ...accountEn,
   ...libraryEn,
   ...tabEn,
   ...partsEn,

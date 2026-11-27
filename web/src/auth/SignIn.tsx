@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { clearAccountDeleted, peekAccountDeleted } from '../api/account';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useI18n } from '../i18n/i18n';
@@ -39,6 +40,12 @@ export function SignIn() {
   const { t } = useI18n();
   const button = useRef<HTMLAnchorElement>(null);
   const failed = new URLSearchParams(window.location.search).get('signin') === 'failed';
+  // The notice that an account deletion just went through: read at mount, cleared once shown.
+  const [deleted] = useState(peekAccountDeleted);
+
+  useEffect(() => {
+    clearAccountDeleted();
+  }, []);
 
   // Keyboard first: Enter signs in as soon as the screen is shown.
   useEffect(() => {
@@ -57,6 +64,11 @@ export function SignIn() {
       <main className="signin-main">
         <h1>{t('auth.headline')}</h1>
         <p className="lead">{t('auth.lead')}</p>
+        {deleted && (
+          <p role="status" className="signin-notice">
+            {t('auth.accountDeleted')}
+          </p>
+        )}
         {failed && (
           <p role="alert" className="signin-error">
             {t('auth.failed')}
@@ -79,6 +91,7 @@ export function SignIn() {
             <kbd>Enter</kbd> {t('auth.hint')}
           </span>
           <span>{t('auth.free')}</span>
+          <a href="#/privacy">{t('auth.privacy')}</a>
         </p>
       </main>
     </div>
