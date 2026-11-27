@@ -22,20 +22,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = 1024 * 1024;
 });
 
-// A share token is in the path of /api/shared/{token}. The framework categories that write request paths are pinned to
-// Warning in code, so an environment override (Logging__LogLevel__...) cannot turn them on by accident.
-foreach (string category in new[]
-{
-    "Microsoft.AspNetCore.Hosting.Diagnostics",
-    "Microsoft.AspNetCore.Routing",
-    "Microsoft.AspNetCore.StaticFiles",
-    "Microsoft.AspNetCore.HttpLogging",
-    "Microsoft.AspNetCore.Server.Kestrel",
-})
-{
-    builder.Logging.AddFilter(category, LogLevel.Warning);
-}
-
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddPolymniaHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPolymniaAuth(builder.Configuration, builder.Environment);

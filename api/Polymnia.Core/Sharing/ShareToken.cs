@@ -32,7 +32,7 @@ public static class ShareToken
     /// True when the text has the exact shape of a token. A malformed value cannot match any link, so it is refused
     /// without touching the database. The shape is public (it is documented), so this reveals nothing.
     /// </summary>
-    public static bool IsWellFormed(string? token)
+    public static bool IsWellFormed([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? token)
     {
         if (token is null || token.Length != TextLength)
         {

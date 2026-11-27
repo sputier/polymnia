@@ -81,6 +81,10 @@ internal static class HostingExtensions
         {
             app.UseForwardedHeaders();
         }
+        else
+        {
+            app.UseMiddleware<ForwardedHeadersAdvisor>();
+        }
 
         app.UseMiddleware<SecurityHeadersMiddleware>();
 

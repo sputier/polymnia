@@ -94,6 +94,6 @@ Read-only links to a score, documented in [sharing.md](sharing.md):
 | `GET /api/scores/{id}/share`    | Owner: status `{ active, createdAt }`. Never the token.                                                                           | `200`                        |
 | `POST /api/scores/{id}/share`   | Owner: create the link (revokes the active one). The only answer that carries the raw token: never compressed, `no-store`.         | `201` `{ token, createdAt }` |
 | `DELETE /api/scores/{id}/share` | Owner: revoke the active link. Idempotent.                                                                                        | `204`                        |
-| `GET /api/shared/{token}`       | Public, no session: the score document. Unknown, revoked or malformed token: the same `404`. `no-store`, `noindex`, `no-referrer`. | `200` document               |
+| `GET /api/shared` + header `X-Share-Token` | Public, no session: the score document. Unknown, revoked or malformed token: the same `404`. `no-store`, `noindex`, `no-referrer`. | `200` document               |
 
 The owner endpoints follow the rules above (session, antiforgery, per-owner `404`, per-user budgets). The public endpoint is limited per client address (IPv4, or IPv6 `/64`): 60 requests per minute (`RateLimiting:Shared:PermitLimit`, `WindowSeconds`) and 32 streaming at once (`MaxConcurrentReads`), `429` with `Retry-After` beyond. `share_links.score_id` is a foreign key to `scores.id` with `ON DELETE CASCADE`.

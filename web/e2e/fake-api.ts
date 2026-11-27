@@ -108,7 +108,7 @@ export class FakeApi {
       }),
     );
     await page.route('**/api/scores**', (route) => this.handle(route));
-    await page.route('**/api/shared/**', (route) => this.handleShared(route));
+    await page.route('**/api/shared', (route) => this.handleShared(route));
   }
 
   /** Share links (docs/sharing.md): at most one active token per score, the token is only returned on creation. */
@@ -153,12 +153,10 @@ export class FakeApi {
 
   private async handleShared(route: Route): Promise<void> {
     const request = route.request();
-    const token = decodeURIComponent(
-      new URL(request.url()).pathname.replace(/^\/api\/shared\//, ''),
-    );
     const headers = request.headers();
+    const token = headers['x-share-token'] ?? '';
     this.sharedRequests.push({
-      path: new URL(request.url()).pathname,
+      path: new URL(request.url()).pathname + new URL(request.url()).search,
       cookie: headers['cookie'] ?? null,
       referer: headers['referer'] ?? null,
     });

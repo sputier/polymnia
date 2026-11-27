@@ -39,7 +39,9 @@ export function shareUrl(token: string): string {
 
 /** The score behind a share link, as JSON text. No cookie, no referrer, never cached. */
 export async function loadSharedScore(token: string, signal?: AbortSignal): Promise<string> {
-  const response = await fetch(`/api/shared/${encodeURIComponent(token)}`, {
+  // The token goes in a header, never in the URL: no access log, logging scope or Referer can then carry it.
+  const response = await fetch('/api/shared', {
+    headers: { 'X-Share-Token': token },
     credentials: 'omit',
     cache: 'no-store',
     referrerPolicy: 'no-referrer',

@@ -55,7 +55,8 @@ describe('api helpers', () => {
     vi.stubGlobal('fetch', fetchMock);
     await loadSharedScore(TOKEN);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe(`/api/shared/${TOKEN}`);
+    expect(url).toBe('/api/shared');
+    expect(new Headers(init.headers).get('X-Share-Token')).toBe(TOKEN);
     expect(init).toMatchObject({
       credentials: 'omit',
       cache: 'no-store',
@@ -155,7 +156,7 @@ describe('SharedViewer', () => {
   it('shows the score read-only, signed out, without asking for a session', async () => {
     const fetchMock = vi.fn((url: string) =>
       Promise.resolve(
-        url.startsWith('/api/shared/')
+        url === '/api/shared'
           ? new Response(serialize(newEditorScore(2)))
           : new Response(null, { status: 401 }),
       ),
@@ -171,7 +172,7 @@ describe('SharedViewer', () => {
     // No editing interface, no sign-in gate, nothing but the one request.
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /sign in|export|share/i })).not.toBeInTheDocument();
-    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([`/api/shared/${TOKEN}`]);
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['/api/shared']);
     // Not indexed, no referrer, for as long as the viewer is shown.
     expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute(
       'content',

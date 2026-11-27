@@ -78,6 +78,14 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
 
     private static StringContent Json(string json) => new(json, Encoding.UTF8, "application/json");
 
+    /// <summary>The public request: the token travels in a header, never in the URL.</summary>
+    private static HttpRequestMessage SharedRequest(string token, HttpMethod? method = null, HttpContent? content = null)
+    {
+        HttpRequestMessage request = new(method ?? HttpMethod.Get, "/api/shared") { Content = content };
+        request.Headers.TryAddWithoutValidation("X-Share-Token", token);
+        return request;
+    }
+
     private static async Task<JsonElement> Body(HttpResponseMessage response) =>
         (await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(Ct), cancellationToken: Ct)).RootElement.Clone();
 
@@ -149,8 +157,8 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         Assert.NotEqual(first, second);
 
         using HttpClient viewer = Anonymous();
-        using HttpResponseMessage oldOne = await viewer.GetAsync($"/api/shared/{second}", Ct);
-        using HttpResponseMessage current = await viewer.GetAsync($"/api/shared/{third}", Ct);
+        using HttpResponseMessage oldOne = await viewer.SendAsync(SharedRequest(second), Ct);
+        using HttpResponseMessage current = await viewer.SendAsync(SharedRequest(third), Ct);
         Assert.Equal(HttpStatusCode.NotFound, oldOne.StatusCode);
         Assert.Equal(HttpStatusCode.OK, current.StatusCode);
 
@@ -201,7 +209,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
 
         // The other user changed nothing: the link still works.
         using HttpClient viewer = Anonymous();
-        using HttpResponseMessage shared = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage shared = await viewer.SendAsync(SharedRequest(token), Ct);
         Assert.Equal(HttpStatusCode.OK, shared.StatusCode);
     }
 
@@ -237,7 +245,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         string token = await ShareAsync(owner, id);
 
         using HttpClient viewer = Anonymous();
-        using HttpResponseMessage response = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage response = await viewer.SendAsync(SharedRequest(token), Ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
@@ -267,7 +275,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         Assert.Equal(HttpStatusCode.OK, rename.StatusCode);
 
         using HttpClient viewer = Anonymous();
-        using HttpResponseMessage response = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage response = await viewer.SendAsync(SharedRequest(token), Ct);
         Assert.Equal("Renamed after sharing", (await Body(response)).GetProperty("meta").GetProperty("title").GetString());
     }
 
@@ -285,7 +293,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         string? reference = null;
         foreach (string attempt in attempts)
         {
-            using HttpResponseMessage response = await viewer.GetAsync($"/api/shared/{attempt}", Ct);
+            using HttpResponseMessage response = await viewer.SendAsync(SharedRequest(attempt), Ct);
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
             Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
             Assert.Contains("noindex", response.Headers.GetValues("X-Robots-Tag").Single(), StringComparison.Ordinal);
@@ -313,12 +321,12 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         {
             // Anonymous: the antiforgery check refuses unsafe methods first.
             using HttpResponseMessage anonymous = await viewer.SendAsync(
-                new HttpRequestMessage(method, $"/api/shared/{token}") { Content = Json(Small) }, Ct);
+                SharedRequest(token, method, Json(Small)), Ct);
             Assert.False(anonymous.IsSuccessStatusCode, $"{method} (anonymous) -> {anonymous.StatusCode}");
 
             // Even with a valid session and antiforgery token (the owner's), the route is GET only.
             using HttpResponseMessage withToken = await owner.SendAsync(
-                new HttpRequestMessage(method, $"/api/shared/{token}") { Content = Json(Small) }, Ct);
+                SharedRequest(token, method, Json(Small)), Ct);
             Assert.True(
                 withToken.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed,
                 $"{method} (with token) -> {withToken.StatusCode}");
@@ -337,19 +345,40 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
     }
 
     [Fact]
+    public async Task The_token_is_only_accepted_in_the_header_never_in_the_path_or_the_query()
+    {
+        using HttpClient owner = await SignedInAsync();
+        Guid id = await CreateScoreAsync(owner);
+        string token = await ShareAsync(owner, id);
+        using HttpClient viewer = Anonymous();
+
+        foreach (string url in new[] { $"/api/shared/{token}", $"/api/shared?token={token}", $"/api/shared?X-Share-Token={token}", "/api/shared" })
+        {
+            using HttpResponseMessage response = await viewer.GetAsync(url, Ct);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        // Two values in the header are not a token either.
+        using HttpRequestMessage twice = SharedRequest(token);
+        twice.Headers.TryAddWithoutValidation("X-Share-Token", token);
+        using HttpResponseMessage doubled = await viewer.SendAsync(twice, Ct);
+        Assert.Equal(HttpStatusCode.NotFound, doubled.StatusCode);
+    }
+
+    [Fact]
     public async Task Revoking_makes_the_link_return_404_at_once()
     {
         using HttpClient owner = await SignedInAsync();
         Guid id = await CreateScoreAsync(owner);
         string token = await ShareAsync(owner, id);
         using HttpClient viewer = Anonymous();
-        using HttpResponseMessage ok = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage ok = await viewer.SendAsync(SharedRequest(token), Ct);
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
 
         using HttpResponseMessage revoke = await owner.DeleteAsync($"/api/scores/{id}/share", Ct);
         Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
 
-        using HttpResponseMessage gone = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage gone = await viewer.SendAsync(SharedRequest(token), Ct);
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
         using HttpResponseMessage status = await owner.GetAsync($"/api/scores/{id}/share", Ct);
         Assert.False((await Body(status)).GetProperty("active").GetBoolean());
@@ -370,7 +399,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         for (int i = 0; i < codes.Length; i++)
         {
             last?.Dispose();
-            last = await noisy.GetAsync($"/api/shared/{token}", Ct);
+            last = await noisy.SendAsync(SharedRequest(token), Ct);
             codes[i] = last.StatusCode;
         }
 
@@ -380,7 +409,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
 
         // Another address has its own budget.
         using HttpClient calm = Anonymous(app, "10.2.2.2");
-        using HttpResponseMessage other = await calm.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage other = await calm.SendAsync(SharedRequest(token), Ct);
         Assert.Equal(HttpStatusCode.NotFound, other.StatusCode);
     }
 
@@ -396,10 +425,10 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         using HttpClient a = Anonymous(app, "2001:db8:1:2::1");
         using HttpClient b = Anonymous(app, "2001:db8:1:2:ffff::9");
         using HttpClient elsewhere = Anonymous(app, "2001:db8:1:3::1");
-        using HttpResponseMessage r1 = await a.GetAsync($"/api/shared/{token}", Ct);
-        using HttpResponseMessage r2 = await b.GetAsync($"/api/shared/{token}", Ct);
-        using HttpResponseMessage r3 = await a.GetAsync($"/api/shared/{token}", Ct);
-        using HttpResponseMessage r4 = await elsewhere.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage r1 = await a.SendAsync(SharedRequest(token), Ct);
+        using HttpResponseMessage r2 = await b.SendAsync(SharedRequest(token), Ct);
+        using HttpResponseMessage r3 = await a.SendAsync(SharedRequest(token), Ct);
+        using HttpResponseMessage r4 = await elsewhere.SendAsync(SharedRequest(token), Ct);
 
         Assert.Equal(HttpStatusCode.TooManyRequests, r3.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, r4.StatusCode);
@@ -422,7 +451,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
         Assert.Equal(0, await db.ShareLinks.CountAsync(l => l.ScoreId == id, Ct));
         using HttpClient viewer = Anonymous();
-        using HttpResponseMessage gone = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage gone = await viewer.SendAsync(SharedRequest(token), Ct);
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
 
@@ -454,11 +483,11 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         string token = await ShareAsync(owner, id);
 
         using HttpClient viewer = Anonymous(app);
-        using HttpResponseMessage ok = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage ok = await viewer.SendAsync(SharedRequest(token), Ct);
         string wrong = ShareToken.Generate();
-        using HttpResponseMessage missing = await viewer.GetAsync($"/api/shared/{wrong}", Ct);
+        using HttpResponseMessage missing = await viewer.SendAsync(SharedRequest(wrong), Ct);
         using HttpResponseMessage revoke = await owner.DeleteAsync($"/api/scores/{id}/share", Ct);
-        using HttpResponseMessage gone = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage gone = await viewer.SendAsync(SharedRequest(token), Ct);
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
 
         string hashBase64 = Convert.ToBase64String(ShareToken.Hash(token));
@@ -469,6 +498,7 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
             {
 
                 Assert.DoesNotContain(secret, entry.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain(secret, entry.Scopes, StringComparison.Ordinal);
             }
         }
 
@@ -485,9 +515,9 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         Guid id = await CreateScoreAsync(owner);
         string token = await ShareAsync(owner, id);
         using HttpClient viewer = Anonymous(app);
-        using HttpResponseMessage ok = await viewer.GetAsync($"/api/shared/{token}", Ct);
+        using HttpResponseMessage ok = await viewer.SendAsync(SharedRequest(token), Ct);
 
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
-        Assert.DoesNotContain(app.Logs.Entries, e => e.Message.Contains(token, StringComparison.Ordinal));
+        Assert.DoesNotContain(app.Logs.Entries, e => e.Message.Contains(token, StringComparison.Ordinal) || e.Scopes.Contains(token, StringComparison.Ordinal));
     }
 }

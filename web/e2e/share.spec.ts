@@ -77,7 +77,8 @@ test.describe('share links', () => {
     // The one public request carries no cookie and no referrer.
     expect(fake.sharedRequests).toHaveLength(1);
     expect(fake.sharedRequests[0]).toMatchObject({ cookie: null, referer: null });
-    expect(fake.sharedRequests[0]!.path).toBe(`/api/shared/${url.split('/s/')[1]}`);
+    // The token travels in a header: the URL of the request has none.
+    expect(fake.sharedRequests[0]!.path).toBe('/api/shared');
 
     // Playback works (the audio engine is mocked).
     await visitor.getByRole('button', { name: 'Play', exact: true }).click();

@@ -13,13 +13,16 @@ namespace Polymnia.Api.Sharing;
 /// <list type="bullet">
 /// <item><c>/api/scores/{id}/share</c>: the owner's management endpoints (session, antiforgery, per-user budgets).
 /// A score owned by someone else answers 404, like a missing one.</item>
-/// <item><c>GET /api/shared/{token}</c>: the public endpoint. No session: the token is the only credential. Read-only
+/// <item><c>GET /api/shared</c> with the token in the <c>X-Share-Token</c> header (never in the URL, so no access log, log
+/// scope or Referer can carry it): the public endpoint. No session: the token is the only credential. Read-only
 /// by construction (GET only, and it reads nothing but the one score behind the token).</item>
 /// </list>
 /// </summary>
 internal static class ShareEndpoints
 {
     public const string SharedPath = "/api/shared";
+
+    public const string TokenHeader = "X-Share-Token";
 
     public static IEndpointRouteBuilder MapShareEndpoints(this IEndpointRouteBuilder app)
     {
@@ -50,7 +53,7 @@ internal static class ShareEndpoints
 
         // The token is not echoed in any response body, so compression stays on (a large score compresses well, and
         // BREACH needs a secret next to attacker-chosen text in the same body).
-        app.MapGet(SharedPath + "/{token}", GetShared)
+        app.MapGet(SharedPath, GetShared)
             .WithName("GetSharedScore")
             .Produces(StatusCodes.Status200OK, contentType: MediaTypeNames.Application.Json)
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -114,7 +117,8 @@ internal static class ShareEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> GetShared(HttpContext context, string token, ScoreStore store, CancellationToken ct)
+    private static async Task<IResult> GetShared(
+        HttpContext context, [Microsoft.AspNetCore.Mvc.FromHeader(Name = TokenHeader)] string? token, ScoreStore store, CancellationToken ct)
     {
         // Set before anything can fail, so the 404 carries the same headers as the 200. The headers are repeated by
         // SecurityHeadersMiddleware for Referrer-Policy (it owns that header and sets "no-referrer" on this path).
