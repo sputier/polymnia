@@ -113,7 +113,7 @@ Forwarded headers are **off** by default. When a proxy terminates TLS, enable th
 
 ### Performance
 
-Responses are compressed with Brotli or gzip (fastest level). Compression is also enabled over HTTPS: responses must never reflect attacker-controlled input next to a secret (BREACH). Handlers use asynchronous I/O only; read queries use `AsNoTracking()`.
+Responses are compressed with Brotli or gzip (fastest level). Compression is also enabled over HTTPS, under a BREACH mitigation rule: **a response that contains a secret or a token (antiforgery token, share token, anything user-secret) must never be compressed.** Mark such an endpoint with `.DisableResponseCompression()` (minimal API) or `[DisableResponseCompression]` (controller or action); the compression provider then skips it (covered by `CompressionPolicyTests`). Antiforgery uses the cookie + header pattern, never tokens in response bodies. Handlers use asynchronous I/O only; read queries use `AsNoTracking()`.
 
 ### Checks
 

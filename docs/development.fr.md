@@ -113,7 +113,7 @@ Les en-têtes transférés sont **désactivés** par défaut. Quand un proxy ter
 
 ### Performance
 
-Les réponses sont compressées en Brotli ou gzip (niveau le plus rapide). La compression reste active en HTTPS : une réponse ne doit jamais refléter une entrée contrôlée par un attaquant à côté d'un secret (BREACH). Les handlers n'utilisent que des E/S asynchrones ; les requêtes en lecture utilisent `AsNoTracking()`.
+Les réponses sont compressées en Brotli ou gzip (niveau le plus rapide). La compression reste active en HTTPS, avec une règle de mitigation BREACH : **une réponse qui contient un secret ou un jeton (jeton antiforgery, jeton de partage, tout secret utilisateur) ne doit jamais être compressée.** Marquer un tel endpoint avec `.DisableResponseCompression()` (minimal API) ou `[DisableResponseCompression]` (contrôleur ou action) ; le fournisseur de compression l'ignore alors (couvert par `CompressionPolicyTests`). L'antiforgery utilise le motif cookie + en-tête, jamais de jeton dans un corps de réponse. Les handlers n'utilisent que des E/S asynchrones ; les requêtes en lecture utilisent `AsNoTracking()`.
 
 ### Vérifications
 

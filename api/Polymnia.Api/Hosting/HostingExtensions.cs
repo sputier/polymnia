@@ -39,8 +39,9 @@ internal static class HostingExtensions
             });
         }
 
-        // Compression over HTTPS is enabled on purpose (BREACH): responses must never reflect
-        // attacker-controlled input next to a secret. Authentication uses cookies, not body tokens.
+        // BREACH mitigation rule: a response that contains a secret or a token must never be compressed.
+        // Such endpoints carry [DisableResponseCompression] / .DisableResponseCompression(), enforced by
+        // EndpointAwareCompressionProvider. Antiforgery uses the cookie + header pattern, never tokens in bodies.
         services.AddResponseCompression(options =>
         {
             options.EnableForHttps = true;
@@ -48,6 +49,7 @@ internal static class HostingExtensions
             options.Providers.Add<GzipCompressionProvider>();
             options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(CompressedMimeTypes);
         });
+        services.AddSingleton<IResponseCompressionProvider, EndpointAwareCompressionProvider>();
         services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
         services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
