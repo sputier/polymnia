@@ -26,6 +26,8 @@ interface TopBarProps {
   onExport: (format: ExportFormat) => void;
   onImportFile: (file: File) => void;
   onBeforeLeave?: () => boolean;
+  /** Opens the share dialog. Absent in the scratch editor (nothing stored, nothing to share). */
+  onShare?: () => void;
 }
 
 export function TopBar(props: TopBarProps) {
@@ -91,9 +93,14 @@ export function TopBar(props: TopBarProps) {
       <button
         type="button"
         className="btn"
-        aria-disabled="true"
         aria-label={t('editor.share')}
-        title={`${t('editor.share')} · ${t('editor.soon')}`}
+        aria-haspopup="dialog"
+        title={
+          props.onShare
+            ? `${t('editor.share')} (${formatKeys('Mod+Shift+L').join('+')})`
+            : `${t('editor.share')} · ${t('editor.soon')}`
+        }
+        {...(props.onShare ? { onClick: props.onShare } : { 'aria-disabled': true })}
       >
         <Icon name="share" />
         <span className="lbl">{t('editor.share')}</span>

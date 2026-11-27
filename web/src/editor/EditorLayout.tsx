@@ -21,6 +21,7 @@ import { entryShortcuts } from './entry/entryShortcuts';
 import { structureShortcuts } from './entry/structureShortcuts';
 import { sequenceOf } from './entry/plan';
 import { useMusicXmlIO } from './musicXmlIO';
+import { ShareDialog } from '../sharing/ShareDialog';
 import { Palette } from './Palette';
 import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
@@ -56,6 +57,8 @@ interface EditorLayoutProps {
   onSaveNow?: () => void;
   /** Called before leaving for the library; return false to stay (unsaved work the user keeps). */
   onBeforeLeave?: () => boolean;
+  /** The id of the stored score: sharing needs one (the scratch editor cannot be shared). */
+  scoreId?: string;
 }
 
 /** Preview and test parameters of the hash: `#/editor?new=<measures>` and `?fixture=<name>`. */
@@ -82,6 +85,7 @@ export function EditorLayout({
   onTitleChange,
   onSaveNow,
   onBeforeLeave,
+  scoreId,
 }: EditorLayoutProps) {
   const { t, language } = useI18n();
   const [store] = useState(() => {
@@ -180,6 +184,9 @@ export function EditorLayout({
   const [focus, setFocus] = useState(false);
   // "Add an instrument" (palette): opens the instruments panel on the picker.
   const [addRequest, setAddRequest] = useState(0);
+  // Share dialog (a stored score only).
+  const [sharing, setSharing] = useState(false);
+  const openShare = scoreId ? () => setSharing(true) : undefined;
 
   const shortcutList: Shortcut[] = [
     {
@@ -232,6 +239,14 @@ export function EditorLayout({
       labelKey: 'command.exportPng',
       group: 'file',
       handler: () => io.exportAs('png'),
+    },
+    {
+      id: 'file.share',
+      keys: 'Mod+Shift+L',
+      labelKey: 'shortcut.share',
+      group: 'file',
+      enabled: () => scoreId !== undefined,
+      handler: () => (openShare ? openShare() : false),
     },
     {
       id: 'app.cheatSheet',
@@ -406,6 +421,7 @@ export function EditorLayout({
         onToggleRight={toggleRight}
         onExport={io.exportAs}
         onImportFile={io.importFile}
+        {...(openShare ? { onShare: openShare } : {})}
       />
       <div className="body">
         <SidePanel
@@ -487,6 +503,14 @@ export function EditorLayout({
         <Suspense fallback={null}>
           <CommandDialogs dialog={dialog} onClose={() => setDialog(null)} onOpen={setDialog} />
         </Suspense>
+      )}
+      {sharing && scoreId && (
+        <ShareDialog
+          scoreId={scoreId}
+          title={title || t('editor.untitled')}
+          onClose={() => setSharing(false)}
+          onExport={io.exportAs}
+        />
       )}
       {io.overlay}
     </div>

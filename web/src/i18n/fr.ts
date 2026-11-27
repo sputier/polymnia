@@ -1,6 +1,7 @@
 import type { Messages } from './en';
 import { libraryFr } from './library';
 import { partsFr } from './parts.fr';
+import { sharingFr } from './sharing';
 
 export const fr: Messages = {
   'app.name': 'Polymnia',
@@ -273,4 +274,5 @@ export const fr: Messages = {
   'io.error.read': 'Le fichier n’a pas pu être lu.',
   ...libraryFr,
   ...partsFr,
+  ...sharingFr,
 };
