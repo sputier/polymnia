@@ -442,7 +442,8 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
             i = end;
         }
 
-        // pg_column_size of a fresh jsonb is its binary size, known without serializing it.
+        // The result must stay within what a full save accepts: PostgreSQL prints jsonb with a space after each colon and comma,
+        // so a document whose printed form fits the limit is also under it as compact JSON.
         return $"""
             WITH {string.Join(",\n     ", stages)}
             UPDATE scores s
@@ -452,7 +453,7 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
                 updated_at = $4
             FROM s{stages.Count - 1} p
             WHERE s.owner_id = $1 AND s.id = $2 AND s.version = $3
-              AND pg_column_size(p.c) <= {ScoreLimits.MaxStoredContentBytes}
+              AND octet_length(p.c::text) <= {ScoreLimits.MaxContentBytes}
             RETURNING s.title, s.schema_version
             """;
     }

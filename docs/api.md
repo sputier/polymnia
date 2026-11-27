@@ -79,7 +79,7 @@ The update is one SQL statement conditioned on the version, like `PUT`: the docu
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Score body                                         | 4 MiB                                                                                                              |
 | Incremental update body (after decompression)      | 1 MiB, at most 64 operations expanding to at most 64 document edits (an inserted measure is one per staff)       |
-| Stored document after a patch                      | 12 MiB of binary `jsonb` (about 3 times what a full save accepts; the binary form of a score is about 1.6 times its JSON) |
+| Document after a patch                             | Same 4 MiB as a full save, measured on the JSON text PostgreSQL prints for the document (which is larger than compact JSON, so a patched document always also fits a full save): `413` above. Cost: a patch takes 1 + edits / 8 permits (at most 9) of the write budget |
 | Writes (create, update, rename, duplicate, delete) | 120 per minute and per user (`RateLimiting:ScoreWrites:PermitLimit`, `WindowSeconds`)                              |
 | Scores per user                                    | 200 (`Scores:MaxScoresPerUser`), `409` beyond for create and duplicate (`type` `urn:polymnia:problem:score-limit`) |
 | Page size                                          | 100                                                                                                                |

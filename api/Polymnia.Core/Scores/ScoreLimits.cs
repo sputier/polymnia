@@ -10,14 +10,6 @@ public static class ScoreLimits
     /// </summary>
     public const int MaxContentBytes = 4 * 1024 * 1024;
 
-    /// <summary>
-    /// Maximum size of a stored document that patches may produce, in bytes of its <c>jsonb</c> binary form (known without
-    /// serializing it). A document accepted by a full save is at most <see cref="MaxContentBytes"/> of compact JSON, and the
-    /// binary form of a score is about 1.6 times that (many small objects), so three times the limit of a full save lets a
-    /// patch edit any document a full save accepted, and bounds the growth by patches.
-    /// </summary>
-    public const int MaxStoredContentBytes = 3 * MaxContentBytes;
-
     /// <summary>Maximum title length, in Unicode code points (same as <c>meta.title</c> in the schema).</summary>
     public const int MaxTitleLength = 200;
 

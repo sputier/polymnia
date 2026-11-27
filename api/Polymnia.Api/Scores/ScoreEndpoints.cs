@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.Mime;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Polymnia.Core.Scores;
 using Polymnia.Infrastructure.Scores;
@@ -272,9 +273,30 @@ internal static class ScoreEndpoints
             return Problem(StatusCodes.Status400BadRequest, "Invalid patch", parsed.Error);
         }
 
+        // A patch costs the database one rewrite of the document per edit: charge the write budget for it, on top of
+        // the permit the filter already took (1 + edits / 8, at most 9 in all).
+        int extra = Math.Min(EstimateEdits(parsed.Patch!), ScoreLimits.MaxPatchEdits) / 8;
+        if (extra > 0)
+        {
+            ScoreRateLimiters limiters = context.RequestServices.GetRequiredService<ScoreRateLimiters>();
+            using RateLimitLease lease = await limiters.Writes.AcquireAsync(owner, extra, ct);
+            if (!lease.IsAcquired)
+            {
+                int retryAfter = lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan delay)
+                    ? Math.Max(1, (int)Math.Ceiling(delay.TotalSeconds))
+                    : 60;
+                context.Response.Headers.RetryAfter = retryAfter.ToString(CultureInfo.InvariantCulture);
+                return Problem(StatusCodes.Status429TooManyRequests, "Too many requests", "Slow down and retry after the delay in Retry-After.");
+            }
+        }
+
         ScoreResult<ScoreSaved> result = await store.PatchContentAsync(owner, id, expected, parsed.Patch!, ct);
         return Saved(context, result);
     }
+
+    // The number of document edits the operations need at least (an inserted measure is one per staff).
+    private static int EstimateEdits(ScorePatch patch) =>
+        patch.Ops.Sum(op => op is InsertMeasureOp insert ? 1 + insert.StaffMeasures.Count : 1);
 
     private static async Task<(ScoreDocument?, IResult?)> ReadDocumentAsync(
         HttpContext context, IScoreContentValidator validator, CancellationToken ct)
@@ -373,7 +395,7 @@ internal static class ScoreEndpoints
                 return Problem(
                     StatusCodes.Status413PayloadTooLarge,
                     "Score too large",
-                    string.Create(CultureInfo.InvariantCulture, $"The patched score would be larger than {ScoreLimits.MaxStoredContentBytes} bytes."));
+                    string.Create(CultureInfo.InvariantCulture, $"The patched score would be larger than {ScoreLimits.MaxContentBytes} bytes."));
             default:
                 return NotFound();
         }

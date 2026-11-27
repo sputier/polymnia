@@ -438,9 +438,9 @@ public sealed class ScorePatchTests(ScoreApiFixture fixture) : IClassFixture<Sco
     {
         using HttpClient client = await SignedInAsync();
         JsonNode doc = Parse(Big);
-        // 2000 measures of the 500 measure fixture: about 3.7 MB, under the 4 MiB limit of a full save.
+        // 1500 measures of the 500 measure fixture: about 2.9 MB compact, 3.3 MB as jsonb text, under the 4 MiB limit.
         JsonArray measures = doc["measures"]!.AsArray();
-        for (int i = 501; i <= 2000; i++)
+        for (int i = 501; i <= 1500; i++)
         {
             measures.Add(Parse($$"""{"id":"m{{i}}"}"""));
         }
@@ -450,7 +450,7 @@ public sealed class ScorePatchTests(ScoreApiFixture fixture) : IClassFixture<Sco
             foreach (JsonNode? staff in part!["staves"]!.AsArray())
             {
                 JsonArray list = staff!["measures"]!.AsArray();
-                for (int i = 500; i < 2000; i++)
+                for (int i = 500; i < 1500; i++)
                 {
                     list.Add(list[i % 500]!.DeepClone());
                 }
@@ -458,7 +458,7 @@ public sealed class ScorePatchTests(ScoreApiFixture fixture) : IClassFixture<Sco
         }
 
         string full = doc.ToJsonString();
-        Assert.InRange(full.Length, 3_000_000, ScoreLimits.MaxContentBytes);
+        Assert.InRange(full.Length, 2_500_000, ScoreLimits.MaxContentBytes);
         (Guid id, string etag) = await CreateAsync(client, full);
 
         // Four big measures (about 130 KB each) per patch, on measures not yet replaced: the document grows by about
@@ -486,12 +486,67 @@ public sealed class ScorePatchTests(ScoreApiFixture fixture) : IClassFixture<Sco
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, last);
         Assert.InRange(accepted, 1, 11);
         using HttpResponseMessage stored = await client.GetAsync($"/api/scores/{id}", Ct);
-        Assert.InRange((await stored.Content.ReadAsByteArrayAsync(Ct)).Length, 1, ScoreLimits.MaxStoredContentBytes);
+        Assert.InRange((await stored.Content.ReadAsByteArrayAsync(Ct)).Length, 1, ScoreLimits.MaxContentBytes);
         Assert.Equal(etag, stored.Headers.ETag!.Tag);
+        // The refusal was for size only: the document is within one batch of the limit, and small edits still work.
+Assert.True((await stored.Content.ReadAsByteArrayAsync(Ct)).Length > ScoreLimits.MaxContentBytes - 800_000);        using HttpResponseMessage tiny = await PatchAsync(client, id, etag, Parse("""{"op":"setMeasureInfo","measureId":"m1400","value":{"id":"m1400","keyFifths":1}}"""));       
+        Assert.Equal(HttpStatusCode.OK, tiny.StatusCode);
+    }
 
-        // And the measure limit of the schema holds: this score has 2000 measures.
+
+    [Fact]
+    public async Task The_schema_limit_of_2000_measures_holds()
+    {
+        using HttpClient client = await SignedInAsync();
+        JsonNode doc = Parse(Small);
+        JsonArray measures = doc["measures"]!.AsArray();
+        for (int i = 5; i <= 2000; i++)
+        {
+            measures.Add(Parse($$"""{"id":"m{{i}}"}"""));
+        }
+
+        foreach (JsonNode? staff in doc["parts"]!.AsArray().SelectMany(p => p!["staves"]!.AsArray()))
+        {
+            JsonArray list = staff!["measures"]!.AsArray();
+            for (int i = 4; i < 2000; i++)
+            {
+                list.Add(list[0]!.DeepClone());
+            }
+        }
+
+        (Guid id, string etag) = await CreateAsync(client, doc.ToJsonString());
+
         using HttpResponseMessage one = await PatchAsync(client, id, etag, new Gen(9).InsertMeasure(doc, 0));
+
         Assert.Equal(HttpStatusCode.BadRequest, one.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_patch_is_charged_to_the_write_budget_by_the_edits_it_needs()
+    {
+        fixture.Postgres.SkipIfUnavailable();
+        using var app = new TestApp(
+            connectionString: fixture.Postgres.ConnectionString,
+            settings: new() { ["RateLimiting:ScoreWrites:PermitLimit"] = "24" });
+        using HttpClient client = await ScoreTestClients.SignInAsync(app);
+        (Guid id, string etag) = await CreateAsync(client);
+        JsonNode cheap = Parse("""{"op":"setSlurs","slurs":[]}""");
+        JsonNode[] heavy = [.. Enumerable.Range(0, 64).Select(_ => cheap.DeepClone())];
+
+        // 1 (create) + 9 (a 64 edit patch) + 9 = 19 of 24 permits: the third heavy patch needs 9 more and is refused.
+        using HttpResponseMessage first = await PatchAsync(client, id, etag, heavy);
+        string v2 = first.Headers.ETag!.Tag;
+        using HttpResponseMessage second = await PatchAsync(client, id, v2, [.. heavy.Select(h => h.DeepClone())]);
+        string v3 = second.Headers.ETag!.Tag;
+        using HttpResponseMessage third = await PatchAsync(client, id, v3, [.. heavy.Select(h => h.DeepClone())]);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, third.StatusCode);
+        Assert.True(third.Headers.Contains("Retry-After"));
+        // A one-operation patch still costs a single permit.
+        using HttpResponseMessage small = await PatchAsync(client, id, v3, cheap.DeepClone());
+        Assert.Equal(HttpStatusCode.OK, small.StatusCode);
     }
 
     private static JsonObject BigStaffMeasure()
