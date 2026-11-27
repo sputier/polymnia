@@ -58,6 +58,8 @@ only), API to Google (validated ID token only) and API to SMTP (TLS mandatory).
 | 6  | Low      | Supply chain          | NuGet audit relied on the SDK defaults (not written down, so not protected from a change).                                                                                                                                                | Fixed  | `SecurityReviewRepositoryTests.Vulnerable_packages_fail_the_build` |
 | 7  | Low      | Release pipeline      | A tag on `main` built and published the image without checking that CI had passed on that commit.                                                                                                                                         | Fixed  | `SecurityReviewRepositoryTests.The_release_refuses_a_commit_whose_ci_has_not_passed` |
 | 8  | Low      | Container             | The PostgreSQL service in `docker-compose.yml` kept every Linux capability and could gain privileges.                                                                                                                                     | Fixed  | `SecurityReviewRepositoryTests.Container_base_images_are_pinned_by_digest_and_the_runtime_is_not_root` |
+| 9  | Medium   | Storage abuse         | Each account could store 200 scores of 4 MiB and accounts were unbounded: a script with many Google accounts could fill the disk. Fixed: per-user storage quota (100 MiB, `413` `quota-exceeded`, shown in the UI), new-account limits (100 per day on the instance, 10 per day per address; over the limit a new person is sent to a "registrations temporarily closed" notice, existing users are unaffected), and an operator warning log when the database exceeds a threshold (5 GiB by default, start-up and hourly). | Fixed  | `AbuseLimitsTests`, `web/src/library/quota.test.ts` |
+| 10 | Low      | Configuration         | The database password could be the `.env.example` placeholder or a short one. Fixed: outside Development the application (and so the `migrate` service) refuses to start with the placeholder or a password under 16 characters. | Fixed  | `ConnectionStringGuardTests` |
 
 Checked and found sound (a test pins each of them, new ones in `SecurityReview*Tests`):
 
@@ -83,6 +85,6 @@ and add a reporting endpoint. It is a hardening option, not an open vulnerabilit
 
 ## Operator reminders
 
-These are deployment duties, documented in [self-hosting](self-hosting.md) and not code defects: enable forwarded
-headers behind a reverse proxy (otherwise all clients share one rate-limit key, and the app logs a warning), keep the
-key certificate and its password out of the repository, and change the database password of `.env.example`.
+Documented in [self-hosting](self-hosting.md): enable forwarded headers behind a reverse proxy (otherwise all clients
+share one rate-limit key; the application detects the missing setting and logs a warning once) and keep the key
+certificate and its password out of the repository. Watch the logs for `DatabaseSizeExceeded`.

@@ -18,6 +18,9 @@ internal sealed class AuthOptions
     /// <summary>Per-IP limit on <c>/api/auth/*</c>.</summary>
     public RateLimitOptions RateLimit { get; set; } = new();
 
+    /// <summary>Limits on the creation of new accounts (existing users are never affected).</summary>
+    public RegistrationOptions Registration { get; set; } = new();
+
     /// <summary>Sliding expiration: a session unused for this long ends.</summary>
     public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromDays(7);
 
@@ -45,6 +48,18 @@ internal sealed class RateLimitOptions
     public int PermitLimit { get; set; } = 60;
 
     public TimeSpan Window { get; set; } = TimeSpan.FromMinutes(1);
+}
+
+/// <summary>
+/// Registration brakes: new accounts per rolling day on the whole instance (counted in the database, so shared by
+/// all instances) and per client address (IPv4, or IPv6 /64; in memory, per instance). Over a limit, the sign-in of a
+/// NEW person ends on a "registrations closed" notice. Set a value high to practically disable it.
+/// </summary>
+internal sealed class RegistrationOptions
+{
+    public int MaxNewAccountsPerDay { get; set; } = 100;
+
+    public int MaxNewAccountsPerAddressPerDay { get; set; } = 10;
 }
 
 internal sealed class GoogleAuthOptions
@@ -95,6 +110,11 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IConfig
         if (options.RateLimit.PermitLimit < 1 || options.RateLimit.Window <= TimeSpan.Zero)
         {
             failures.Add("Auth:RateLimit:PermitLimit and Auth:RateLimit:Window must be positive.");
+        }
+
+        if (options.Registration.MaxNewAccountsPerDay < 1 || options.Registration.MaxNewAccountsPerAddressPerDay < 1)
+        {
+            failures.Add("Auth:Registration:MaxNewAccountsPerDay and Auth:Registration:MaxNewAccountsPerAddressPerDay must be positive.");
         }
 
         if (options.IdleTimeout <= TimeSpan.Zero || options.AbsoluteTimeout <= TimeSpan.Zero)

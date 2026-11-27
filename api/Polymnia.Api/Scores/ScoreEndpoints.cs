@@ -17,6 +17,7 @@ internal static class ScoreEndpoints
     private static readonly HashSet<string> AllowedEncodings = new(StringComparer.OrdinalIgnoreCase) { "gzip", "br", "deflate", "identity" };
     private const string ProblemJson = "application/problem+json";
     private const string QuotaProblemType = "urn:polymnia:problem:score-limit";
+    private const string StorageQuotaProblemType = "urn:polymnia:problem:quota-exceeded";
     private const string ConflictProblemType = "urn:polymnia:problem:version-conflict";
 
     public static IEndpointRouteBuilder MapScoreEndpoints(this IEndpointRouteBuilder app)
@@ -370,6 +371,8 @@ internal static class ScoreEndpoints
                 return Results.Created($"/api/scores/{summary.Id}", summary);
             case ScoreOutcome.QuotaExceeded:
                 return Problem(StatusCodes.Status409Conflict, "Score limit reached", "Delete a score before creating another one.", QuotaProblemType);
+            case ScoreOutcome.StorageQuotaExceeded:
+                return StorageFull();
             case ScoreOutcome.InvalidContent:
                 return Problem(StatusCodes.Status400BadRequest, "Invalid score", "The score contains characters that cannot be stored.");
             default:
@@ -391,6 +394,8 @@ internal static class ScoreEndpoints
                     "Version conflict",
                     "The score changed since your copy. Reload it (GET) and retry with the new ETag.",
                     ConflictProblemType);
+            case ScoreOutcome.StorageQuotaExceeded:
+                return StorageFull();
             case ScoreOutcome.InvalidContent:
                 return Problem(StatusCodes.Status400BadRequest, "Invalid score", "The score contains characters that cannot be stored.");
             case ScoreOutcome.InvalidPatch:
@@ -404,6 +409,12 @@ internal static class ScoreEndpoints
                 return NotFound();
         }
     }
+
+    private static IResult StorageFull() => Problem(
+        StatusCodes.Status413PayloadTooLarge,
+        "Storage quota exceeded",
+        "Your stored scores would exceed your storage quota. Delete a score before saving more.",
+        StorageQuotaProblemType);
 
     // The same answer whether the score is missing or owned by someone else.
     private static IResult NotFound() => Problem(StatusCodes.Status404NotFound, "Not Found", null);

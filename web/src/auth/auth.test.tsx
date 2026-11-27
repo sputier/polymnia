@@ -104,6 +104,18 @@ describe('session gate', () => {
     window.history.replaceState(null, '', '/');
   });
 
+  it('says so when registrations are temporarily closed', async () => {
+    window.history.replaceState(null, '', '/?signin=closed');
+    route({ '/api/me': () => new Response(null, { status: 401 }) });
+
+    mount();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'registrations are temporarily closed',
+    );
+    window.history.replaceState(null, '', '/');
+  });
+
   it('keeps the page the visitor asked for as a local return URL', async () => {
     window.history.replaceState(null, '', '/scores?id=1');
     route({ '/api/me': () => new Response(null, { status: 401 }) });

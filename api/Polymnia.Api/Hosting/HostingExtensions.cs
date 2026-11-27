@@ -29,6 +29,13 @@ internal static class HostingExtensions
 
         services.AddProblemDetails();
 
+        services.AddOptions<MonitoringOptions>()
+            .Bind(configuration.GetSection(MonitoringOptions.SectionName))
+            .Validate(static o => o.DatabaseSizeWarningBytes >= 0, "Monitoring:DatabaseSizeWarningBytes must not be negative.")
+            .ValidateOnStart();
+        services.AddSingleton<DatabaseSizeMonitor>();
+        services.AddHostedService(static sp => sp.GetRequiredService<DatabaseSizeMonitor>());
+
         if (!environment.IsDevelopment())
         {
             services.AddHsts(options =>

@@ -45,7 +45,26 @@ internal static class SessionEvents
             }
         }
 
-        UserProvisioner provisioner =context.HttpContext.RequestServices.GetRequiredService<UserProvisioner>();
+        UserProvisioner provisioner = context.HttpContext.RequestServices.GetRequiredService<UserProvisioner>();
+
+        // Registration brakes: only a person with no account yet is subject to them (existing users are unaffected).
+        if (!await provisioner.ExistsAsync(subject, context.HttpContext.RequestAborted))
+        {
+            RegistrationGate gate = context.HttpContext.RequestServices.GetRequiredService<RegistrationGate>();
+            string? refused = await gate.CheckAsync(
+                context.HttpContext.RequestServices.GetRequiredService<PolymniaDbContext>(),
+                AuthExtensions.ClientKey(context.HttpContext.Connection.RemoteIpAddress) ?? "unknown",
+                context.HttpContext.RequestAborted);
+            if (refused is not null)
+            {
+                AuthLog.RegistrationClosed(
+                    context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category), refused);
+                context.Response.Redirect("/?signin=closed");
+                context.HandleResponse();
+                return;
+            }
+        }
+
         Guid userId = await provisioner.SignInAsync(
             subject,
             google.FindFirstValue("name"),

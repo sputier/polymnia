@@ -206,6 +206,16 @@ describe('SaveQueue failures', () => {
     expect(statuses(queue)).toBe('saved');
   });
 
+  it('reports a full storage space apart from a score that is too large', async () => {
+    const { queue, backend, edit } = setup();
+    backend.saveContent.mockRejectedValueOnce(
+      new ApiError(413, { problemType: 'urn:polymnia:problem:quota-exceeded' }),
+    );
+    edit('more');
+    await queue.flush();
+    expect(queue.getSnapshot()).toEqual({ status: 'error', problem: 'storage-full' });
+  });
+
   it('reports a body that is too large and retries only after the next edit', async () => {
     const { queue, backend, edit } = setup();
     backend.saveContent.mockRejectedValueOnce(new ApiError(413));

@@ -47,6 +47,10 @@ All from the account menu (the name in the toolbar):
 
 Anything else (restriction, objection, questions) reaches you through `Legal:Contact`. You have one month to answer. With `Legal:Contact=/#/contact` that is the [contact form](contact.md): topic "Personal data", forwarded to your mailbox by SMTP (`Contact:*`, an address nobody ever sees) and kept `Contact:RetentionDays` days. The privacy page lists these messages, their retention and what is not stored with them.
 
+## Storage and registration limits
+
+To keep the amount of stored personal data bounded, each user can store at most 100 MiB of scores (`Scores:MaxStorageBytesPerUser`), the instance accepts at most 100 new accounts per day and 10 per client address (`Auth:Registration:*`), and a warning is logged when the database grows past a threshold (`Monitoring:DatabaseSizeWarningBytes`). See [self-hosting](self-hosting.md#abuse-limits-and-alerts).
+
 ## Audit trail
 
 Deletion and export are logged at `Information` with the internal user id only (`AuthAccountDeleted` id 13, `AuthDataExported` id 14 with the score count). An interrupted export is `AuthDataExportFailed` (id 15, `Warning`) and a refused deletion `AuthReauthRequired` (id 16). After the account is deleted the log line keeps the now-orphan id for `Legal:LogRetentionDays`: it identifies nobody once the user row is gone.

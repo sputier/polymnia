@@ -51,6 +51,19 @@ Tout autre paramètre ASP.NET Core peut être ajouté à l'`environment` du serv
 
 **`AllowedHosts` doit être défini.** C'est la liste des en-têtes `Host` acceptés ; tout autre hôte reçoit `400`. Le fichier compose refuse de démarrer sans cette valeur : un oubli ne se transforme jamais en `*` ouvert.
 
+## Limites anti-abus et alertes
+
+Réglages du service `app` (configuration ASP.NET Core : à ajouter à son `environment`, avec `__` pour `:`).
+
+| Réglage                                              | Défaut  | Effet                                                                                                                                                                                                 |
+| ---------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Scores__MaxStorageBytesPerUser`                     | 100 Mio | Taille totale des partitions d'un utilisateur. Au-delà, création, duplication et enregistrement répondent `413` (`urn:polymnia:problem:quota-exceeded`) et l'application indique que l'espace est plein. Supprimer des partitions libère de la place. |
+| `Auth__Registration__MaxNewAccountsPerDay`           | 100     | Nouveaux comptes sur 24 heures glissantes pour toute l'instance (approximatif : des premières connexions simultanées peuvent le dépasser de quelques unités ; les comptes supprimés ne comptent plus). Au-delà, une **nouvelle** personne arrive sur l'avis « inscriptions temporairement fermées » ; les utilisateurs existants se connectent normalement. |
+| `Auth__Registration__MaxNewAccountsPerAddressPerDay` | 10      | Nouveaux comptes par adresse cliente (IPv4, ou /64 en IPv6) sur 24 heures, comptés en mémoire par instance. Demande les en-têtes transmis derrière un proxy (voir plus bas).                          |
+| `Monitoring__DatabaseSizeWarningBytes`               | 5 Gio   | Quand la base dépasse cette taille, un avertissement est journalisé au démarrage puis toutes les heures (`DatabaseSizeExceeded`). `0` le désactive. Surveillez vos journaux.                          |
+
+Le mot de passe de la base ne doit pas être le placeholder de `.env.example` et doit faire au moins 16 caractères (`openssl rand -hex 16`) : hors Development, le service `migrate`, donc toute la pile, refuse de démarrer sinon.
+
 ## Reverse proxy et TLS
 
 L'application n'écoute que sur `127.0.0.1:8080`. Placer devant elle un reverse proxy qui termine le TLS et relaie vers ce port, en conservant l'en-tête `Host` (la plupart le font par défaut). Exemple Caddy :

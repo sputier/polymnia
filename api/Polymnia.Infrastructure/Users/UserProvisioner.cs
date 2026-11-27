@@ -70,6 +70,10 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
         throw new InvalidOperationException("Could not create the user.");
     }
 
+    /// <summary>True when a user already exists for this Google subject (the sign-in will not create an account).</summary>
+    public Task<bool> ExistsAsync(string googleSubject, CancellationToken cancellationToken = default) =>
+        db.Users.AsNoTracking().AnyAsync(u => u.GoogleSubject == googleSubject, cancellationToken);
+
     /// <summary>Only an https URL on a Google user-content host is kept: the UI never loads an arbitrary image.</summary>
     public static string? SanitizeAvatarUrl(string? value)
     {

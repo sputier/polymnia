@@ -37,6 +37,7 @@ foreach (string category in new[]
     builder.Logging.AddFilter(category, LogLevel.Warning);
 }
 
+ConnectionStringGuard.Validate(builder.Configuration, builder.Environment);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddPolymniaHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPolymniaAuth(builder.Configuration, builder.Environment);

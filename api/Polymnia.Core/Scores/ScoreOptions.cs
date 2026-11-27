@@ -7,4 +7,10 @@ public sealed class ScoreOptions
 
     /// <summary>Maximum number of scores one user can own (create and duplicate are refused beyond it).</summary>
     public int MaxScoresPerUser { get; set; } = ScoreLimits.DefaultMaxScoresPerUser;
+
+    /// <summary>
+    /// Maximum total size of the score content one user can store, in bytes (PostgreSQL-stored size, so compressed
+    /// content counts for what it takes on disk). Creating, duplicating or saving beyond it is refused with 413.
+    /// </summary>
+    public long MaxStorageBytesPerUser { get; set; } = ScoreLimits.DefaultMaxStorageBytesPerUser;
 }

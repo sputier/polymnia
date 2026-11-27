@@ -1,5 +1,5 @@
 import { ApiError } from '../api/client';
-import { isNetworkError, SCORE_LIMIT_PROBLEM } from '../api/scores';
+import { isNetworkError, SCORE_LIMIT_PROBLEM, STORAGE_QUOTA_PROBLEM } from '../api/scores';
 import type { MessageKey } from '../i18n/en';
 import type { Language } from '../i18n/i18n';
 import { getInstrument } from '../score/instruments';
@@ -45,7 +45,14 @@ export function describeFailure(error: unknown): { key: MessageKey; seconds?: nu
       return { key: 'library.errorLimit' };
     }
     if (error.status === 404) return { key: 'library.errorNotFound' };
-    if (error.status === 413) return { key: 'library.errorTooLarge' };
+    if (error.status === 413) {
+      return {
+        key:
+          error.problemType === STORAGE_QUOTA_PROBLEM
+            ? 'library.errorStorage'
+            : 'library.errorTooLarge',
+      };
+    }
   }
   return { key: 'library.errorGeneric' };
 }

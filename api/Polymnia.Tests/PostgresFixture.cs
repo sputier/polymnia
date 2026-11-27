@@ -18,7 +18,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        PostgreSqlContainer container = new PostgreSqlBuilder("postgres:17-alpine").Build();
+        PostgreSqlContainer container = new PostgreSqlBuilder("postgres:17-alpine").WithPassword("test-" + Guid.NewGuid().ToString("N")).Build();
         try
         {
             await container.StartAsync(TestContext.Current.CancellationToken);

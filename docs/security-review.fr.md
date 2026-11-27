@@ -61,6 +61,8 @@ PostgreSQL (paramètres uniquement), API vers Google (jeton d'identité validé 
 | 6  | Basse    | Chaîne d'approvisionnement | L'audit NuGet reposait sur les valeurs par défaut du SDK (non écrites, donc non protégées contre un changement).                                                                                                                          | Corrigé | `SecurityReviewRepositoryTests.Vulnerable_packages_fail_the_build` |
 | 7  | Basse    | Pipeline de version      | Un tag sur `main` construisait et publiait l'image sans vérifier que la CI avait réussi sur ce commit.                                                                                                                                         | Corrigé | `SecurityReviewRepositoryTests.The_release_refuses_a_commit_whose_ci_has_not_passed` |
 | 8  | Basse    | Conteneur                | Le service PostgreSQL de `docker-compose.yml` gardait toutes les capacités Linux et pouvait acquérir des privilèges.                                                                                                                         | Corrigé | `SecurityReviewRepositoryTests.Container_base_images_are_pinned_by_digest_and_the_runtime_is_not_root` |
+| 9  | Moyenne  | Abus de stockage         | Chaque compte pouvait stocker 200 partitions de 4 Mio et les comptes n'étaient pas bornés : un script avec de nombreux comptes Google pouvait remplir le disque. Corrigé : quota de stockage par utilisateur (100 Mio, `413` `quota-exceeded`, affiché dans l'interface), limites de création de comptes (100 par jour pour l'instance, 10 par jour par adresse ; au-delà, une nouvelle personne voit l'avis « inscriptions temporairement fermées », les utilisateurs existants ne sont pas touchés) et avertissement dans les journaux quand la base dépasse un seuil (5 Gio par défaut, au démarrage puis toutes les heures). | Corrigé | `AbuseLimitsTests`, `web/src/library/quota.test.ts` |
+| 10 | Basse    | Configuration            | Le mot de passe de la base pouvait être le placeholder de `.env.example` ou un mot de passe court. Corrigé : hors Development, l'application (donc le service `migrate`) refuse de démarrer avec le placeholder ou moins de 16 caractères. | Corrigé | `ConnectionStringGuardTests` |
 
 Vérifié et jugé solide (un test fixe chacun de ces points, les nouveaux dans `SecurityReview*Tests`) :
 
@@ -88,7 +90,7 @@ pas une vulnérabilité ouverte.
 
 ## Rappels pour l'opérateur
 
-Ce sont des devoirs de déploiement, documentés dans [l'auto-hébergement](self-hosting.fr.md) et non des défauts de code :
-activer les en-têtes transmis derrière un reverse proxy (sinon tous les clients partagent une clé de limitation, et
-l'application journalise un avertissement), garder le certificat de clés et son mot de passe hors du dépôt, et changer le
-mot de passe de base de données de `.env.example`.
+Documenté dans [l'auto-hébergement](self-hosting.fr.md) : activer les en-têtes transmis derrière un reverse proxy
+(sinon tous les clients partagent une clé de limitation ; l'application détecte le réglage manquant et journalise un
+avertissement une fois) et garder le certificat de clés et son mot de passe hors du dépôt. Surveillez les journaux pour
+`DatabaseSizeExceeded`.

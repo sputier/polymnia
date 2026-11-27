@@ -47,6 +47,10 @@ Tout se fait depuis le menu du compte (le nom dans la barre d'outils) :
 
 Tout le reste (limitation, opposition, questions) vous parvient par `Legal:Contact`. Vous avez un mois pour répondre. Avec `Legal:Contact=/#/contact`, c'est le [formulaire de contact](contact.fr.md) : sujet « Données personnelles », transmis à votre boîte par SMTP (`Contact:*`, une adresse que personne ne voit) et conservé `Contact:RetentionDays` jours. La page de confidentialité liste ces messages, leur durée de conservation et ce qui n'est pas conservé avec eux.
 
+## Limites de stockage et d'inscription
+
+Pour borner la quantité de données personnelles conservées, chaque utilisateur peut stocker au plus 100 Mio de partitions (`Scores:MaxStorageBytesPerUser`), l'instance accepte au plus 100 nouveaux comptes par jour et 10 par adresse cliente (`Auth:Registration:*`), et un avertissement est journalisé quand la base dépasse un seuil (`Monitoring:DatabaseSizeWarningBytes`). Voir [l'auto-hébergement](self-hosting.fr.md#limites-anti-abus-et-alertes).
+
 ## Piste d'audit
 
 La suppression et l'export sont journalisés au niveau `Information` avec le seul identifiant interne (`AuthAccountDeleted` id 13, `AuthDataExported` id 14 avec le nombre de partitions). Un export interrompu est `AuthDataExportFailed` (id 15, `Warning`) et une suppression refusée `AuthReauthRequired` (id 16). Après la suppression du compte, la ligne de journal garde l'identifiant désormais orphelin pendant `Legal:LogRetentionDays` : il n'identifie plus personne une fois la ligne `users` disparue.

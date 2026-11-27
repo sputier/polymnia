@@ -74,6 +74,7 @@ internal static class AuthExtensions
         });
 
         services.AddSingleton<DbTicketStore>();
+        services.AddSingleton<RegistrationGate>();
         services.AddHostedService<SessionCleanupService>();
 
         AuthenticationBuilder authentication = services

@@ -163,6 +163,8 @@ export const fr: Messages = {
   'auth.hint': 'pour se connecter',
   'auth.free': 'Libre et gratuit (licence MIT)',
   'auth.failed': "La connexion n'a pas abouti. Veuillez réessayer.",
+  'auth.closed':
+    'Les inscriptions sont temporairement fermées sur ce serveur. Veuillez réessayer plus tard. Les comptes existants ne sont pas concernés.',
   'auth.loading': 'Chargement...',
   'auth.error': 'Le serveur est injoignable. Vérifiez votre connexion et réessayez.',
   'auth.retry': 'Réessayer',

@@ -17,7 +17,7 @@ internal static class ScoreApiExtensions
 
         services.AddOptions<Polymnia.Core.Scores.ScoreOptions>()
             .Bind(configuration.GetSection(Polymnia.Core.Scores.ScoreOptions.SectionName))
-            .Validate(static o => o.MaxScoresPerUser > 0, "Scores:MaxScoresPerUser must be positive.")
+            .Validate(static o => o.MaxScoresPerUser > 0 && o.MaxStorageBytesPerUser > 0, "Scores:MaxScoresPerUser and Scores:MaxStorageBytesPerUser must be positive.")
             .ValidateOnStart();
 
         services.AddOptions<ScoreRateLimitOptions>()

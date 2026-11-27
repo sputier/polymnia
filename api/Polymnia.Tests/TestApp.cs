@@ -46,7 +46,7 @@ internal sealed class TestApp : WebApplicationFactory<Program>
 {
     public const string IndexHtml = "<!doctype html><html><head><title>Polymnia</title></head><body><div id=\"root\"></div></body></html>";
     public const string AssetBody = "console.log('polymnia');";
-    public const string UnreachableConnectionString = "Host=127.0.0.1;Port=1;Database=polymnia_unused;Username=u;Password=p;Timeout=1";
+    public const string UnreachableConnectionString = "Host=127.0.0.1;Port=1;Database=polymnia_unused;Username=u;Password=unused-test-password-0123456789;Timeout=1";
 
     public const string PublicBaseUrl = "https://polymnia.example";
 
@@ -166,6 +166,10 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         });
         builder.ConfigureLogging(logging => logging.AddProvider(Logs));
         builder.UseSetting("Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command", "Information");
+
+        // Tests sign in hundreds of new users from one address: the registration brakes are off unless a test sets them.
+        builder.UseSetting("Auth:Registration:MaxNewAccountsPerDay", "1000000");
+        builder.UseSetting("Auth:Registration:MaxNewAccountsPerAddressPerDay", "1000000");
 
         foreach ((string key, string? value) in _settings)
         {
