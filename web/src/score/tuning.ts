@@ -1,7 +1,7 @@
 /** Tuning presets, effective range and automatic fretting of fretted parts. */
-import { fretToMidi, getInstrument, partFrets, partTuning } from './instruments';
+import { getInstrument } from './instruments';
 import { pitchToMidi, soundingPitch } from './pitch';
-import type { Alter, Fretting, Part, Pitch, Score, StepName, Voice } from './types';
+import type { Alter, Part, Pitch, Score, StepName, Voice } from './types';
 
 const p = (step: StepName, octave: number, alter: Alter = 0): Pitch => ({ step, alter, octave });
 
@@ -185,28 +185,4 @@ export function outOfRangeEvents(score: Score): OutOfRangeEvent[] {
     }
   }
   return out;
-}
-
-/**
- * Picks a string and fret for a written pitch: the `prefer`red string when it can play it, else the
- * lowest fret (open strings first), the highest string on ties. Undefined when no string can.
- */
-export function assignFretting(part: Part, written: Pitch, prefer?: number): Fretting | undefined {
-  const tuning = partTuning(part);
-  if (!tuning) return undefined;
-  const midi = pitchToMidi(soundingPitch(written, part.transposition));
-  const capo = part.capo ?? 0;
-  const max = partFrets(part) ?? 24;
-  const fretOn = (i: number): number => midi - fretToMidi(tuning[i]!, capo, 0);
-  if (prefer !== undefined && prefer >= 1 && prefer <= tuning.length) {
-    const fret = fretOn(prefer - 1);
-    if (fret >= 0 && fret <= max) return { string: prefer, fret };
-  }
-  let best: Fretting | undefined;
-  for (let i = 0; i < tuning.length; i++) {
-    const fret = fretOn(i);
-    if (fret < 0 || fret > max) continue;
-    if (!best || fret < best.fret) best = { string: i + 1, fret };
-  }
-  return best;
 }

@@ -45,13 +45,17 @@ Toutes les tailles sont en px ; un interligne vaut 10 px (13 px sur les tablatur
 
 Autres règles : une levée utilise sa propre `length` (elle reçoit moins de largeur) ; l'accolade relie les portées d'une partie à deux portées standard (un crochet pour standard + tablature), un crochet relie les parties ; le premier système porte les noms complets des parties et les suivants les **noms abrégés** (`InstrumentDef.short`, français et anglais, dans le catalogue : `Pno.`, `Vln.`, `Vc.`...; une partie renommée par l'utilisateur garde son nom, coupé à 8 caractères avec un point s'il est plus long), dans un retrait plus étroit ; la dernière mesure reçoit la barre finale ; `treble-8vb` est une clé de sol avec un petit 8 dessous (la position écrite est celle de la clé de sol) ; les ligatures suivent le temps (une noire pointée en mesure composée), jamais à travers un silence ou un temps ; les membres d'un tuplet sont liés selon leur durée réelle ; la deuxième voix d'une portée a les hampes vers le bas ; liaisons et ligatures de prolongation peuvent traverser les systèmes.
 
+**Tablature** (VexFlow `TabStave` / `TabNote`, notes triées par corde) : les accords sont empilés sur leurs cordes ; les **silences** sont masqués (une note fantôme garde l'espace rythmique) sauf si la portée a `showRests`, ils sont alors dessinés comme sur une portée standard ; les **liaisons de prolongation et de phrase** sont des arcs entre les cases (`TabTie` sans la lettre h/p ; une liaison à travers une barre de mesure ou un saut de système est un demi-arc ; une liaison de phrase d'une partie « portée + tablature » est dessinée sur les deux portées, retrouvée par position à partir des événements de la portée standard) ; une note qu'aucune corde ne peut jouer est un `?` au milieu de la portée, avec la couleur d'avertissement hors tessiture, le triangle et l'infobulle (la marque n'est donc pas qu'une couleur). Les cases liées ne sont pas mises entre parenthèses. `hitTest` ajoute `string` (1 = la plus aiguë) sur les tablatures ; cliquer sur une position de corde fixe la corde de saisie de l'éditeur. La clé de cache d'un système inclut `showRests`.
+
 ## Hit test et boîtes
 
-`hitTest(layout, x, y)` (ou `engraver.hitTest`) travaille en coordonnées SVG (`clientX - svg.left`). Il renvoie `null` hors des systèmes, sinon `{systemIndex, partId, staffId, measureIndex, eventId?, pitch?}` :
+`hitTest(layout, x, y)` (ou `engraver.hitTest`) travaille en coordonnées SVG (`clientX - svg.left`). Il renvoie `null` hors des systèmes, sinon `{systemIndex, partId, staffId, measureIndex, eventId?, pitch?, string?}` :
 
 - la portée est la plus proche de `y` (entre deux portées, la plus proche gagne) ;
 - `eventId` est renseigné quand le point est sur une tête de note, un silence ou un numéro de tablature (petite tolérance) ;
 - `pitch` est la hauteur naturelle dessinée à cette hauteur pour la clé en vigueur à cette mesure, jusqu'à 3,5 interlignes de la portée (lignes supplémentaires), sur les portées standard uniquement. L'armure n'est pas appliquée : c'est à la saisie de décider.
+
+- `string` est la corde sous le point (1 = la plus aiguë), sur les tablatures seulement.
 
 `eventBox(layout, id)` et `eventBoxes(layout)` donnent la boîte englobante des événements (pour la sélection et la surbrillance de lecture). Un test Playwright vérifie que les boîtes correspondent à l'endroit où VexFlow a réellement dessiné les têtes de notes.
 

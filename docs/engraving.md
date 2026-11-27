@@ -45,13 +45,17 @@ All sizes are px; one staff space is 10 px (13 px on tab staves).
 
 Other rules: a pickup measure uses its own `length` (it gets less width); braces join the staves of a part with two standard staves (a bracket for standard + tab), a bracket joins the parts; the first system shows the full part names and the following ones the **short names** (`InstrumentDef.short`, English and French, in the catalog: `Pno.`, `Vln.`, `Vc.`...; a part renamed by the user keeps its own name, cut to 8 characters with a dot when longer) in a narrower indent; the last measure gets the final barline; `treble-8vb` is a treble clef with a small 8 below (the written position is the treble one); beaming follows the beat (a dotted quarter in compound meters), never across rests or beats; tuplet members are beamed by their real duration; the second voice of a staff has stems down; slurs and ties may cross systems.
 
+**Tablature** (VexFlow `TabStave` / `TabNote`, notes sorted by string): chords are stacked on their strings; **rests** are hidden (a ghost note keeps the rhythm gap) unless the staff has `showRests`, then they are drawn as on a standard staff; **ties and slurs** are arcs between the frets (`TabTie` without the h/p letter; ties across a barline or a system break are drawn as half arcs; a slur of a "standard + TAB" part is drawn on both staves, found by position from the standard events); a note no string can play is a `?` in the middle of the staff, with the out-of-range warning color, triangle mark and tooltip (the mark is not color alone). Tied frets are not parenthesised. `hitTest` adds `string` (1 = highest) on tab staves; clicking a string position sets the input string of the editor. The system cache key includes `showRests`.
+
 ## Hit testing and boxes
 
-`hitTest(layout, x, y)` (or `engraver.hitTest`) works on SVG coordinates (`clientX - svg.left`). It returns `null` outside the systems, otherwise `{systemIndex, partId, staffId, measureIndex, eventId?, pitch?}`:
+`hitTest(layout, x, y)` (or `engraver.hitTest`) works on SVG coordinates (`clientX - svg.left`). It returns `null` outside the systems, otherwise `{systemIndex, partId, staffId, measureIndex, eventId?, pitch?, string?}`:
 
 - the staff is the nearest one to `y` (between two staves the closer wins);
 - `eventId` is set when the point is on a notehead, rest or tab number (small tolerance);
 - `pitch` is the natural pitch drawn at that height for the clef in force at that measure, up to 3.5 staff spaces away from the staff (ledger lines), on standard staves only. The key signature is not applied: the input code decides.
+
+- `string` is the string under the point (1 = highest), on tab staves only.
 
 `eventBox(layout, id)` and `eventBoxes(layout)` give the bounding box of events (for selection and playback highlighting). A Playwright test checks that the boxes match where VexFlow really drew the noteheads.
 

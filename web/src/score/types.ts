@@ -15,6 +15,8 @@ export interface Pitch {
 
 /** Position on a fretted instrument. `string` is 1-based, 1 = highest string (as in tab notation). */
 export interface Fretting {
+  /** Present only when true: the user chose this fretting, automatic fingering never changes it. */
+  readonly manual?: true;
   readonly string: number;
   readonly fret: number;
 }
@@ -75,6 +77,8 @@ export interface Staff {
   /** Initial clef. */
   readonly clef: Clef;
   readonly type: StaffType;
+  /** Tab staves: draw rests (absent = hidden, the usual guitar tab convention). */
+  readonly showRests?: true;
   /** Parallel to `Score.measures`. */
   readonly measures: readonly StaffMeasure[];
 }

@@ -530,7 +530,7 @@ function systemSignature(
     system.staves,
     placement,
     slurs,
-    score.parts.map((p) => p.staves.map((s) => s.type)),
+    score.parts.map((p) => p.staves.map((s) => (s.showRests ? `${s.type}+rests` : s.type))),
   ]);
   return { key, refs };
 }

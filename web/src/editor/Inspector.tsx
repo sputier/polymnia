@@ -9,6 +9,7 @@ import {
   measureLength,
   nominalMeasureLength,
   outOfRangeEvents,
+  unplayableEvents,
   tempoAt,
   timeSignatureAt,
   type Clef,
@@ -280,12 +281,16 @@ function RangeWarnings({ score }: { score: Score }) {
               <span aria-hidden="true" className="warn-mark">
                 !
               </span>
-              {t('inspector.warnItem')
-                .replace('{measure}', String(w.measure + 1))
-                .replace('{note}', w.note)
-                .replace('{instrument}', instrumentName(w.instrument, language))
-                .replace('{low}', w.low)
-                .replace('{high}', w.high)}
+              {w.kind === 'fretting'
+                ? `${t('inspector.warnFret').replace('{measure}', String(w.measure + 1))} ${t(
+                    'score.noFingering',
+                  ).replace('{instrument}', instrumentName(w.instrument, language))}`
+                : t('inspector.warnItem')
+                    .replace('{measure}', String(w.measure + 1))
+                    .replace('{note}', w.note)
+                    .replace('{instrument}', instrumentName(w.instrument, language))
+                    .replace('{low}', w.low)
+                    .replace('{high}', w.high)}
             </li>
           ))}
           {warnings.length > MAX_WARNINGS_SHOWN && (
@@ -303,6 +308,8 @@ function RangeWarnings({ score }: { score: Score }) {
 }
 
 export interface WarningInfo {
+  /** `range`: outside the instrument's range; `fretting`: no string can play it (TAB staves). */
+  readonly kind: 'range' | 'fretting';
   readonly eventId: string;
   readonly measure: number;
   readonly instrument: string;
@@ -314,7 +321,8 @@ export interface WarningInfo {
 
 /** Out-of-range notes with the data to word the message. */
 export function describeWarnings(score: Score): WarningInfo[] {
-  return outOfRangeEvents(score).map((w) => ({
+  const range = outOfRangeEvents(score).map((w): WarningInfo => ({
+    kind: 'range',
     eventId: w.eventId,
     measure: w.measure,
     instrument: w.instrument,
@@ -322,4 +330,18 @@ export function describeWarnings(score: Score): WarningInfo[] {
     low: pitchName(w.low),
     high: pitchName(w.high),
   }));
+  // Notes in range that no string can play (capo, frets): same warning, other words.
+  const seen = new Set(range.map((w) => w.eventId));
+  const fretting = unplayableEvents(score)
+    .filter((w) => !seen.has(w.eventId))
+    .map((w): WarningInfo => ({
+      kind: 'fretting',
+      eventId: w.eventId,
+      measure: w.measure,
+      instrument: w.instrument,
+      note: '',
+      low: '',
+      high: '',
+    }));
+  return [...range, ...fretting];
 }

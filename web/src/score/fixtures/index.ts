@@ -184,6 +184,33 @@ export const guitarDropDCapo: Score = buildScore({
   ],
 });
 
+/**
+ * Tablature features on a classical guitar (standard + TAB): a slur (drawn as an arc on both
+ * staves), a tie, a chord stacked on three strings and a rest (hidden on the TAB, as by default).
+ */
+export const guitarTabFeatures: Score = buildScore({
+  title: 'Tablature features',
+  parts: [
+    {
+      name: 'Guitar',
+      instrument: 'guitar-classical',
+      staves: [
+        {
+          measures: [
+            'E3@6.0:q G3@6.3:q< A3@5.0:q> r:q',
+            'B3@5.2:q~ B3@5.2:q E3@6.0+B3@5.2+E4@4.2:h',
+          ],
+        },
+        {
+          type: 'tab',
+          clef: 'treble-8vb',
+          measures: ['E3@6.0:q G3@6.3:q A3@5.0:q r:q', 'B3@5.2:q~ B3@5.2:q E3@6.0+B3@5.2+E4@4.2:h'],
+        },
+      ],
+    },
+  ],
+});
+
 /** Soprano ukulele (re-entrant tuning), "Twinkle, Twinkle, Little Star". */
 export const ukuleleMelody: Score = buildScore({
   title: 'Twinkle, Twinkle, Little Star',
@@ -237,6 +264,7 @@ export const FIXTURES: Readonly<Record<string, Score>> = {
   pickup,
   guitarArpeggio,
   guitarDropDCapo,
+  guitarTabFeatures,
   ukuleleMelody,
   celloClefChanges,
 };

@@ -44,6 +44,8 @@ const { score, report } = importMusicXml(bytes); // .musicxml, .xml ou .mxl, lè
 | `fretting`                                | `<technical><string><fret>`                                                                                                                                                                  |
 | instrument                                | `<instrument-sound>` et un champ divers `polymnia-instrument-Pn` (identifiant exact du catalogue, pour les allers-retours) ; à l'import l'id de son, puis le nom de la partie, puis `custom` |
 
+Un doigté choisi par l'utilisateur (`manual`) est écrit avec un `<other-technical>polymnia-manual-fingering</other-technical>` supplémentaire dans `<technical>` (l'élément d'extension standard, ignoré par les autres logiciels) ; à l'import il rétablit l'indicateur : les doigtés de l'utilisateur survivent à un aller-retour et les doigtés déduits restent déduits. Les doigtés venus d'autres logiciels sont importés comme déduits mais valides (ils sont conservés pendant qu'on modifie les notes voisines).
+
 Aller-retour : chaque fixture s'exporte puis se réimporte en la même partition (les ids sont régénérés), avec un rapport vide. Une portée de tablature exportée perd sa clé (inutilisée) : elle revient avec celle par défaut de l'instrument.
 
 ## Ce qui n'est pas importé

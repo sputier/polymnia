@@ -18,6 +18,7 @@ const CASES: { name: string; fixture: string; width: number }[] = [
   { name: 'ties-slurs', fixture: 'ties', width: 900 },
   { name: 'triplets', fixture: 'triplets', width: 900 },
   { name: 'guitar-standard-tab', fixture: 'guitarArpeggio', width: 900 },
+  { name: 'guitar-tab-features', fixture: 'guitarTabFeatures', width: 900 },
   { name: 'cello-clef-changes', fixture: 'celloClefChanges', width: 700 },
   { name: 'pickup-measure', fixture: 'pickup', width: 600 },
 ];

@@ -26,6 +26,8 @@ export interface HitResult {
   readonly eventId?: string;
   /** Tick (offset in the measure) of the column nearest to the point: where a click enters a note. */
   readonly tick?: number;
+  /** String under the point, 1 = highest (tab staves only). */
+  readonly string?: number;
   /** Natural pitch on the staff line or space under the point (standard staves only). */
   readonly pitch?: Pitch;
 }
@@ -149,6 +151,14 @@ export function hitTest(layout: Layout, x: number, y: number): HitResult | null 
     measureIndex: measure.index,
     ...(tick !== undefined ? { tick } : {}),
     ...(eventId !== undefined ? { eventId } : {}),
+    ...(slot.type === 'tab'
+      ? {
+          string: Math.min(
+            slot.lines,
+            Math.max(1, Math.round((local - slot.top) / slot.space) + 1),
+          ),
+        }
+      : {}),
   };
   if (
     slot.type === 'standard' &&

@@ -14,6 +14,7 @@ import type {
   Score,
   ScoreEvent,
   Slur,
+  Fretting,
   Staff,
   StaffMeasure,
   StaffType,
@@ -154,11 +155,16 @@ function notePitch(v: unknown, path: string): NotePitch {
     out.tieToNext = o.tieToNext;
   }
   if (o.fretting !== undefined) {
-    const f = obj(o.fretting, `${path}/fretting`, ['string', 'fret']);
-    out.fretting = {
+    const f = obj(o.fretting, `${path}/fretting`, ['string', 'fret'], ['manual']);
+    const fretting: { -readonly [K in keyof Fretting]: Fretting[K] } = {
       string: int(f.string, `${path}/fretting/string`, 1, LIMITS.maxTuning),
       fret: int(f.fret, `${path}/fretting/fret`, 0, LIMITS.maxFret),
     };
+    if (f.manual !== undefined) {
+      if (typeof f.manual !== 'boolean') fail(`${path}/fretting/manual`, 'Expected a boolean');
+      if (f.manual) fretting.manual = true;
+    }
+    out.fretting = fretting;
   }
   return out;
 }
@@ -226,8 +232,8 @@ function staffMeasure(v: unknown, path: string): StaffMeasure {
 }
 
 function staff(v: unknown, path: string): Staff {
-  const o = obj(v, path, ['id', 'clef', 'type', 'measures']);
-  return {
+  const o = obj(v, path, ['id', 'clef', 'type', 'measures'], ['showRests']);
+  const out: { -readonly [K in keyof Staff]: Staff[K] } = {
     id: idOf(o.id, `${path}/id`),
     clef: oneOf(o.clef, `${path}/clef`, CLEFS),
     type: oneOf(o.type, `${path}/type`, STAFF_TYPES),
@@ -235,6 +241,11 @@ function staff(v: unknown, path: string): Staff {
       staffMeasure(m, `${path}/measures/${i}`),
     ),
   };
+  if (o.showRests !== undefined) {
+    if (typeof o.showRests !== 'boolean') fail(`${path}/showRests`, 'Expected a boolean');
+    if (o.showRests) out.showRests = true;
+  }
+  return out;
 }
 
 function part(v: unknown, path: string): Part {
