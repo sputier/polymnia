@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { Engraver } from '../engraving/engraver';
 import { playback, previewNote } from '../playback';
 import { followPlayback } from '../playback/follow';
@@ -11,6 +11,7 @@ import { useShortcuts } from '../shortcuts/useShortcuts';
 import { Mixer } from './Mixer';
 import { ShortcutStrip } from './ShortcutStrip';
 import { SidePanel } from './SidePanel';
+import type { DialogKind } from './commands/CommandDialogs';
 import { describeDuration, describeEvent, formatNotice, positionLabel } from './entry/describe';
 import { EditorStore, newEditorScore } from './entry/editorStore';
 import { entryShortcuts } from './entry/entryShortcuts';
@@ -21,6 +22,9 @@ import { TopBar } from './TopBar';
 import { TransportBar } from './TransportBar';
 import { useMediaQuery } from './useMediaQuery';
 import { useUiMode } from './uiMode';
+
+const loadDialogs = () => import('./commands/CommandDialogs');
+const CommandDialogs = lazy(loadDialogs);
 
 /** Below this width the side panels float over the score. */
 export const OVERLAY_QUERY = '(max-width: 1099px)';
@@ -115,30 +119,75 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
     setRightChoice(false);
   };
 
+  // Command palette and cheat sheet (lazy chunk, fetched in idle time so the first open is instant).
+  const [dialog, setDialog] = useState<DialogKind | null>(null);
+  useEffect(() => {
+    const load = () => void loadDialogs();
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(load);
+      return () => cancelIdleCallback(id);
+    }
+    const id = setTimeout(load, 200);
+    return () => clearTimeout(id);
+  }, []);
+  // Focus mode: only the score and a pill. Not persisted.
+  const [focus, setFocus] = useState(false);
+
   const shortcutList: Shortcut[] = [
+    {
+      id: 'app.palette',
+      keys: 'Mod+K',
+      labelKey: 'shortcut.palette',
+      group: 'help',
+      palette: false,
+      allowInInput: true,
+      handler: () => setDialog('palette'),
+    },
+    {
+      id: 'app.cheatSheet',
+      keys: 'Question',
+      labelKey: 'shortcut.cheatSheet',
+      group: 'help',
+      handler: () => setDialog('sheet'),
+    },
+    {
+      id: 'view.focus',
+      keys: 'Alt+F',
+      labelKey: 'shortcut.focusMode',
+      group: 'view',
+      allowInInput: true,
+      handler: () => setFocus(!focus),
+    },
     {
       id: 'editor.toggleInstruments',
       keys: 'Mod+B',
       labelKey: 'shortcut.toggleInstruments',
+      group: 'view',
       handler: toggleLeft,
     },
     {
       id: 'editor.toggleInspector',
       keys: 'Mod+I',
       labelKey: 'shortcut.toggleInspector',
+      group: 'view',
+      enabled: () => advanced,
       handler: toggleRight,
     },
     {
       id: 'editor.toggleMode',
       keys: 'Alt+A',
       labelKey: 'shortcut.toggleMode',
+      group: 'view',
       handler: toggleMode,
     },
     {
       id: 'editor.closePanels',
       keys: 'Escape',
       labelKey: 'shortcut.closePanels',
+      group: 'view',
+      palette: false,
       handler: () => {
+        if (focus) return setFocus(false);
         if (overlay && (leftOpen || rightOpen)) return closeOverlays();
         // Esc also leaves note input, as in MuseScore.
         if (state.mode === 'note') return store.toggleInputMode();
@@ -149,9 +198,10 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
       id: 'playback.playPause',
       keys: 'Space',
       labelKey: 'shortcut.playPause',
+      group: 'playback',
       handler: (event) => {
         // A focused button or link takes Space itself (it activates on its own).
-        const target = event.target;
+        const target = event?.target;
         if (target instanceof HTMLElement && target.closest('button, a, summary, [role=button]'))
           return false;
         playback.toggle();
@@ -161,6 +211,7 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
       id: 'playback.home',
       keys: 'Home',
       labelKey: 'shortcut.playHome',
+      group: 'playback',
       handler: () => playback.home(),
     },
     ...entryShortcuts(store),
@@ -192,8 +243,10 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
   const showScrim = overlay && (leftOpen || rightOpen);
 
   return (
-    <div className="editor" data-mode={mode}>
+    <div className="editor" data-mode={mode} {...(focus ? { 'data-focus': '' } : {})}>
       <TopBar
+        onOpenPalette={() => setDialog('palette')}
+        onToggleFocus={() => setFocus(true)}
         title={title}
         onTitleChange={setTitle}
         saveState={saveState}
@@ -266,6 +319,19 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
         {...(notice ? { notice } : {})}
         uiMode={mode}
       />
+      {focus && (
+        <div className="focus-pill" role="status">
+          <span>{t('focus.label')}</span>
+          <span>
+            <Kbd keys="Escape" /> {t('focus.exit')}
+          </span>
+        </div>
+      )}
+      {dialog && (
+        <Suspense fallback={null}>
+          <CommandDialogs dialog={dialog} onClose={() => setDialog(null)} onOpen={setDialog} />
+        </Suspense>
+      )}
     </div>
   );
 }

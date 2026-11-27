@@ -1,4 +1,6 @@
 import { Icon } from '../components/Icon';
+import { Kbd } from '../components/Kbd';
+import { formatKeys } from '../shortcuts/registry';
 import { AccountMenu } from '../auth/AccountMenu';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ModeToggle } from '../components/ModeToggle';
@@ -18,6 +20,8 @@ interface TopBarProps {
   onToggleLeft: () => void;
   rightOpen: boolean;
   onToggleRight: () => void;
+  onOpenPalette: () => void;
+  onToggleFocus: () => void;
 }
 
 export function TopBar(props: TopBarProps) {
@@ -50,6 +54,26 @@ export function TopBar(props: TopBarProps) {
       />
       <SaveStatus state={props.saveState} />
       <span className="sp" />
+      <button
+        type="button"
+        className="cmdk"
+        aria-label={t('cmd.openLabel')}
+        aria-haspopup="dialog"
+        onClick={props.onOpenPalette}
+      >
+        <Icon name="search" />
+        <span className="l">{t('cmd.open')}</span>
+        <Kbd keys="Mod+K" />
+      </button>
+      <button
+        type="button"
+        className="btn ghost icon"
+        aria-label={t('focus.toggle')}
+        title={`${t('focus.toggle')} (${formatKeys('Alt+F').join('+')})`}
+        onClick={props.onToggleFocus}
+      >
+        <Icon name="focus" />
+      </button>
       <ModeToggle mode={props.mode} onChange={props.onModeChange} />
       <button
         type="button"

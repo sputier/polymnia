@@ -30,6 +30,11 @@ export function detectLanguage(): Language {
   return 'en';
 }
 
+/** A message in a given language, whatever the UI language (the command search matches both). */
+export function messageIn(language: Language, key: MessageKey): string {
+  return catalogs[language][key];
+}
+
 let current: Language = detectLanguage();
 const listeners = new Set<() => void>();
 

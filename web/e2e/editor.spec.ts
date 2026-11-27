@@ -94,6 +94,8 @@ test.describe('editor shell (desktop)', () => {
       'Back to home',
       'Instruments panel',
       'Score title',
+      'Open the command palette',
+      'Focus mode',
       'Simple',
       'Advanced',
       'Share',

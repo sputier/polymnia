@@ -11,10 +11,12 @@ export function useShortcuts(list: Shortcut[]): void {
 
   const signature = list.map((s) => `${s.id}:${s.keys}:${s.allowInInput ? 1 : 0}`).join('|');
   useEffect(() => {
+    const current = (id: string) => ref.current.find((x) => x.id === id);
     const unregister = ref.current.map((s) =>
       shortcuts.register({
         ...s,
-        handler: (event) => ref.current.find((x) => x.id === s.id)?.handler(event),
+        handler: (event) => current(s.id)?.handler(event),
+        ...(s.enabled ? { enabled: () => current(s.id)?.enabled?.() ?? true } : {}),
       }),
     );
     const onKeyDown = (event: KeyboardEvent) => {
