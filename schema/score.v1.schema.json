@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sputier/polymnia/schema/score.v1.schema.json",
+  "title": "Polymnia score, format version 1",
+  "description": "Structural rules and size limits. Semantic rules (every voice fills its measure, unique ids, valid ties, slurs, tuplets and frettings) are enforced by validateScore and are documented in docs/score-format.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "meta", "measures", "parts", "slurs"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/$defs/id" },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "composer", "tempoBpm"],
+      "properties": {
+        "title": { "type": "string", "maxLength": 200 },
+        "composer": { "type": "string", "maxLength": 200 },
+        "tempoBpm": { "$ref": "#/$defs/tempo" }
+      }
+    },
+    "measures": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2000,
+      "items": { "$ref": "#/$defs/measureInfo" }
+    },
+    "parts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/part" }
+    },
+    "slurs": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/slur" }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,64}$" },
+    "tempo": { "type": "integer", "minimum": 20, "maximum": 400 },
+    "step": { "enum": ["C", "D", "E", "F", "G", "A", "B"] },
+    "alter": { "enum": [-2, -1, 0, 1, 2] },
+    "clef": {
+      "enum": ["treble", "bass", "alto", "tenor", "treble-8vb", "percussion"]
+    },
+    "pitch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "alter", "octave"],
+      "properties": {
+        "step": { "$ref": "#/$defs/step" },
+        "alter": { "$ref": "#/$defs/alter" },
+        "octave": { "type": "integer", "minimum": -1, "maximum": 9 }
+      }
+    },
+    "notePitch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "alter", "octave"],
+      "properties": {
+        "step": { "$ref": "#/$defs/step" },
+        "alter": { "$ref": "#/$defs/alter" },
+        "octave": { "type": "integer", "minimum": -1, "maximum": 9 },
+        "tieToNext": { "type": "boolean" },
+        "fretting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["string", "fret"],
+          "properties": {
+            "string": { "type": "integer", "minimum": 1, "maximum": 12 },
+            "fret": { "type": "integer", "minimum": 0, "maximum": 36 }
+          }
+        }
+      }
+    },
+    "duration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "dots"],
+      "properties": {
+        "base": {
+          "enum": ["whole", "half", "quarter", "eighth", "16th", "32nd"]
+        },
+        "dots": { "enum": [0, 1, 2] }
+      }
+    },
+    "event": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id", "duration", "pitches"],
+          "properties": {
+            "kind": { "const": "note" },
+            "id": { "$ref": "#/$defs/id" },
+            "duration": { "$ref": "#/$defs/duration" },
+            "pitches": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 12,
+              "items": { "$ref": "#/$defs/notePitch" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "id", "duration"],
+          "properties": {
+            "kind": { "const": "rest" },
+            "id": { "$ref": "#/$defs/id" },
+            "duration": { "$ref": "#/$defs/duration" }
+          }
+        }
+      ]
+    },
+    "tuplet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "actual", "normal", "eventIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "actual": { "type": "integer", "minimum": 2, "maximum": 9 },
+        "normal": { "type": "integer", "minimum": 2, "maximum": 9 },
+        "eventIds": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "voice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "events", "tuplets"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/event" }
+        },
+        "tuplets": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/tuplet" }
+        }
+      }
+    },
+    "staffMeasure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["voices"],
+      "properties": {
+        "clef": { "$ref": "#/$defs/clef" },
+        "voices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/voice" }
+        }
+      }
+    },
+    "staff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "clef", "type", "measures"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "clef": { "$ref": "#/$defs/clef" },
+        "type": { "enum": ["standard", "tab"] },
+        "measures": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2000,
+          "items": { "$ref": "#/$defs/staffMeasure" }
+        }
+      }
+    },
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "instrument", "transposition", "staves"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "maxLength": 100 },
+        "instrument": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "transposition": { "type": "integer", "minimum": -36, "maximum": 36 },
+        "tuning": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/pitch" }
+        },
+        "capo": { "type": "integer", "minimum": 0, "maximum": 24 },
+        "staves": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/staff" }
+        }
+      }
+    },
+    "measureInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "time": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["beats", "beatType"],
+          "properties": {
+            "beats": { "type": "integer", "minimum": 1, "maximum": 32 },
+            "beatType": { "enum": [1, 2, 4, 8, 16, 32] }
+          }
+        },
+        "keyFifths": { "type": "integer", "minimum": -7, "maximum": 7 },
+        "tempoBpm": { "$ref": "#/$defs/tempo" },
+        "length": {
+          "type": "integer",
+          "minimum": 120,
+          "maximum": 122880,
+          "multipleOf": 120
+        }
+      }
+    },
+    "slur": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "startEventId", "endEventId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "startEventId": { "$ref": "#/$defs/id" },
+        "endEventId": { "$ref": "#/$defs/id" }
+      }
+    }
+  }
+}

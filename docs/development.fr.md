@@ -25,6 +25,7 @@ Le front end se trouve dans [`web/`](../web) : Vite, React et TypeScript (`stric
 | `npm test`             | Tests unitaires (Vitest et Testing Library)                  |
 | `npm run build`        | Vérifie les types et construit la version de production dans `dist/` |
 | `npm run size`         | Vérifie le budget de poids (à lancer après `build`)          |
+| `npm run bench`        | Benchmarks du modèle de partition (échoue au-delà du budget) |
 | `npm run test:e2e`     | Tests de fumée Playwright (Chromium, construit et sert l'application) |
 
 Première exécution des tests de bout en bout : `npx playwright install chromium`.
