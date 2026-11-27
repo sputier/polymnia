@@ -15,7 +15,7 @@ import {
   type Voice,
 } from '../score';
 import { lookupShape } from '../chords/library';
-import { diagramPlan } from '../engraving/chords';
+import { diagramPlan } from '../score/diagrams';
 import { harmonyXml } from './harmony';
 import { MUSICXML_DIVISIONS } from './limits';
 import { escapeXml as esc } from './xml';

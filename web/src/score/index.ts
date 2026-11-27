@@ -3,6 +3,7 @@ export { LIMITS } from './limits';
 export * from './ticks';
 export * from './pitch';
 export * from './chords';
+export * from './diagrams';
 export * from './instruments';
 export * from './tuning';
 export * from './fingering';

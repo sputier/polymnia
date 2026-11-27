@@ -3,7 +3,7 @@ import { useI18n } from '../i18n/i18n';
 import type { Score } from '../score/types';
 import type { Engraver, ensureChordLibrary as EnsureChordLibrary } from './engraver';
 import type { HitResult } from './hitTest';
-import { needsChordLibrary } from './chords';
+import { needsChordLibrary } from '../score/diagrams';
 import { preloadEngravingFonts } from './fonts';
 import './engraving.css';
 

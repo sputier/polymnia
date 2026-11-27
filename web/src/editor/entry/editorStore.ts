@@ -74,7 +74,7 @@ import {
   timeSignatureAt,
   transposeChords,
 } from '../../score';
-import { diagramPlan } from '../../engraving/chords';
+import { diagramPlan } from '../../score/diagrams';
 import { beatTicks } from '../../playback/timeline';
 import type { HitResult } from '../../engraving/hitTest';
 import type { Notice } from './describe';

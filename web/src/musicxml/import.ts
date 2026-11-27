@@ -29,7 +29,7 @@ import {
   type TimeSignature,
 } from '../score';
 import { lookupShape } from '../chords/library';
-import { diagramPlan } from '../engraving/chords';
+import { diagramPlan } from '../score/diagrams';
 import {
   CHORD_CAPO_FIELD,
   CHORD_DIAGRAMS_FIELD,

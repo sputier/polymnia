@@ -11,7 +11,7 @@ import type { Score } from '../score/types';
 import { shortPartName } from '../score/instruments';
 import { eventBox, hitTest, type EventBox, type HitResult, type Rect } from './hitTest';
 import { LayoutCache, layoutScore, type Layout, type SystemLayout } from './layout';
-import { needsChordLibrary } from './chords';
+import { needsChordLibrary } from '../score/diagrams';
 import { drawSystem } from './draw';
 import { hasShapeLookup, setShapeLookup } from './drawChords';
 import './vexflowSetup';

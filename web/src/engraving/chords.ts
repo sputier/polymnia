@@ -8,8 +8,8 @@
  * `#` and `b`, so they look like music accidentals and export as vector outlines.
  */
 import { formatChord, qualityRuns, shapeOf, type ChordData } from '../score/chords';
-import { partTuning } from '../score/instruments';
-import type { ChordNote, ChordSymbol, Part, Score } from '../score/types';
+import { diagramStrings } from '../score/diagrams';
+import type { ChordNote, ChordSymbol, Part } from '../score/types';
 
 export const CHORD = {
   /** Font size of the symbol, px. */
@@ -182,51 +182,6 @@ export function chordText(chord: ChordData): string {
 // Which chords show a diagram, and how wide a chord is
 // ---------------------------------------------------------------------------------------------
 
-/** Number of strings a part's diagrams have (undefined: no diagrams for this instrument). */
-export function diagramStrings(part: Part): number | undefined {
-  return partTuning(part)?.length;
-}
-
-/**
- * Ids of the chord symbols that show a diagram: for parts with strings, the part's mode (first
- * occurrence of each chord, or all) and the per-chord flag, which wins over the mode.
- */
-export function diagramPlan(score: Score): ReadonlySet<string> {
-  const ids = new Set<string>();
-  for (const part of score.parts) {
-    if (diagramStrings(part) === undefined) continue;
-    const mode = part.chordDiagrams;
-    const seen = new Set<string>();
-    for (const staff of part.staves) {
-      for (const sm of staff.measures) {
-        for (const c of sm.chords ?? []) {
-          const key = formatChord(c) + (c.frame ? '|f' : '');
-          const first = !seen.has(key);
-          seen.add(key);
-          if (c.diagram !== undefined ? c.diagram : mode === 'all' || (mode === 'first' && first))
-            ids.add(c.id);
-        }
-      }
-    }
-  }
-  return ids;
-}
-
-/** True when any chord of the score can ask for a diagram (loads the chord library). */
-export function needsChordLibrary(score: Score): boolean {
-  for (const part of score.parts) {
-    if (diagramStrings(part) === undefined) continue;
-    if (part.chordDiagrams) {
-      for (const staff of part.staves)
-        for (const sm of staff.measures) if (sm.chords?.length) return true;
-    } else {
-      for (const staff of part.staves)
-        for (const sm of staff.measures) if (sm.chords?.some((c) => c.diagram)) return true;
-    }
-  }
-  return false;
-}
-
 /** The shape chord for display next to a symbol, or undefined when it is not wanted. */
 export function capoShape(part: Part, chord: ChordSymbol): ChordData | undefined {
   if (!part.chordCapoShapes || !part.capo) return undefined;
@@ -245,3 +200,6 @@ export function chordWidth(chord: ChordSymbol, opts: ChordWidthOptions): number 
   const d = opts.diagram && strings !== undefined ? diagramWidth(strings) : 0;
   return Math.max(label.width, d);
 }
+
+// The model-level helpers live in the score module (the editor needs them without the typography).
+export { diagramPlan, diagramStrings, needsChordLibrary } from '../score/diagrams';
