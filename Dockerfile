@@ -12,6 +12,8 @@ WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY web/ ./
+# The score JSON Schema lives at the repo root and is imported by the front end.
+COPY schema/ /src/schema/
 RUN npm run build
 
 # ---- API -------------------------------------------------------------------

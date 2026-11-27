@@ -153,11 +153,11 @@ jobs:
 
       - name: Compose logs on failure
         if: failure()
-        run: docker compose logs --no-color --tail 80
+        run: if [ -f .env ]; then docker compose logs --no-color --tail 80; fi
 
       - name: Stop the stack
         if: always()
-        run: docker compose down -v
+        run: if [ -f .env ]; then docker compose down -v; fi
 
       # Trivy runs from its container image, pinned by digest (aquasec/trivy:latest when this was written),
       # instead of a third-party action. The first pass prints every finding (informational) and writes it
