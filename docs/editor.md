@@ -14,6 +14,8 @@ The editor lives at `#/editor` (hash routing, no router dependency). The home pa
 | Right panel | Inspector, collapsible, **Advanced mode only** |
 | Status bar | Input mode (`NOTE INPUT` / `SELECT`), current duration, measure and beat, interface level, save status |
 
+The center also holds a **transport bar** above the score (play/pause, stop, back to start, loop, metronome, tempo) and, in Advanced mode, a mixer with mute and solo per staff in the inspector; see [playback](playback.md).
+
 The shell components live in `web/src/editor/`. The status bar is fed by the editor store (mode, duration, measure and beat of the cursor) and shows the last notice.
 
 ### Simple and Advanced
@@ -33,6 +35,8 @@ The choice is stored in `localStorage` (`polymnia.uiMode`; failures are ignored)
 | `Ctrl+I` (`Cmd+I` on macOS) | Show or hide the inspector (Advanced only) |
 | `Alt+A` (`Option+A` on macOS) | Switch between Simple and Advanced |
 | `Esc` | Close the open panel (narrow screens), else leave note input |
+| `Space` | Play or pause (MuseScore behavior; a focused button keeps it) |
+| `Home` | Back to the start of the score |
 
 Shortcuts do not fire while typing in a text field. Note-entry keys are listed in the next section.
 

@@ -17,6 +17,8 @@ export interface ScoreViewProps {
   onHit?: (hit: HitResult | null, event: React.PointerEvent<HTMLDivElement>) => void;
   /** Text announced politely to screen readers (the selected event description, wired by #19). */
   liveMessage?: string;
+  /** Receives the engraver once it exists (and null when it is gone): playback follows the score through it. */
+  onEngraver?: (engraver: Engraver | null) => void;
 }
 
 const RESIZE_DEBOUNCE_MS = 120;
@@ -40,7 +42,14 @@ async function loadFixture(name: string): Promise<Score> {
   return FIXTURES[name] ?? auClairDeLaLune;
 }
 
-export function ScoreView({ score, selection, playing, onHit, liveMessage }: ScoreViewProps) {
+export function ScoreView({
+  score,
+  selection,
+  playing,
+  onHit,
+  liveMessage,
+  onEngraver,
+}: ScoreViewProps) {
   const { t, language } = useI18n();
   const preview = useMemo(() => previewParams(), []);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -139,6 +148,11 @@ export function ScoreView({ score, selection, playing, onHit, liveMessage }: Sco
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` changes identity on every render; the language is what matters.
   }, [engraver, effective, language]);
+
+  useEffect(() => {
+    onEngraver?.(engraver);
+    return () => onEngraver?.(null);
+  }, [engraver, onEngraver]);
 
   // Highlights are class toggles: the engraver re-applies them itself after a render.
   useEffect(() => {

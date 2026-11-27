@@ -57,7 +57,7 @@ Autres règles : une levée utilise sa propre `length` (elle reçoit moins de la
 
 ## Thème et surbrillance
 
-Le SVG définit `color: var(--score-ink)` et VexFlow dessine en `currentColor` ; quelques couleurs codées en dur par VexFlow (hampes, lignes supplémentaires) sont surchargées dans `engraving.css`. Chaque événement est un `<g class="pm-event" data-event-id="...">`. `setSelection(ids)` ajoute `pm-selected` (couleur `--accent`, plus un rectangle doux `--accent-soft` dans un groupe de recouvrement séparé) ; `setPlaying(ids)` ajoute `pm-playing` (couleur `--play`). Ce sont des bascules de classe sur des nœuds existants : jamais de nouvelle gravure, et le thème sombre fonctionne.
+Le SVG définit `color: var(--score-ink)` et VexFlow dessine en `currentColor` ; quelques couleurs codées en dur par VexFlow (hampes, lignes supplémentaires) sont surchargées dans `engraving.css`. Chaque événement est un `<g class="pm-event" data-event-id="...">`. `setSelection(ids)` ajoute `pm-selected` (couleur `--accent`, plus un rectangle doux `--accent-soft` dans un groupe de recouvrement séparé) ; `setPlaying(ids)` ajoute `pm-playing` (couleur `--play`) ; `setPlayCursor(ids)` déplace un seul `<rect class="pm-cursor">` (couleur `--play`) sur les événements donnés et renvoie sa boîte, pour la lecture ([docs/playback.fr.md](playback.fr.md)). Ce sont des bascules de classe sur des nœuds existants : jamais de nouvelle gravure, et le thème sombre fonctionne.
 
 ## Rendu incrémental
 
@@ -69,7 +69,7 @@ Le modèle partage les objets inchangés entre versions : les références déte
 
 ## Rendu progressif
 
-`engraver.render(score, width, { progressive: true })` (ce qu'utilise `ScoreView`) calcule tout le layout d'un coup (il est pur et prend quelques ms), fixe la taille finale du SVG, puis grave de façon synchrone les systèmes qui croisent la zone visible : le premier système s'affiche vite. Les autres sont gravés par tranches d'au plus 20 ms dans `requestIdleCallback` (`setTimeout` s'il n'existe pas), dans l'ordre de la partition, et insérés dans le DOM à leur place. `engraver.stats.complete` vaut `false` tant que la file n'est pas vide, et `await engraver.settled()` se résout quand tout est dessiné.
+`engraver.render(score, width, { progressive: true })` (ce qu'utilise `ScoreView`) calcule tout le layout d'un coup (il est pur et prend quelques ms), fixe la taille finale du SVG, puis grave de façon synchrone les systèmes qui croisent la zone visible (avec une petite marge) : le premier système s'affiche vite. Les autres sont gravés par tranches d'au plus 20 ms dans `requestIdleCallback` (`setTimeout` s'il n'existe pas), dans l'ordre de la partition, et insérés dans le DOM à leur place. `engraver.stats.complete` vaut `false` tant que la file n'est pas vide, et `await engraver.settled()` se résout quand tout est dessiné.
 
 - Le hit test et les boîtes n'utilisent que le layout : ils fonctionnent sur des systèmes pas encore dessinés ; les surbrillances (sélection, lecture) sont appliquées à un système dès qu'il est dessiné.
 - Un nouvel appel à `render` annule les tranches en attente. Les systèmes déjà dessinés et inchangés sont réutilisés comme avant : une édition reste incrémentale, et `render(score, width)` sans option reste entièrement synchrone (ce qu'utilisent les benchmarks).
@@ -95,10 +95,23 @@ Le SVG a `role="img"` et un résumé `aria-label` (titre, nombre d'instruments e
 
 `#/editor?fixture=<nom>&width=<px>` affiche une fixture de `web/src/score/fixtures` (ou `accidentals`, `benchmark100`) à largeur fixe et expose `window.__polymnia = { engraver, score, width }`. Les tests navigateur l'utilisent ; cela n'ajoute rien au bundle initial.
 
+### Re-flow pendant la frappe
+
+Une édition qui déplace des sauts de ligne (une mesure s'élargit, une note s'ajoute dans une mesure pleine) modifie tous les systèmes suivants, dont plusieurs sont à l'écran. Une frappe doit rester sous une image à 60 fps : la partie synchrone est donc bornée en temps.
+
+1. Le layout est calculé en entier (environ 1 ms avec le cache de formes) et la taille du SVG est définitive : hit test, boîtes d'événements et fond de sélection sont corrects tout de suite, même pour les systèmes pas encore gravés.
+2. Les systèmes à graver sont ceux de l'écran, celui qui contient la sélection en premier. Ils sont gravés tant que l'appel a dépensé moins de 6 ms (layout compris) et que le suivant ne devrait pas dépasser (le coût d'un système est une moyenne mobile des mesures, 3 à 5 ms pour une portée double). Le premier est toujours gravé : il contient l'édition.
+3. Les systèmes visibles restants sont gravés un par tâche juste après l'appel (`setTimeout`, pas en temps libre), pour qu'une touche pressée entre-temps n'attende pas ; les autres suivent par tranches en temps libre. Pendant quelques millisecondes, un système qui attend son tour est blanc.
+4. Les surbrillances ne sont plus ré-appliquées à toute la partition à chaque rendu (environ 4 ms sur 100 mesures) : seuls les systèmes gravés par l'appel le sont, et `setSelection` bascule la différence entre l'ancienne et la nouvelle sélection.
+
+L'hystérésis des sauts de ligne pendant la saisie n'a pas été nécessaire pour tenir le budget et n'est pas implémentée : une mesure ne dépasse jamais la largeur de page et les sauts suivent toujours le layout pur.
+
 ## Tests
 
 - Unitaires (Vitest) : `notation.test.ts`, `layout.test.ts` (découpage, largeurs, justification, précautions, cache), `hitTest.test.ts`, `ScoreView.test.tsx`.
 - Navigateur (Playwright, `e2e/engraving.spec.ts`) : chaque fixture se grave sans erreur ni dépassement, le layout concorde avec VexFlow, hit test sur un vrai clic, bascules de surbrillance, thème sombre, redimensionnement, **budgets de performance**.
+- Navigateur, re-flow (`e2e/engraving.spec.ts`) : après un re-flow, l'appel ne grave qu'une partie des systèmes, le hit test répond pour le dernier (non dessiné), puis tous les systèmes sont dessinés, dans l'ordre.
+- Navigateur, budget de frappe (`e2e/note-entry.spec.ts`, « performance ») : vrais événements clavier sur une partition de 100 mesures, temps de la touche à la fin du rendu synchrone, p95 < 16 ms pour une partition remplie, pour un re-flow en haut d'une partition remplie et en remplissant une partition vide. `PLAYWRIGHT_PORT` change le port de prévisualisation quand un autre run utilise 4173.
 - Navigateur, polices et rendu progressif (`e2e/engraving-fonts.spec.ts`) : aucune police embarquée dans une réponse JavaScript, un seul fichier Bravura haché et un lien de préchargement, la partition s'affiche quand Bravura arrive en retard (requête retardée de 3,5 s), rendu progressif (hauteur complète d'emblée, dessin partiel puis complet, premier système sous 100 ms).
 - `npm run size` (après `npm run build`) échoue si le JS initial, le chunk de l'éditeur ou le fichier Bravura dépassent leur budget, ou si une police est embarquée dans un chunk JS.
 - Visuels (`e2e/visual/`) : captures de portée simple, système à deux portées, accords, altérations et changements d'armure, liaisons, triolets, guitare standard + tablature, changements de clé au violoncelle, levée, thème sombre avec surbrillance.
@@ -124,10 +137,13 @@ Mesurés dans Chromium (portable Windows 11, build de production), `benchmark100
 | Rendu complet, tout premier (JIT froid), tous les systèmes | n/a | 230 à 320 ms (le travail de dessin est inchangé ; il s'exécute désormais par tranches en temps libre) |
 | Rendu complet, à chaud (médiane de 7) | < 200 ms | environ 120 ms |
 | Une édition, médiane / max de 25 | < 16 ms | environ 6 ms / 10 ms |
+| Frappe, partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 8,6 / 11,8 / 12,1 ms (édition à l'écran) |
+| Frappe avec re-flow en haut d'une partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 7,1 / 11,2 / 11,6 ms, 2 systèmes au plus (avant : 9,5 / 16,2 / 16,5 ms) |
+| Frappe en remplissant une partition vide, médiane / p95 / max de 400 | p95 < 16 ms | 3,8 / 7,2 / 11,3 ms (avant : 3,3 / 6,6 / 24,5 ms) |
 | Surbrillance (sélection + lecture) | bascule de classe | < 1 ms |
 | Layout seul (jsdom) | n/a | quelques ms |
 | JS initial | <= 150 Ko gzip | 72,7 Ko |
 | Chunk de l'éditeur (VexFlow + gravure, sans police) | <= 200 Ko gzip | 180 Ko (468 Ko avec les polices avant) |
 | Fichier de police Bravura | <= 250 Ko woff2 | 247 Ko, fichier séparé, cache immuable |
 
-Le test navigateur vérifie : rendu complet à chaud < 200 ms, à froid < 600 ms (JIT, workers parallèles, CI plus lente), médiane d'édition < 16 ms.
+Le test navigateur vérifie : rendu complet à chaud < 200 ms, à froid < 600 ms (JIT, workers parallèles, CI plus lente), médiane d'édition < 16 ms, p95 de frappe < 16 ms dans les trois scénarios ci-dessus (32 ms sur les runners CI, environ deux fois plus lents que le portable de référence).

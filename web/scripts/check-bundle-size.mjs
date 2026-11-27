@@ -1,6 +1,6 @@
 // Fails when a budget is exceeded: the initial JavaScript (what index.html loads on the first
 // screen), the editor chunk (VexFlow + engraving, lazy, fonts excluded) and the Bravura font file.
-// Other lazy chunks (Tone.js, ...) are reported but not budgeted. Also fails when a font is
+// The playback chunk (Tone.js + audio engine, lazy) and the sample files are budgeted too. Also fails when a font is
 // embedded as a data URL in a JavaScript chunk (the CSP only allows same-origin font files).
 // Usage: npm run build && npm run size
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -10,6 +10,8 @@ import { gzipSync } from 'node:zlib';
 
 const BUDGET_KB = 150;
 const EDITOR_BUDGET_KB = 200; // gzip, the chunk that holds VexFlow (#33)
+const PLAYBACK_BUDGET_KB = 80; // gzip, the chunk that holds Tone.js (#10)
+const SAMPLES_BUDGET_KB = 3000; // all sample files together, as served (Ogg Opus)
 const BRAVURA_BUDGET_KB = 250; // woff2 bytes as served (1 KB = 1000 bytes)
 const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
@@ -51,12 +53,18 @@ const files = readdirSync(assets).filter((f) => statSync(join(assets, f)).isFile
 const lazy = files.filter((f) => f.endsWith('.js') && !initial.has(`/assets/${f}`));
 
 let editorKb = 0;
+let playbackKb = 0;
 for (const f of lazy) {
   const file = join(assets, f);
   const kb = gzipKb(file);
-  const isEditor = readFileSync(file, 'utf8').includes('vexflow-core');
+  const text = readFileSync(file, 'utf8');
+  const isEditor = text.includes('vexflow-core');
+  const isPlayback = text.includes('ToneAudioBuffer');
   if (isEditor) editorKb += kb;
-  console.log(`  lazy ${f.padEnd(40)} ${kb.toFixed(1)} KB gzip${isEditor ? '  (editor)' : ''}`);
+  if (isPlayback) playbackKb += kb;
+  console.log(
+    `  lazy ${f.padEnd(40)} ${kb.toFixed(1)} KB gzip${isEditor ? '  (editor)' : ''}${isPlayback ? '  (playback)' : ''}`,
+  );
 }
 
 const embeddedFont = /data:(?:font|application\/(?:font|x-font)[\w-]*)[^"'`]{0,40}base64,/;
@@ -77,6 +85,16 @@ for (const f of bravura) {
     );
 }
 
+const samples = files.filter((f) => f.endsWith('.ogg'));
+const samplesKb = samples.reduce((sum, f) => sum + statSync(join(assets, f)).size / 1000, 0);
+console.log(
+  `  samples ${samples.length} files, ${samplesKb.toFixed(0)} KB (budget ${SAMPLES_BUDGET_KB} KB)`,
+);
+if (samples.length === 0)
+  fail('No .ogg sample in assets: the samples must be separate hashed files.');
+if (samplesKb > SAMPLES_BUDGET_KB)
+  fail(`Samples over budget by ${(samplesKb - SAMPLES_BUDGET_KB).toFixed(0)} KB.`);
+
 const css = files
   .filter((f) => f.endsWith('.css'))
   .reduce((sum, f) => sum + gzipKb(join(assets, f)), 0);
@@ -88,5 +106,9 @@ console.log(`Editor chunk: ${editorKb.toFixed(1)} KB gzip (budget ${EDITOR_BUDGE
 if (editorKb === 0) fail('Editor chunk (VexFlow) not found: update this script.');
 if (editorKb > EDITOR_BUDGET_KB)
   fail(`Editor chunk over budget by ${(editorKb - EDITOR_BUDGET_KB).toFixed(1)} KB.`);
+console.log(`Playback chunk: ${playbackKb.toFixed(1)} KB gzip (budget ${PLAYBACK_BUDGET_KB} KB)`);
+if (playbackKb === 0) fail('Playback chunk (Tone.js) not found: update this script.');
+if (playbackKb > PLAYBACK_BUDGET_KB)
+  fail(`Playback chunk over budget by ${(playbackKb - PLAYBACK_BUDGET_KB).toFixed(1)} KB.`);
 console.log(`Bravura: budget ${BRAVURA_BUDGET_KB} KB woff2`);
 if (failed) process.exit(1);
