@@ -57,7 +57,7 @@ Autres règles : une levée utilise sa propre `length` (elle reçoit moins de la
 
 ## Thème et surbrillance
 
-Le SVG définit `color: var(--score-ink)` et VexFlow dessine en `currentColor` ; quelques couleurs codées en dur par VexFlow (hampes, lignes supplémentaires) sont surchargées dans `engraving.css`. Chaque événement est un `<g class="pm-event" data-event-id="...">`. `setSelection(ids)` ajoute `pm-selected` (couleur `--accent`, plus un rectangle doux `--accent-soft` dans un groupe de recouvrement séparé) ; `setPlaying(ids)` ajoute `pm-playing` (couleur `--play`). Ce sont des bascules de classe sur des nœuds existants : jamais de nouvelle gravure, et le thème sombre fonctionne.
+Le SVG définit `color: var(--score-ink)` et VexFlow dessine en `currentColor` ; quelques couleurs codées en dur par VexFlow (hampes, lignes supplémentaires) sont surchargées dans `engraving.css`. Chaque événement est un `<g class="pm-event" data-event-id="...">`. `setSelection(ids)` ajoute `pm-selected` (couleur `--accent`, plus un rectangle doux `--accent-soft` dans un groupe de recouvrement séparé) ; `setPlaying(ids)` ajoute `pm-playing` (couleur `--play`) ; `setPlayCursor(ids)` déplace un seul `<rect class="pm-cursor">` (couleur `--play`) sur les événements donnés et renvoie sa boîte, pour la lecture ([docs/playback.fr.md](playback.fr.md)). Ce sont des bascules de classe sur des nœuds existants : jamais de nouvelle gravure, et le thème sombre fonctionne.
 
 ## Rendu incrémental
 

@@ -12,9 +12,47 @@ libraries) are not redistributed in the served files and are listed in `web/pack
 | [Inter](https://github.com/rsms/inter), through `@fontsource/inter` | User interface and score text | see `web/package.json` | SIL OFL 1.1 | `/assets/inter-*.woff2` |
 | [IBM Plex Mono](https://github.com/IBM/plex), through `@fontsource/ibm-plex-mono` | Code and shortcut keys | see `web/package.json` | SIL OFL 1.1 | `/assets/ibm-plex-mono-*.woff2` |
 | [React](https://react.dev/) | User interface | see `web/package.json` | MIT | Initial bundle |
+| [Tone.js](https://tonejs.github.io/) | Audio engine for playback | 15.1.22 | MIT | Playback chunk (`/assets/toneBackend-*.js`, lazy) |
+| Instrument samples (see "Audio samples" below) | Playback sounds | n/a | CC0 1.0 (all of them) | `/assets/<Note>-<hash>.ogg`, re-encoded |
 
 The fonts are redistributed unmodified, as separate files, under the SIL Open Font License 1.1.
 The text of that license follows the VexFlow notice below, with the Bravura copyright statement.
+
+## Tone.js (MIT)
+
+Copyright (c) 2014-2020 Yotam Mann. Licensed under the MIT License (same text as the VexFlow notice
+above, with this copyright holder). Source: <https://github.com/Tonejs/Tone.js>.
+
+## Audio samples (CC0 1.0)
+
+The instrument sounds are short excerpts of the recordings below, **re-encoded** (mono, Ogg Opus,
+trimmed, faded and loudness-matched, see `docs/playback.md`). Every source is published under
+**Creative Commons CC0 1.0 Universal** (public domain dedication,
+<https://creativecommons.org/publicdomain/zero/1.0/>): no attribution is required, it is given here
+because the authors ask for it or because it is good practice. The license was checked in the
+source repository or archive (license file and readme), not taken from a third-party listing.
+
+| Sample set (`web/src/playback/samples/`) | Played by | Original recording | Author | Source, license |
+| --- | --- | --- | --- | --- |
+| `guitar-nylon` | Classical guitar (also stands in for the steel-string guitar) | Spanish classical guitar | Roberto (roberto@zenvoid.org), FreePats | <https://freepats.zenvoid.org/Guitar/acoustic-guitar.html>, CC0 1.0 (`cc0.txt` in the archive) |
+| `ukulele` | All ukuleles | Ukulele (tenor, Flight Fireball) | Mateusz Dąbrowski, FreePats | <https://freepats.zenvoid.org/GuitarFamily/ukulele.html>, CC0 1.0 (`LICENSE.txt`) |
+| `piano` | Piano, unknown instruments | Upright Piano KW (small) | Gonzalo and Roberto, FreePats | <https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html>, CC0 1.0 (`cc0.txt`) |
+| `clarinet` | Clarinet | Clarinet | Tyler Dence (recording), Kaili Dence (performer), Roberto (bank), FreePats | <https://freepats.zenvoid.org/Reed/clarinet.html>, CC0 1.0 (`readme.txt`) |
+| `cello` | Cello | VSCO 2 CE, Cello Section, sustained vibrato | Versilian Studios / Sam Gossner, Simon Dalzell (Ivy Audio) | <https://github.com/sgossner/VSCO-2-CE> (`LICENSE`: CC0 1.0) |
+| `violin` | Violin | VSCO 2 CE, Solo Violin, arco vibrato | Versilian Studios / Sam Gossner, Simon Dalzell (Ivy Audio) | same, CC0 1.0 |
+| `double-bass` | Double bass | VSCO 2 CE, Solo Contrabass, sustained vibrato | Versilian Studios / Sam Gossner, Simon Dalzell (Ivy Audio) | same, CC0 1.0 |
+| `flute` | Flute (also stands in for the voice) | VSCO 2 CE, Flute, sustained vibrato | Versilian Studios / Sam Gossner, Simon Dalzell (Ivy Audio) | same, CC0 1.0 |
+
+Credit, as the VSCO 2 CE authors request: *VS Chamber Orchestra: Community Edition by Versilian
+Studios LLC (Sam Gossner, Simon Dalzell), <http://vis.versilstudios.net/vsco-community.html>.* The
+readme of that library also asks users not to sell the samples on their own; Polymnia redistributes
+a handful of re-encoded excerpts for free inside an open-source application, which that request does
+not cover, and the license itself (CC0) places no condition.
+
+No recording is shipped for the steel-string guitar and the voice: the only candidates found were
+not usable (the FreePats steel-string guitar is GPL-3.0 with a special exception, not compatible
+with an MIT application; no permissively licensed choir or solo voice set was found). These two
+instruments play another set (see `docs/playback.md`).
 
 ## VexFlow (MIT)
 

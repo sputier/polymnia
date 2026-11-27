@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockSignedIn } from './engraving-helpers';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 900 } });
 
@@ -25,6 +26,7 @@ async function openEditor(page: Page, measures = 4) {
   await page.addInitScript(() => {
     (window as unknown as { __polymniaAudio: string }).__polymniaAudio = 'mock';
   });
+  await mockSignedIn(page);
   await page.goto(`/#/editor?new=${measures}`);
   await expect(page.locator('svg.pm-score')).toBeVisible();
   await page.waitForFunction(() => !!(window as unknown as W).__polymnia?.playback);

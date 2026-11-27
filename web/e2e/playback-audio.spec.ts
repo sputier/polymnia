@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockSignedIn } from './engraving-helpers';
 
 // Real engine (Tone.js + the Ogg Opus samples, no mock): decoding works, the first note starts
 // within the budget cold and with a warm cache, and the samples are same-origin immutable files.
@@ -14,6 +15,7 @@ const hook = (page: Page) =>
   });
 
 async function playOnce(page: Page) {
+  await mockSignedIn(page);
   await page.goto('/#/editor');
   await expect(page.locator('svg.pm-score')).toBeVisible();
   await page.waitForFunction(() => !!(window as unknown as { __polymnia?: Hook }).__polymnia);

@@ -18,7 +18,7 @@ import {
   type LoopRange,
   type TempoMap,
 } from './clock';
-import { sampleSetFor } from './instrumentSets';
+import { sampleSetFor, type SampleSetId } from './instrumentSets';
 import { buildTimeline, type EventSpan, type Timeline } from './timeline';
 
 export type PlaybackStatus = 'stopped' | 'playing' | 'paused';
@@ -97,9 +97,12 @@ export class PlaybackController {
 
   private score: Score | undefined;
   private timed: Timed | undefined;
+  /** Playhead tick to restore on the next timeline (set when the score changes). */
+  private pendingTick: number | undefined;
   private backend: AudioBackend | undefined;
   private backendPromise: Promise<AudioBackend> | undefined;
-  private preparedFor: Score | undefined;
+  /** Staff channels the backend was last given (rebuilt only when the staves or instruments change). */
+  private preparedKey = '';
 
   /** Playhead in score seconds while stopped or paused. */
   private positionSec = 0;
@@ -151,25 +154,29 @@ export class PlaybackController {
   /** Gives the controller the score to play. Editing stops playback and keeps the playhead. */
   setScore(score: Score): void {
     if (score === this.score) return;
-    const tick = this.timed ? this.positionTick() : 0;
+    const tick = this.pendingTick ?? (this.timed ? this.positionTick() : 0);
     this.score = score;
     this.timed = undefined;
     if (this.state.status === 'playing') {
       this.halt();
       this.set({ status: 'stopped' });
     }
-    const timed = this.ensureTimed();
-    this.positionSec = timed
-      ? timed.tempo.ticksToSeconds(Math.min(tick, timed.timeline.totalTicks))
-      : 0;
+    // The timeline is rebuilt when next needed (not on every keystroke); the playhead keeps its tick.
+    this.pendingTick = tick;
     this.loopRange = undefined;
     if (this.state.loop) this.set({ loop: false });
     if (this.state.status === 'paused') this.set({ status: 'stopped' });
-    this.set({ bpm: this.bpmAt(this.positionSec) });
   }
 
   private ensureTimed(): Timed | undefined {
-    if (!this.timed && this.score) this.timed = timeScore(this.score);
+    if (!this.timed && this.score) {
+      this.timed = timeScore(this.score);
+      if (this.pendingTick !== undefined) {
+        const tick = Math.min(this.pendingTick, this.timed.timeline.totalTicks);
+        this.positionSec = this.timed.tempo.ticksToSeconds(tick);
+        this.pendingTick = undefined;
+      }
+    }
     return this.timed;
   }
 
@@ -196,16 +203,13 @@ export class PlaybackController {
   /** Channels for the staves of the score, with only the sample sets they need. */
   private async prepare(only?: readonly string[]): Promise<AudioBackend> {
     const backend = await this.getBackend();
-    const timed = this.ensureTimed();
-    if (!timed) return backend;
-    const staves = timed.timeline.staves.map((s) => ({
-      id: s.staffId,
-      set: sampleSetFor(s.instrument).set,
-    }));
+    const staves = this.staffChannels();
+    if (staves.length === 0) return backend;
     const wanted = new Set(staves.filter((s) => !only || only.includes(s.id)).map((s) => s.set));
-    if (this.preparedFor !== this.score) {
+    const key = staves.map((s) => `${s.id}:${s.set}`).join('|');
+    if (this.preparedKey !== key) {
       backend.setStaves(staves);
-      this.preparedFor = this.score;
+      this.preparedKey = key;
       this.applyMutes();
     }
     await backend.loadSets([...wanted]);
@@ -355,11 +359,17 @@ export class PlaybackController {
   }
 
   private applyMutes(): void {
-    const timed = this.timed;
-    if (!this.backend || !timed) return;
-    const ids = timed.timeline.staves.map((s) => s.staffId);
+    if (!this.backend) return;
+    const ids = this.staffChannels().map((s) => s.id);
     const audible = audibleStaves(ids, this.state.muted, this.state.solo);
     for (const id of ids) this.backend.setMuted(id, !audible.has(id));
+  }
+
+  /** One channel per staff of the score, read from the score itself (no timeline needed). */
+  private staffChannels(): { id: string; set: SampleSetId }[] {
+    return (this.score?.parts ?? []).flatMap((part) =>
+      part.staves.map((staff) => ({ id: staff.id, set: sampleSetFor(part.instrument).set })),
+    );
   }
 
   // ---- Preview --------------------------------------------------------------------------------
@@ -368,17 +378,16 @@ export class PlaybackController {
    * transposition is applied. Silent when the audio cannot start (no user gesture yet).
    */
   async previewNote(partId: string, pitch: Pitch): Promise<void> {
-    const timed = this.ensureTimed();
-    const staff = timed?.timeline.staves.find((s) => s.partId === partId);
     const part = this.score?.parts.find((p) => p.id === partId);
-    if (!timed || !staff || !part) return;
+    const staff = part?.staves[0];
+    if (!part || !staff) return;
     try {
       const pending = this.getBackend();
       const backend = await pending;
       await backend.start();
-      await this.prepare([staff.staffId]);
+      await this.prepare([staff.id]);
       backend.note(
-        staff.staffId,
+        staff.id,
         soundingMidi(pitch, part.transposition),
         backend.now() + 0.01,
         PREVIEW_SECONDS,
