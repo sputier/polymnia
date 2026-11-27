@@ -123,7 +123,7 @@ internal static class ContactText
         StringBuilder clean = new(text.Length);
         foreach (Rune rune in text.EnumerateRunes())
         {
-            if (Rune.GetUnicodeCategory(rune) != UnicodeCategory.Format && !IsInvisibleFiller(rune.Value))
+            if ((Rune.GetUnicodeCategory(rune) != UnicodeCategory.Format || rune.Value is 0x200C or 0x200D) && !IsInvisibleFiller(rune.Value))
             {
                 clean.Append(rune.ToString());
             }

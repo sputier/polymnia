@@ -70,8 +70,6 @@ public sealed class ContactUnitTests
 
     [Theory]
     [InlineData(0x200B)] // zero-width space
-    [InlineData(0x200C)] // zero-width non-joiner
-    [InlineData(0x200D)] // zero-width joiner
     [InlineData(0x200E)] // left-to-right mark
     [InlineData(0x202A)] // bidirectional embedding
     [InlineData(0x202E)] // right-to-left override
@@ -83,6 +81,16 @@ public sealed class ContactUnitTests
     [InlineData(0x061C)] // Arabic letter mark
     public void Format_characters_are_dropped_so_the_text_reads_as_it_is_stored(int codePoint) =>
         Assert.Equal("beforeafter", ContactText.Clean("before" + (char)codePoint + "after"));
+
+    [Theory]
+    [InlineData(0x200C)] // zero-width non-joiner (Persian)
+    [InlineData(0x200D)] // zero-width joiner (Indic scripts, emoji sequences)
+    public void The_two_joiners_are_kept(int codePoint)
+    {
+        string text = "a" + (char)codePoint + "b";
+
+        Assert.Equal(text, ContactText.Clean(text));
+    }
 
     [Fact]
     public void Tag_characters_outside_the_basic_plane_are_dropped_whole()
