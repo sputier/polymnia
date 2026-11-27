@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { useI18n } from '../i18n/i18n';
 import { sampleSetFor, type PlaybackController } from '../playback';
+import type { ChordPlayback } from '../playback/chordVoicing';
 import { getInstrument, type Score } from '../score';
 
 const SET_INSTRUMENT: Record<string, string> = { 'guitar-nylon': 'guitar-classical' };
@@ -32,6 +33,10 @@ export function Mixer({ controller, score }: { controller: PlaybackController; s
     standIns.set(part.id, t('mixer.standIn').replace('{instrument}', name).replace('{set}', used));
   }
 
+  const hasChords = score.parts.some((p) =>
+    p.staves.some((st) => st.measures.some((m) => m.chords && m.chords.length > 0)),
+  );
+
   return (
     <section className="mixer" aria-label={t('mixer.title')}>
       <h3>{t('mixer.title')}</h3>
@@ -60,6 +65,19 @@ export function Mixer({ controller, score }: { controller: PlaybackController; s
           </li>
         ))}
       </ul>
+      {(hasChords || state.chords !== 'off') && (
+        <label className="field">
+          <span>{t('mixer.chords')}</span>
+          <select
+            value={state.chords}
+            onChange={(e) => void controller.setChordPlayback(e.target.value as ChordPlayback)}
+          >
+            <option value="off">{t('mixer.chordsOff')}</option>
+            <option value="block">{t('mixer.chordsBlock')}</option>
+            <option value="strum">{t('mixer.chordsStrum')}</option>
+          </select>
+        </label>
+      )}
       {[...standIns.values()].map((text) => (
         <p key={text} className="mixer-note">
           {text}

@@ -316,6 +316,42 @@ const specs: Spec[] = [
     group: 'edit',
     run: (s) => s.paste(),
   },
+  // Chord symbols. Alt+K: K as in MuseScore's chord key (Ctrl+K is the command palette here).
+  {
+    id: 'entry.chordSymbol',
+    keys: 'Alt+K',
+    labelKey: 'shortcut.chordEntry',
+    group: 'input',
+    run: (s) => s.openChordEntry(),
+  },
+  {
+    id: 'chord.transposeUp',
+    keys: '',
+    labelKey: 'command.chordTransposeUp',
+    group: 'edit',
+    run: (s) => s.transposeChords(1),
+  },
+  {
+    id: 'chord.transposeDown',
+    keys: '',
+    labelKey: 'command.chordTransposeDown',
+    group: 'edit',
+    run: (s) => s.transposeChords(-1),
+  },
+  {
+    id: 'chord.diagram',
+    keys: '',
+    labelKey: 'command.chordDiagram',
+    group: 'edit',
+    run: (s) => s.toggleChordDiagram(),
+  },
+  {
+    id: 'chord.delete',
+    keys: '',
+    labelKey: 'command.chordDelete',
+    group: 'edit',
+    run: (s) => s.deleteChordAtCursor(),
+  },
 ];
 
 /** Key combo of a shortcut id (for tooltips and the palette). */

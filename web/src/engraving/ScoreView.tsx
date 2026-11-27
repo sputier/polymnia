@@ -22,6 +22,8 @@ export interface ScoreViewProps {
   liveMessage?: string;
   /** Receives the engraver once it exists (and null when it is gone): playback follows the score through it. */
   onEngraver?: (engraver: Engraver | null) => void;
+  /** Drawn over the score, in the coordinates of the engraved SVG (the chord symbol text field). */
+  overlay?: React.ReactNode;
 }
 
 const RESIZE_DEBOUNCE_MS = 120;
@@ -53,6 +55,7 @@ export function ScoreView({
   onHit,
   liveMessage,
   onEngraver,
+  overlay,
 }: ScoreViewProps) {
   const { t, language } = useI18n();
   const preview = useMemo(() => previewParams(), []);
@@ -201,6 +204,7 @@ export function ScoreView({
         style={preview.width ? { width: preview.width } : undefined}
         onPointerDown={handlePointerDown}
       />
+      {overlay}
       <div className="visually-hidden" role="status" aria-live="polite">
         {liveMessage}
       </div>

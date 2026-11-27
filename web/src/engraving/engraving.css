@@ -1,6 +1,7 @@
 /* Score engraving. Colors come from the design tokens; highlighting is a class toggle. */
 .score-view {
   min-width: 0;
+  position: relative;
 }
 
 .score-host {
@@ -65,4 +66,51 @@
   fill: var(--play);
   opacity: 0.85;
   pointer-events: none;
+}
+
+/* Chord symbols and diagrams: the ink is the score's; the group is a target for the click. */
+.pm-score .pm-chord,
+.pm-score .pm-diagram {
+  cursor: text;
+}
+
+/* The inline chord symbol field, over the score at the symbol's place. */
+.chord-entry {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.chord-entry input {
+  font: 500 15px var(--font-ui, sans-serif);
+  line-height: 1.2;
+  padding: 1px 4px;
+  min-width: 4.5em;
+  color: var(--score-ink);
+  background: var(--paper);
+  border: 1.5px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.chord-entry input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chord-entry input[aria-invalid='true'] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+.chord-entry-preview {
+  font: 12px var(--font-ui, sans-serif);
+  padding: 1px 6px;
+  color: var(--muted);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }

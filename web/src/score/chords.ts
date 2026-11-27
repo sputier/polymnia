@@ -293,13 +293,11 @@ interface NoteRead {
 function readNotes(s: string): NoteRead[] {
   const out: NoteRead[] = [];
   const lower = s.toLowerCase();
-  if (/^[A-Z]/.test(s)) {
-    for (const [name, step] of FRENCH_ROOTS) {
-      if (!lower.startsWith(name)) continue;
-      const acc = readAccidental(s.slice(name.length));
-      out.push({ note: { step, alter: acc.alter }, length: name.length + acc.length });
-      break;
-    }
+  for (const [name, step] of FRENCH_ROOTS) {
+    if (!lower.startsWith(name)) continue;
+    const acc = readAccidental(s.slice(name.length));
+    out.push({ note: { step, alter: acc.alter }, length: name.length + acc.length });
+    break;
   }
   const letter = s[0]?.toUpperCase();
   if (letter && /^[A-G]$/.test(letter)) {

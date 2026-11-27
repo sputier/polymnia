@@ -64,7 +64,18 @@ import {
   keyAlter,
   keyFifthsAt,
   midiToPitch,
+  formatChord,
+  parseChord,
+  removeChord,
+  setChord,
+  setChordCapoShapes,
+  setChordDiagram,
+  setChordDiagramMode,
+  timeSignatureAt,
+  transposeChords,
 } from '../../score';
+import { diagramPlan } from '../../engraving/chords';
+import { beatTicks } from '../../playback/timeline';
 import type { HitResult } from '../../engraving/hitTest';
 import type { Notice } from './describe';
 import { alterInForce, nearestOctave, referencePitch } from './pitchInput';
@@ -79,6 +90,14 @@ import {
 } from './plan';
 
 export type InputMode = 'select' | 'note';
+
+/** Where the chord symbol text field is open: a position of the first staff of a part. */
+export interface ChordEntryPos {
+  readonly staffId: string;
+  readonly measure: number;
+  /** Offset in the measure, in ticks. */
+  readonly tick: number;
+}
 
 export interface Cursor {
   readonly measure: number;
@@ -113,6 +132,8 @@ export interface EditorState {
   readonly pendingSlur: string | null;
   /** TAB staves, note input: string (1 = highest) the next fret typed goes on. */
   readonly tabString: number;
+  /** The chord symbol text field is open here (docs/editor.md, "Chord symbols"). */
+  readonly chordEntry: ChordEntryPos | null;
   readonly announcement: Announcement | null;
 }
 
@@ -214,6 +235,7 @@ export class EditorStore {
       pendingTie: null,
       pendingSlur: null,
       tabString: 1,
+      chordEntry: null,
       announcement: null,
     };
   }
@@ -964,6 +986,15 @@ export class EditorStore {
   click(hit: HitResult | null, extend = false): void {
     if (!hit) return;
     const s = this.state;
+    if (hit.chord) {
+      this.openChordEntry({
+        staffId: hit.staffId,
+        measure: hit.measureIndex,
+        tick: hit.chord.tick,
+      });
+      return;
+    }
+    if (s.chordEntry) this.set({ chordEntry: null });
     if (s.mode === 'note') {
       if (hit.tick === undefined) return;
       const at = { staffId: hit.staffId, measure: hit.measureIndex, tick: hit.tick };
@@ -1383,6 +1414,177 @@ export class EditorStore {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Chord symbols
+  // ---------------------------------------------------------------------------------------------
+
+  /** The staff that carries the chord symbols of the part holding `staffId`: its first staff. */
+  private chordStaffOf(staffId: string): string {
+    const part = this.state.score.parts.find((p) => p.staves.some((st) => st.id === staffId));
+    return part ? part.staves[0]!.id : staffId;
+  }
+
+  private chordAtPos(pos: ChordEntryPos) {
+    const loc = findStaff(this.state.score, pos.staffId);
+    if (!loc) return undefined;
+    const sm = this.state.score.parts[loc.partIndex]!.staves[loc.staffIndex]!.measures[pos.measure];
+    return sm?.chords?.find((c) => c.tick === pos.tick);
+  }
+
+  /** The chord symbol at a position of the entry staff, as text (the text field shows it). */
+  chordTextAt(pos: ChordEntryPos): string {
+    const c = this.chordAtPos(pos);
+    return c ? formatChord(c) : '';
+  }
+
+  /**
+   * Opens the chord symbol text field at the cursor (or at `at`): the staff of the cursor, its
+   * measure, the nearest tick the measure holds. An existing symbol is edited.
+   */
+  openChordEntry(at?: ChordEntryPos): boolean {
+    const s = this.state;
+    const staffId = this.chordStaffOf(at?.staffId ?? s.staffId);
+    const measure = Math.min(at?.measure ?? s.cursor.measure, s.score.measures.length - 1);
+    const length = measureLength(s.score, measure);
+    const wanted = Math.round(at?.tick ?? s.cursor.tick);
+    const tick = Math.max(0, Math.min(wanted, length - 1));
+    this.set({ chordEntry: { staffId, measure, tick } });
+    return true;
+  }
+
+  closeChordEntry(): void {
+    if (this.state.chordEntry) this.set({ chordEntry: null });
+  }
+
+  /**
+   * Writes the text of the open field: a chord symbol (any spelling the parser accepts) sets or
+   * replaces the symbol, an empty text removes it. Returns false, with a notice, for a text that is
+   * not a chord symbol (the field stays open).
+   */
+  commitChord(text: string): boolean {
+    const pos = this.state.chordEntry;
+    if (!pos) return false;
+    const trimmed = text.trim();
+    const existing = this.chordAtPos(pos);
+    if (trimmed === '') {
+      if (!existing) return true;
+      this.commit(removeChord(pos), () => this.say({ key: 'notice.chordRemoved' }));
+      return true;
+    }
+    const chord = parseChord(trimmed);
+    if (!chord) {
+      this.set(this.say({ key: 'notice.chordInvalid', params: { text: trimmed } }));
+      return false;
+    }
+    this.commit(setChord({ ...pos, chord }), () => ({
+      cursor: { measure: pos.measure, tick: pos.tick },
+      ...this.say({ key: 'notice.chordSet', params: { chord: formatChord(chord) } }),
+    }));
+    return true;
+  }
+
+  /**
+   * Moves the open field to the next or previous beat (Space), or measure (Tab). A beat is the
+   * time signature's beat (a dotted quarter in 6/8). Stays put at the start or the end of the score.
+   */
+  moveChordEntry(unit: 'beat' | 'measure', direction: 1 | -1): boolean {
+    const s = this.state;
+    const pos = s.chordEntry;
+    if (!pos) return false;
+    const count = s.score.measures.length;
+    let { measure, tick } = pos;
+    if (unit === 'measure') measure += direction;
+    else {
+      const time = timeSignatureAt(s.score, measure);
+      const beat = beatTicks(time.beats, time.beatType);
+      const length = measureLength(s.score, measure);
+      if (direction === 1) {
+        tick = (Math.floor(tick / beat) + 1) * beat;
+        if (tick >= length) {
+          measure += 1;
+          tick = 0;
+        }
+      } else if (tick % beat > 0) tick = Math.floor(tick / beat) * beat;
+      else if (tick - beat >= 0) tick -= beat;
+      else {
+        measure -= 1;
+        if (measure >= 0) {
+          const prev = timeSignatureAt(s.score, measure);
+          const unitTicks = beatTicks(prev.beats, prev.beatType);
+          tick = Math.floor((measureLength(s.score, measure) - 1) / unitTicks) * unitTicks;
+        }
+      }
+    }
+    if (measure < 0 || measure >= count) return false;
+    if (unit === 'measure') tick = 0;
+    this.set({
+      chordEntry: { staffId: pos.staffId, measure, tick },
+      cursor: { measure, tick },
+    });
+    return true;
+  }
+
+  /** Removes the chord symbol at the cursor. */
+  deleteChordAtCursor(): boolean {
+    const s = this.state;
+    const pos: ChordEntryPos = {
+      staffId: this.chordStaffOf(s.staffId),
+      measure: s.cursor.measure,
+      tick: Math.round(s.cursor.tick),
+    };
+    if (!this.chordAtPos(pos)) {
+      this.set(this.say({ key: 'notice.chordNone' }));
+      return false;
+    }
+    return this.commit(removeChord(pos), () => this.say({ key: 'notice.chordRemoved' }));
+  }
+
+  /**
+   * Transposes every chord symbol of the part being edited by semitones, spelled for the key
+   * signature of each measure. The notes are not touched (chord symbols name concert pitches).
+   */
+  transposeChords(semitones: number): boolean {
+    const s = this.state;
+    const part = s.score.parts.find((p) => p.staves.some((st) => st.id === s.staffId));
+    if (!part) return false;
+    const ok = this.commit(
+      transposeChords({ semitones, staffIds: part.staves.map((st) => st.id) }),
+      () => this.say({ key: 'notice.chordTransposed', params: { semitones } }),
+    );
+    if (!ok) this.set(this.say({ key: 'notice.chordNone' }));
+    return ok;
+  }
+
+  /** Shows or hides the diagram of the chord symbol at the cursor, whatever the part's mode says. */
+  toggleChordDiagram(): boolean {
+    const s = this.state;
+    const pos: ChordEntryPos = {
+      staffId: this.chordStaffOf(s.staffId),
+      measure: s.cursor.measure,
+      tick: Math.round(s.cursor.tick),
+    };
+    const chord = this.chordAtPos(pos);
+    if (!chord) {
+      this.set(this.say({ key: 'notice.chordNone' }));
+      return false;
+    }
+    const shown = diagramPlan(s.score).has(chord.id);
+    return this.commit(setChordDiagram({ ...pos, diagram: !shown }), () =>
+      this.say({
+        key: shown ? 'notice.chordDiagramOff' : 'notice.chordDiagramOn',
+        params: { chord: formatChord(chord) },
+      }),
+    );
+  }
+
+  setChordDiagramMode(partId: string, mode: 'first' | 'all' | null): boolean {
+    return this.commit(setChordDiagramMode({ partId, mode }), () => ({}));
+  }
+
+  setChordCapoShapes(partId: string, on: boolean): boolean {
+    return this.commit(setChordCapoShapes({ partId, on }), () => ({}));
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Undo / redo
   // ---------------------------------------------------------------------------------------------
 
@@ -1425,6 +1627,7 @@ export class EditorStore {
       pendingAlter: null,
       pendingTie: null,
       pendingSlur: null,
+      chordEntry: null,
       ...this.say({ key }),
     });
   }

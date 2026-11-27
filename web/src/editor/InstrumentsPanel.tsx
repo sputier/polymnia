@@ -426,6 +426,32 @@ function PartSettings({
               ))}
             </select>
           </label>
+          <label className="field">
+            <span>{t('instruments.chordDiagrams')}</span>
+            <select
+              value={part.chordDiagrams ?? 'none'}
+              onChange={(e) =>
+                store.setChordDiagramMode(
+                  part.id,
+                  e.target.value === 'none' ? null : (e.target.value as 'first' | 'all'),
+                )
+              }
+            >
+              <option value="none">{t('instruments.chordDiagramsNone')}</option>
+              <option value="first">{t('instruments.chordDiagramsFirst')}</option>
+              <option value="all">{t('instruments.chordDiagramsAll')}</option>
+            </select>
+          </label>
+          {(part.capo ?? 0) > 0 && (
+            <label className="radio">
+              <input
+                type="checkbox"
+                checked={!!part.chordCapoShapes}
+                onChange={(e) => store.setChordCapoShapes(part.id, e.target.checked)}
+              />
+              <span>{t('instruments.chordCapoShapes')}</span>
+            </label>
+          )}
         </>
       )}
     </section>

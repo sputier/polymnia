@@ -7,6 +7,7 @@
  */
 import {
   TICKS_PER_QUARTER,
+  partTuning,
   measureLength,
   nominalMeasureLength,
   pitchToMidi,
@@ -16,6 +17,7 @@ import {
   voiceEventTicks,
 } from '../score';
 import type { Score } from '../score';
+import { STRUM_TICKS, voiceChord, type ChordPlayback, type ShapeLookup } from './chordVoicing';
 
 export interface StaffInfo {
   readonly partId: string;
@@ -83,7 +85,14 @@ interface OpenNote {
   eventIds: string[];
 }
 
-export function buildTimeline(score: Score): Timeline {
+export interface TimelineOptions {
+  /** Play the chord symbols: as block chords or a strum (default: not played). */
+  readonly chords?: ChordPlayback;
+  /** Fretboard shapes for the chords of parts with strings (the lazy chord library). */
+  readonly lookup?: ShapeLookup | undefined;
+}
+
+export function buildTimeline(score: Score, options: TimelineOptions = {}): Timeline {
   const measureStarts: number[] = [];
   let total = 0;
   for (let m = 0; m < score.measures.length; m++) {
@@ -163,6 +172,9 @@ export function buildTimeline(score: Score): Timeline {
     });
   });
 
+  if (options.chords && options.chords !== 'off') {
+    building.push(...chordNotes(score, staves, measureStarts, options.chords, options.lookup));
+  }
   const finalNotes: SoundingNote[] = building;
 
   finalNotes.sort((a, b) => a.startTick - b.startTick || a.midi - b.midi);
@@ -177,6 +189,52 @@ export function buildTimeline(score: Score): Timeline {
     tempo: tempoSegments(score),
     beats: beatList(score, measureStarts),
   };
+}
+
+/**
+ * The chord symbols of the played staves as notes. A chord rings until the next symbol of its
+ * measure, or to the end of the measure; a strum staggers the strings by STRUM_TICKS.
+ */
+function chordNotes(
+  score: Score,
+  staves: readonly StaffInfo[],
+  measureStarts: readonly number[],
+  mode: ChordPlayback,
+  lookup: ShapeLookup | undefined,
+): OpenNote[] {
+  const out: OpenNote[] = [];
+  for (const info of staves) {
+    const part = score.parts[info.partIndex]!;
+    const tuning = partTuning(part);
+    part.staves[info.staffIndex]!.measures.forEach((sm, m) => {
+      const chords = sm.chords;
+      if (!chords) return;
+      const start = measureStarts[m]!;
+      const end = start + measureLength(score, m);
+      chords.forEach((chord, i) => {
+        const from = start + chord.tick;
+        const to = Math.min(end, i + 1 < chords.length ? start + chords[i + 1]!.tick : end);
+        const notes = voiceChord(chord, {
+          tuning,
+          capo: part.capo ?? 0,
+          lookup,
+          frame: chord.frame,
+        });
+        notes.forEach((midi, k) => {
+          const at = mode === 'strum' ? Math.min(from + k * STRUM_TICKS, to - 1) : from;
+          out.push({
+            staffId: info.staffId,
+            partId: info.partId,
+            midi,
+            startTick: at,
+            endTick: to,
+            eventIds: [],
+          });
+        });
+      });
+    });
+  }
+  return out;
 }
 
 function tempoSegments(score: Score): TempoSegment[] {

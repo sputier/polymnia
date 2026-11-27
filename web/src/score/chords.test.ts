@@ -96,6 +96,23 @@ describe('parseChord', () => {
     expect(text('Dosus4')).toBe('Csus4');
   });
 
+  it('accepts French note names in lowercase, and reads "Do" as the note C', () => {
+    expect(text('do')).toBe('C');
+    expect(text('rém7')).toBe('Dm7');
+    expect(text('sol/si')).toBe('G/B');
+    expect(text('lam')).toBe('Am');
+    expect(text('Do7')).toBe('C7');
+    // D diminished is typed with its name.
+    expect(text('Ddim7')).toBe('Ddim7');
+  });
+
+  it('does not take the start of a quality for a French note', () => {
+    expect(text('Faug')).toBe('Faug');
+    expect(text('Fadd9')).toBe('Fadd9');
+    expect(text('Misus4')).toBe('Esus4');
+    expect(text('Bdim')).toBe('Bdim');
+  });
+
   it('formats with solfège names', () => {
     const c = parseChord('F#m7/C#')!;
     expect(formatChord(c, 'solfege')).toBe('Fa#m7/Do#');
