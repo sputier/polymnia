@@ -364,6 +364,13 @@ type EntryStore = {
   getState(): State;
 };
 
+/**
+ * p95 budget of a keystroke. Shared CI runners are about twice as slow as the reference laptop
+ * (a single system takes 10 ms there), so CI gets twice the budget: still far under what a
+ * full re-flow cost before #38.
+ */
+const KEYSTROKE_BUDGET_MS = process.env.CI ? 32 : 16;
+
 test.describe('performance', () => {
   test('a keystroke on a filled 100-measure score: p95 under 16 ms', async ({ page }) => {
     await openEditor(page, '?new=100');
@@ -384,7 +391,7 @@ test.describe('performance', () => {
 
     const run = await pressNoteKeys(page, 40, ['D', 'F', 'B', 'C']);
     const { p95 } = report('100 measures, filled', run);
-    expect(p95).toBeLessThan(16);
+    expect(p95).toBeLessThan(KEYSTROKE_BUDGET_MS);
   });
 
   test('re-flow at the top of a filled 100-measure score: p95 under 16 ms', async ({ page }) => {
@@ -405,7 +412,7 @@ test.describe('performance', () => {
     // them is concerned while the ones on screen must be redrawn right away.
     const run = await pressNoteKeys(page, 40, ['C', 'G', 'E', 'A'], true);
     const { p95 } = report('100 measures, filled, re-flow at the top', run);
-    expect(p95).toBeLessThan(16);
+    expect(p95).toBeLessThan(KEYSTROKE_BUDGET_MS);
   });
 
   test('filling an empty 100-measure score: re-flows stay under 16 ms (p95)', async ({ page }) => {
@@ -418,6 +425,6 @@ test.describe('performance', () => {
     // 400 eighth notes: the first 50 measures, each widening as its rests become notes.
     const run = await pressNoteKeys(page, 400, ['C', 'G', 'E', 'A']);
     const { p95 } = report('100 measures, filling an empty score', run);
-    expect(p95).toBeLessThan(16);
+    expect(p95).toBeLessThan(KEYSTROKE_BUDGET_MS);
   });
 });

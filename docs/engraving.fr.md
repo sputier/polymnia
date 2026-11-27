@@ -146,4 +146,4 @@ Mesurés dans Chromium (portable Windows 11, build de production), `benchmark100
 | Chunk de l'éditeur (VexFlow + gravure, sans police) | <= 200 Ko gzip | 180 Ko (468 Ko avec les polices avant) |
 | Fichier de police Bravura | <= 250 Ko woff2 | 247 Ko, fichier séparé, cache immuable |
 
-Le test navigateur vérifie : rendu complet à chaud < 200 ms, à froid < 600 ms (JIT, workers parallèles, CI plus lente), médiane d'édition < 16 ms, p95 de frappe < 16 ms dans les trois scénarios ci-dessus.
+Le test navigateur vérifie : rendu complet à chaud < 200 ms, à froid < 600 ms (JIT, workers parallèles, CI plus lente), médiane d'édition < 16 ms, p95 de frappe < 16 ms dans les trois scénarios ci-dessus (32 ms sur les runners CI, environ deux fois plus lents que le portable de référence).
