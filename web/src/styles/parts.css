@@ -1,0 +1,267 @@
+/* Instruments panel (left) and inspector (right): parts, tuning, measure attributes. */
+.instruments,
+.inspector {
+  display: grid;
+  gap: 10px;
+  padding: 4px 14px 16px;
+  font-size: 13px;
+}
+
+.side-h {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.side-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.side-hint.warn {
+  color: var(--warn);
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.part-list {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.part-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  padding: 2px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.part-row[data-current] {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.part-row[data-dragging] {
+  opacity: 0.5;
+}
+
+.part-main {
+  display: grid;
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: grab;
+  background: transparent;
+  border: 0;
+}
+
+.part-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.part-inst {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.part-row .btn.icon {
+  margin-left: 0;
+  min-width: 30px;
+  min-height: 30px;
+  justify-content: center;
+}
+
+.part-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 6px;
+}
+
+.picker {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.picker-h {
+  margin: 6px 0 2px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.picker-list {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.picker-item {
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+
+.picker-item:hover {
+  background: var(--accent-soft);
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.field > span,
+.field > legend {
+  padding: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field.small {
+  min-width: 0;
+}
+
+.field input[type='text'],
+.field input[type='search'],
+.field input[type='number'],
+.field select,
+.inspector input[type='number'],
+.inspector select {
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.inspector input[type='number'] {
+  width: 5.5em;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+.part-inst-name {
+  flex: 1 1 100%;
+  align-self: center;
+}
+
+.radio {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.tuning-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.tuning-editor .field input {
+  width: 4.2em;
+}
+
+.range-warnings ul {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.warn-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--paper);
+  background: var(--warn);
+  border-radius: 3px;
+}
+
+/* Mixer rows fit the panel (the inspector is 264 px wide, and narrower as an overlay). */
+.mixer {
+  padding: 0 14px 16px;
+}
+
+.mixer li {
+  flex-wrap: wrap;
+}
+
+.mixer-name {
+  flex: 1 1 7em;
+}
+
+.mixer li .btn.icon {
+  flex: 0 0 auto;
+  min-width: 32px;
+  justify-content: center;
+}

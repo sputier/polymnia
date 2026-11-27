@@ -1,4 +1,5 @@
-import { fretToMidi, getInstrument, isInRange, partFrets, partTuning } from './instruments';
+import { fretToMidi, getInstrument, partFrets, partTuning } from './instruments';
+import { isPartInRange } from './tuning';
 import { LIMITS } from './limits';
 import { pitchEquals, pitchToMidi, soundingMidi } from './pitch';
 import { canTie } from './query';
@@ -211,10 +212,7 @@ export function rangeWarnings(score: Score): Issue[] {
       staff.measures.forEach((sm, m) =>
         sm.voices.forEach((v, vi) =>
           v.events.forEach((e, ei) => {
-            if (
-              e.kind === 'note' &&
-              e.pitches.some((p) => !isInRange(inst, p, part.transposition))
-            ) {
+            if (e.kind === 'note' && e.pitches.some((p) => !isPartInRange(part, p))) {
               out.push({
                 code: 'out-of-range',
                 path: `/parts/${pi}/staves/${si}/measures/${m}/voices/${vi}/events/${ei}`,

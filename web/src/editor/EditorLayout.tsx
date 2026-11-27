@@ -8,6 +8,9 @@ import { ScoreView } from '../engraving/ScoreView';
 import { useI18n } from '../i18n/i18n';
 import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
+import { Inspector, describeWarnings } from './Inspector';
+import { InstrumentsPanel } from './InstrumentsPanel';
+import { instrumentName } from './instrumentUi';
 import { Mixer } from './Mixer';
 import { ShortcutStrip } from './ShortcutStrip';
 import { SidePanel } from './SidePanel';
@@ -15,6 +18,7 @@ import type { DialogKind } from './commands/CommandDialogs';
 import { describeDuration, describeEvent, formatNotice, positionLabel } from './entry/describe';
 import { EditorStore, newEditorScore } from './entry/editorStore';
 import { entryShortcuts } from './entry/entryShortcuts';
+import { structureShortcuts } from './entry/structureShortcuts';
 import { sequenceOf } from './entry/plan';
 import { useMusicXmlIO } from './musicXmlIO';
 import { Palette } from './Palette';
@@ -68,7 +72,7 @@ export function EditorLayout({
   onSaveNow,
   onBeforeLeave,
 }: EditorLayoutProps) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [store] = useState(() => {
     if (given) return given;
     const measures = Number(hashParams().get('new'));
@@ -150,6 +154,8 @@ export function EditorLayout({
   }, []);
   // Focus mode: only the score and a pill. Not persisted.
   const [focus, setFocus] = useState(false);
+  // "Add an instrument" (palette): opens the instruments panel on the picker.
+  const [addRequest, setAddRequest] = useState(0);
 
   const shortcutList: Shortcut[] = [
     {
@@ -301,6 +307,11 @@ export function EditorLayout({
         ]
       : []),
     ...entryShortcuts(store),
+    ...structureShortcuts(store, () => {
+      setLeftChoice(true);
+      if (overlay) setRightChoice(false);
+      setAddRequest((n) => n + 1);
+    }),
   ];
   useShortcuts(shortcutList);
 
@@ -316,6 +327,20 @@ export function EditorLayout({
     );
     return at ? [at.id] : [];
   }, [state.mode, state.selection, state.score, state.staffId, state.voice, state.cursor]);
+
+  // Out-of-range notes: a warning color plus a mark and a tooltip (see docs/editor.md).
+  const warnings = useMemo(
+    () =>
+      describeWarnings(state.score).map((w) => ({
+        id: w.eventId,
+        text: t('score.outOfRange')
+          .replace('{instrument}', instrumentName(w.instrument, language))
+          .replace('{low}', w.low)
+          .replace('{high}', w.high),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` changes identity on every render; the language is what matters.
+    [state.score, language],
+  );
 
   const ann = state.announcement;
   const liveMessage = ann
@@ -360,7 +385,7 @@ export function EditorLayout({
           overlay={overlay}
           onClose={() => setLeftChoice(false)}
         >
-          <p className="panel-empty">{t('instruments.empty')}</p>
+          <InstrumentsPanel store={store} state={state} addRequest={addRequest} />
           {!advanced && (
             <div className="tip-hint">
               <p>{t('mode.hint')}</p>
@@ -380,6 +405,7 @@ export function EditorLayout({
               <ScoreView
                 {...(fixture ? {} : { score: state.score })}
                 selection={highlighted}
+                warnings={warnings}
                 liveMessage={liveMessage}
                 onEngraver={setEngraver}
                 onHit={(hit, event) => store.click(hit, event.shiftKey)}
@@ -398,7 +424,7 @@ export function EditorLayout({
             overlay={overlay}
             onClose={() => setRightChoice(false)}
           >
-            <p className="panel-empty">{t('inspector.empty')}</p>
+            <Inspector store={store} state={state} />
             <Mixer controller={playback} score={state.score} />
           </SidePanel>
         )}

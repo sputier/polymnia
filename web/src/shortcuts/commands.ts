@@ -69,7 +69,7 @@ export function buildCommands(list: readonly Shortcut[]): Command[] {
       id: first.id,
       group: groupOf(first),
       labelKey: label(first),
-      keys: bucket.map((s) => s.keys),
+      keys: bucket.map((s) => s.keys).filter(Boolean),
       enabled: () => first.enabled?.() ?? true,
       run: () => {
         first.handler();
@@ -91,7 +91,7 @@ export interface SheetSection {
 export function buildSheet(list: readonly Shortcut[]): SheetSection[] {
   const rows = merge(
     list,
-    (s) => s.sheet !== false,
+    (s) => s.sheet !== false && s.keys !== '',
     (s) => s.labelKey,
   ).map((bucket) => ({
     group: groupOf(bucket[0]!),

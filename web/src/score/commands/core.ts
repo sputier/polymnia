@@ -36,7 +36,9 @@ export type CommandErrorCode =
   | 'pitch-out-of-range'
   | 'last-measure'
   | 'not-a-note'
-  | 'no-tuning';
+  | 'no-tuning'
+  | 'last-part'
+  | 'not-empty';
 
 /** Thrown by `apply` when an edit is not allowed. The score is never partially modified. */
 export class CommandError extends Error {

@@ -110,6 +110,9 @@ export class Engraver {
   private eventSystem = new Map<string, number>();
   private selected = new Set<string>();
   private playing = new Set<string>();
+  /** Out-of-range events and their tooltip text. */
+  private warned = new Map<string, string>();
+  private readonly warnLayer: SVGGElement;
 
   constructor(container: HTMLElement) {
     const renderer = new Renderer(container as HTMLDivElement, Renderer.Backends.SVG);
@@ -122,6 +125,9 @@ export class Engraver {
     this.overlay.setAttribute('class', 'pm-overlay');
     this.overlay.setAttribute('aria-hidden', 'true');
     this.svg.appendChild(this.overlay);
+    this.warnLayer = document.createElementNS(SVG_NS, 'g');
+    this.warnLayer.setAttribute('class', 'pm-warn-layer');
+    this.svg.appendChild(this.warnLayer);
     this.cursorLayer = document.createElementNS(SVG_NS, 'g');
     this.cursorLayer.setAttribute('class', 'pm-cursor-layer');
     this.cursorLayer.setAttribute('aria-hidden', 'true');
@@ -224,6 +230,7 @@ export class Engraver {
     else this.scheduleChunk(job);
 
     this.refreshOverlay();
+    this.refreshWarnLayer();
     return this.snapshotStats(job, total);
   }
 
@@ -352,6 +359,42 @@ export class Engraver {
     this.refreshOverlay();
   }
 
+  /**
+   * Out-of-range notes: the note takes the warning color (class `pm-warn`) and a small triangle
+   * mark with a tooltip sits above it, so the warning does not rely on color alone.
+   */
+  setWarnings(list: readonly { id: string; text: string }[]): void {
+    const before = this.warned;
+    this.warned = new Map(list.map((w) => [w.id, w.text]));
+    for (const id of before.keys()) if (!this.warned.has(id)) this.toggle(id, 'pm-warn', false);
+    for (const id of this.warned.keys()) if (!before.has(id)) this.toggle(id, 'pm-warn', true);
+    this.refreshWarnLayer();
+  }
+
+  private refreshWarnLayer(): void {
+    this.warnLayer.replaceChildren();
+    for (const [id, text] of this.warned) {
+      const box = eventBox(this.layout, id);
+      if (!box) continue;
+      const g = document.createElementNS(SVG_NS, 'g');
+      g.setAttribute('class', 'pm-warn-mark');
+      g.setAttribute('data-warn-for', id);
+      const title = document.createElementNS(SVG_NS, 'title');
+      title.textContent = text;
+      const cx = box.x + box.w / 2;
+      const top = box.y - 15;
+      const tri = document.createElementNS(SVG_NS, 'path');
+      tri.setAttribute('d', `M${cx} ${top} l6 11 h-12 z`);
+      const bang = document.createElementNS(SVG_NS, 'text');
+      bang.setAttribute('x', String(cx));
+      bang.setAttribute('y', String(top + 9.5));
+      bang.setAttribute('text-anchor', 'middle');
+      bang.textContent = '!';
+      g.append(title, tri, bang);
+      this.warnLayer.appendChild(g);
+    }
+  }
+
   /** Marks events as playing (class toggle, safe to call at 60 fps). */
   setPlaying(ids: readonly string[]): void {
     const before = this.playing;
@@ -403,6 +446,7 @@ export class Engraver {
         const id = el.getAttribute('data-event-id')!;
         el.classList.toggle('pm-selected', this.selected.has(id));
         el.classList.toggle('pm-playing', this.playing.has(id));
+        el.classList.toggle('pm-warn', this.warned.has(id));
       });
     }
   }

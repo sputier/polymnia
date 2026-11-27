@@ -120,6 +120,43 @@ Keys are the MuseScore 4 defaults (`Cmd` replaces `Ctrl` on macOS). They are dec
 
 `window.__polymnia` holds `{ engraver, score, width, store }` (set once the systems are drawn; `store.getState()` is the live state). The Playwright tests use it.
 
+## Parts, instruments and measures
+
+Every change below is a score-model command run through `History` (exact undo and redo, one step per action). The UI is `web/src/editor/InstrumentsPanel.tsx` (left panel), `Inspector.tsx` (right panel, Advanced mode) and `entry/structureShortcuts.ts` (palette commands).
+
+### Instruments panel (left)
+
+- **Parts.** One row per part: name and instrument (French or English by interface language). Click a row to edit that part (its first staff becomes the note-entry staff and the selection is cleared). Reorder with the arrow buttons, with `Alt+↑` / `Alt+↓` on a focused row, or by dragging. The remove button asks for a confirmation in the row; the last part cannot be removed.
+- **Add an instrument.** A searchable picker grouped by family (guitars and ukuleles, bowed strings, keyboard, voice, woodwinds). Search matches the English and French names, accents ignored ("violoncelle" finds the cello). The command palette has "Add an instrument…" too.
+- **Settings of the selected part.** Rename; change the instrument; for guitars and ukuleles the notation (`Standard + TAB`, `TAB only`, `Standard only`), the tuning and the capo.
+- **Changing the instrument** keeps every note's **sounding pitch**: because notes store the written pitch, they move by the difference of the two transpositions (guitar to ukulele: an octave down on the page). The clef becomes the new instrument's default if the old one is not allowed (clef changes it does not list are removed). Going to piano adds an empty bass staff; leaving piano needs an empty second staff (otherwise refused with a notice). Tuning and capo are reset to the new instrument's defaults and frets are recomputed. The part name follows the instrument unless you renamed the part.
+- **Tuning presets.** Guitar: standard, drop D, DADGAD, open G, open D, half step down, whole step down. Ukulele: standard re-entrant GCEA, low G, baritone DGBE, D tuning. Pick **Custom…** to type one note name per string (`E2`, `F#3`, `Bb3`). Notes keep their pitch; frets are recomputed. The instrument range extends down to the lowest string of a custom tuning (drop D allows a D2).
+- **Capo.** Fret 1 to 12 (below the fret count). Frets are recomputed so the sounding pitch is unchanged.
+- **Notation of fretted instruments.** `Standard + TAB` adds a TAB staff built from the standard staff (frets derived: lowest fret, string kept when possible). The TAB staff **follows the notes** of the staff being edited: after every edit the other staff of the part is rebuilt from it (same undo step, event ids reused position by position); it is not played twice (playback and the mixer ignore it). `TAB only` converts the staff in place and derives frets; notes entered on a TAB staff get a derived fret. Editing tablature itself (choosing strings and frets) comes with the tab editor (#24).
+
+### Inspector (right, Advanced mode)
+
+It acts on the measure under the cursor (the cursor follows selection and note entry):
+
+| Control                                       | Effect                                                                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Key signature                                 | `setKeySignature` from this measure (pitches untouched)                                                                                          |
+| Time signature + "Pickup measure"             | `setTimeSignature`; a pickup is a measure shorter than the bar (`MeasureInfo.length`, in beats)                                                  |
+| Tempo                                         | `setTempo` (20 to 400, quarter notes per minute) from this measure, "Remove change" clears it                                                    |
+| Clef from this measure                        | `setClef` on the staff being edited, limited to the clefs of its instrument: cello bass / tenor / treble, guitar treble 8vb, piano treble / bass |
+| Insert before / after, Append, Delete measure | `insertMeasure` / `deleteMeasure` on every staff                                                                                                 |
+| Out of range                                  | the list of out-of-range notes with a text message                                                                                               |
+
+Clef changes apply at the **start of a measure**; mid-measure clef changes are not in the model yet.
+
+### Palette commands and keys
+
+Commands without a key are palette-only (`shortcut.keys` empty): they appear in `Ctrl+K` and not in the cheat sheet. Keys: `Insert` insert a measure before the current one, `Ctrl+Insert` append a measure at the end, `Ctrl+Delete` delete the current measure (`Ctrl+B` stays the instruments panel). Palette commands: insert after, key signature (one more sharp, one more flat, none), time signature (2/4, 3/4, 4/4, 6/8), tempo change here (10 faster, 10 slower, remove), clef from this measure (treble, bass, tenor, alto, treble 8vb; dimmed when already in force or on a TAB staff), add an instrument.
+
+### Out-of-range notes
+
+A note outside the range of its part's instrument (sounding range, extended by a custom tuning) is drawn in the warning color (`--warn`), with a **triangle mark** above it (not color alone) whose tooltip says "Out of range for <instrument> (<low> to <high>)", and is listed in the inspector. It is a warning: nothing is blocked. Selection and playback colors win over the warning color.
+
 ## Accessibility
 
 Landmarks (`header`, `aside`, `main`, status bar), visible focus, `aria-label` on icon buttons, `aria-expanded` on panel toggles, `aria-pressed` on toggles, polite announcements for input mode, save status and the entered or selected note (through the score live region), and `prefers-reduced-motion` honored.

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildScore } from '../score/fixtures/dsl';
+import { celloClefChanges, guitarArpeggio } from '../score/fixtures';
 import {
   accidentalsFor,
+  clefChangeAt,
+  clefGlyph,
   beamGroups,
   beamGroupTicks,
   hasSecond,
@@ -153,5 +156,32 @@ describe('beam groups', () => {
   it('beams tuplet members by their real duration', () => {
     const v = voice('(3 C4:e D4:e E4:e) F4:q G4:h');
     expect(beamGroups(v, { beats: 4, beatType: 4 })).toEqual([[0, 1, 2]]);
+  });
+});
+
+describe('courtesy clefs', () => {
+  const cello = celloClefChanges.parts[0]!.staves[0]!;
+  const guitar = guitarArpeggio.parts[0]!.staves[0]!;
+
+  it('announces a clef only where the clef in force changes', () => {
+    const at = cello.measures.findIndex((m, i) => i > 0 && m.clef);
+    expect(at).toBeGreaterThan(0);
+    expect(clefChangeAt(cello, at)).toBe(cello.measures[at]!.clef);
+    // A staff whose clef never changes announces nothing, whatever the other staves do.
+    for (let m = 0; m < guitar.measures.length + 1; m++) expect(clefChangeAt(guitar, m)).toBeNull();
+    expect(clefChangeAt(cello, 0)).toBeNull();
+  });
+
+  it('a clef repeated at a measure is not a change', () => {
+    const repeated = {
+      ...guitar,
+      measures: guitar.measures.map((m, i) => (i === 1 ? { ...m, clef: guitar.clef } : m)),
+    };
+    expect(clefChangeAt(repeated, 1)).toBeNull();
+  });
+
+  it('draws treble-8vb as a treble clef with the 8vb mark, everything else plain', () => {
+    expect(clefGlyph('treble-8vb')).toEqual({ type: 'treble', annotation: '8vb' });
+    expect(clefGlyph('tenor')).toEqual({ type: 'tenor', annotation: undefined });
   });
 });

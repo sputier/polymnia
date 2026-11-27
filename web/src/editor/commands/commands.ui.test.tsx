@@ -37,7 +37,7 @@ describe('registry', () => {
   it('has no two shortcuts on the same key combo, and Ctrl+K belongs to the palette', async () => {
     render(<EditorLayout />);
     const list = shortcuts.list();
-    const combos = list.map((s) => JSON.stringify(parseCombo(s.keys)));
+    const combos = list.filter((s) => s.keys).map((s) => JSON.stringify(parseCombo(s.keys)));
     const duplicates = combos.filter((c, i) => combos.indexOf(c) !== i);
     expect(duplicates).toEqual([]);
     expect(list.filter((s) => s.keys === 'Mod+K').map((s) => s.id)).toEqual(['app.palette']);

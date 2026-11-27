@@ -120,6 +120,43 @@ Les touches sont celles par défaut de MuseScore 4 (`Cmd` remplace `Ctrl` sur ma
 
 `window.__polymnia` contient `{ engraver, score, width, store }` (posé une fois les systèmes dessinés ; `store.getState()` est l'état courant). Les tests Playwright l'utilisent.
 
+## Parties, instruments et mesures
+
+Chaque modification ci-dessous est une commande du modèle de partition exécutée via `History` (annuler et rétablir exacts, une étape par action). L'interface est dans `web/src/editor/InstrumentsPanel.tsx` (panneau gauche), `Inspector.tsx` (panneau droit, mode Avancé) et `entry/structureShortcuts.ts` (commandes de la palette).
+
+### Panneau des instruments (gauche)
+
+- **Parties.** Une ligne par partie : nom et instrument (en français ou en anglais selon la langue de l'interface). Cliquer une ligne édite cette partie (sa première portée devient la portée de saisie, la sélection est effacée). Réordonner avec les boutons fléchés, avec `Alt+↑` / `Alt+↓` sur une ligne ayant le focus, ou par glisser-déposer. Le bouton de suppression demande une confirmation dans la ligne ; la dernière partie ne peut pas être supprimée.
+- **Ajouter un instrument.** Un sélecteur avec recherche, groupé par famille (guitares et ukulélés, cordes frottées, clavier, voix, bois). La recherche porte sur les noms français et anglais, accents ignorés (« violoncelle » trouve le cello). La palette de commandes propose aussi « Ajouter un instrument… ».
+- **Réglages de la partie sélectionnée.** Renommer ; changer d'instrument ; pour les guitares et ukulélés, la notation (`Portée + tablature`, `Tablature seule`, `Portée seule`), l'accordage et le capodastre.
+- **Changer d'instrument** conserve la **hauteur réelle** de chaque note : les notes stockent la hauteur écrite, elles se déplacent donc de la différence des deux transpositions (guitare vers ukulélé : une octave plus bas sur la portée). La clé devient celle par défaut du nouvel instrument si l'ancienne n'est pas permise (les changements de clé non listés sont retirés). Passer au piano ajoute une portée de basse vide ; quitter le piano exige une seconde portée vide (sinon refus avec un message). L'accordage et le capodastre reviennent aux valeurs par défaut du nouvel instrument et les cases sont recalculées. Le nom de la partie suit l'instrument sauf si vous l'avez renommée.
+- **Accordages prédéfinis.** Guitare : standard, drop D, DADGAD, sol ouvert, ré ouvert, demi-ton plus bas, ton plus bas. Ukulélé : standard re-entrant GCEA, sol grave, baryton DGBE, accordage en ré. **Personnalisé…** permet de saisir un nom de note par corde (`E2`, `F#3`, `Bb3`). Les notes gardent leur hauteur ; les cases sont recalculées. La tessiture de l'instrument descend jusqu'à la corde la plus grave d'un accordage personnalisé (le drop D autorise un ré 2).
+- **Capodastre.** Case 1 à 12 (sous le nombre de cases). Les cases sont recalculées pour que la hauteur réelle ne change pas.
+- **Notation des instruments à frettes.** `Portée + tablature` ajoute une portée de tablature construite à partir de la portée (cases déduites : case la plus basse, corde conservée si possible). La tablature **suit les notes** de la portée éditée : après chaque modification, l'autre portée de la partie est reconstruite à partir d'elle (même étape d'annulation, identifiants d'événements réutilisés position par position) ; elle n'est pas jouée deux fois (la lecture et la table de mixage l'ignorent). `Tablature seule` convertit la portée sur place et déduit les cases ; une note saisie sur une tablature reçoit une case déduite. L'édition de la tablature elle-même (choix des cordes et des cases) viendra avec l'éditeur de tablature (#24).
+
+### Inspecteur (droite, mode Avancé)
+
+Il agit sur la mesure sous le curseur (le curseur suit la sélection et la saisie) :
+
+| Contrôle                                                     | Effet                                                                                                                                |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Armure                                                       | `setKeySignature` à partir de cette mesure (hauteurs inchangées)                                                                     |
+| Chiffrage + « Mesure d'anacrouse »                           | `setTimeSignature` ; une anacrouse est une mesure plus courte que la mesure complète (`MeasureInfo.length`, en temps)                |
+| Tempo                                                        | `setTempo` (20 à 400, noires par minute) à partir de cette mesure, « Retirer le changement » l'annule                                |
+| Clé à partir de cette mesure                                 | `setClef` sur la portée éditée, limité aux clés de son instrument : violoncelle fa / ut ténor / sol, guitare sol 8vb, piano sol / fa |
+| Insérer avant / après, Ajouter à la fin, Supprimer la mesure | `insertMeasure` / `deleteMeasure` sur toutes les portées                                                                             |
+| Hors tessiture                                               | la liste des notes hors tessiture avec un message en texte                                                                           |
+
+Les changements de clé s'appliquent au **début d'une mesure** ; les changements de clé en milieu de mesure ne sont pas encore dans le modèle.
+
+### Commandes de palette et touches
+
+Les commandes sans touche sont réservées à la palette (`shortcut.keys` vide) : elles apparaissent dans `Ctrl+K` et pas dans l'aide-mémoire. Touches : `Insert` insère une mesure avant la mesure courante, `Ctrl+Insert` ajoute une mesure à la fin, `Ctrl+Suppr` supprime la mesure courante (`Ctrl+B` reste le panneau des instruments). Commandes de palette : insérer après, armure (un dièse de plus, un bémol de plus, aucune), chiffrage (2/4, 3/4, 4/4, 6/8), changement de tempo ici (10 de plus, 10 de moins, retirer), clé à partir de cette mesure (sol, fa, ut ténor, ut alto, sol 8vb ; grisée si déjà en vigueur ou sur une tablature), ajouter un instrument.
+
+### Notes hors tessiture
+
+Une note hors de la tessiture de l'instrument de sa partie (tessiture réelle, étendue par un accordage personnalisé) est dessinée en couleur d'avertissement (`--warn`), avec un **triangle** au-dessus (pas seulement de la couleur) dont l'infobulle indique « Hors tessiture pour <instrument> (<bas> à <haut>) », et listée dans l'inspecteur. C'est un avertissement : rien n'est bloqué. Les couleurs de sélection et de lecture l'emportent sur celle de l'avertissement.
+
 ## Accessibilité
 
 Repères (`header`, `aside`, `main`, barre d'état), focus visible, `aria-label` sur les boutons-icônes, `aria-expanded` sur les bascules de panneaux, `aria-pressed` sur les bascules, annonces polies pour le mode de saisie, l'enregistrement et la note saisie ou sélectionnée (via la région live de la partition), et `prefers-reduced-motion` respecté.

@@ -96,7 +96,10 @@ export function buildTimeline(score: Score): Timeline {
   const spans: EventSpan[] = [];
 
   score.parts.forEach((part, partIndex) => {
+    const hasStandard = part.staves.some((s) => s.type === 'standard');
     part.staves.forEach((staff, staffIndex) => {
+      // The tab staff of a "standard + tab" part repeats the standard staff: it is not played twice.
+      if (staff.type === 'tab' && hasStandard) return;
       staves.push({
         partId: part.id,
         staffId: staff.id,

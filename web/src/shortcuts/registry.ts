@@ -9,6 +9,7 @@ export type CommandGroup = 'input' | 'edit' | 'navigation' | 'view' | 'playback'
 
 export interface Shortcut {
   id: string;
+  /** Key combo. Empty: a palette-only command (no key). */
   keys: string;
   labelKey: MessageKey;
   /**
@@ -163,7 +164,7 @@ export function createShortcutRegistry(): ShortcutRegistry {
       const typing = isEditableTarget(event.target);
       for (const shortcut of shortcuts.values()) {
         if (typing && !shortcut.allowInInput) continue;
-        if (!matches(event, shortcut.keys, mac)) continue;
+        if (!shortcut.keys || !matches(event, shortcut.keys, mac)) continue;
         const result = shortcut.handler(event);
         if (result !== false) event.preventDefault();
         return true;

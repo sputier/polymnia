@@ -1,6 +1,7 @@
 import { fretToMidi, partFrets, partTuning } from '../instruments';
 import { idGen, newId } from '../ids';
 import { LIMITS } from '../limits';
+import { assignFretting } from '../tuning';
 import { comparePitch, midiToPitch, pitchEquals, pitchToMidi, shiftOctaves } from '../pitch';
 import { findStaff, keyFifthsAt, measureLength, voiceEventTicks } from '../query';
 import type {
@@ -230,6 +231,17 @@ export function putEvent(p: {
         duration: p.event.duration,
         pitches: sorted(p.event.pitches.map(plain)),
       };
+      // On a tab staff the frets are derived (lowest fret): the tab editor refines them.
+      const part = score.parts[sl.partIndex]!;
+      if (part.staves[sl.staffIndex]!.type === 'tab') {
+        ev = {
+          ...ev,
+          pitches: ev.pitches.map((q) => {
+            const fretting = assignFretting(part, q);
+            return fretting ? { ...q, fretting } : q;
+          }),
+        };
+      }
       const dup = ev.pitches.find(
         (q, k) => ev.kind === 'note' && ev.pitches.findIndex((r) => pitchEquals(q, r)) !== k,
       );
