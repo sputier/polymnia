@@ -26,7 +26,9 @@ Run them from `web/`.
 | `npm run build`        | Type check and production build into `dist/`              |
 | `npm run size`         | Check the bundle budget (run after `build`)               |
 | `npm run bench`        | Score model benchmarks (Vitest bench, fails over budget)  |
-| `npm run test:e2e`     | Playwright smoke tests (Chromium, builds and serves the app) |
+| `npm run test:e2e`     | Playwright tests (Chromium, builds and serves the app) |
+| `npm run test:visual:update` | Regenerate the visual baselines in the Playwright Docker image (see [engraving.md](engraving.md)) |
+| `npm run test:visual:docker` | Check the visual baselines in that same image |
 
 First run of the end-to-end tests: `npx playwright install chromium`.
 

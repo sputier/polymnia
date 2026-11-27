@@ -2,6 +2,9 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLanguage } from '../i18n/i18n';
+
+// The engraver (VexFlow) is covered by ScoreView.test.tsx and the browser tests.
+vi.mock('../engraving/ScoreView', () => ({ ScoreView: () => <div data-testid="score-view" /> }));
 import { EditorLayout } from './EditorLayout';
 import { resetUiMode, setUiMode, UI_MODE_STORAGE_KEY } from './uiMode';
 
