@@ -8,15 +8,15 @@ In Development, the OpenAPI document is served at `/openapi/v1.json`. It is not 
 
 ## Endpoints
 
-| Method and path | What it does | Success |
-| --------------- | ------------ | ------- |
-| `GET /api/scores?q=&page=&pageSize=` | List your scores, most recently changed first. `q` is a case-insensitive title search. `page` starts at 1, `pageSize` is 1 to 100 (default 20). Never returns the content. | `200` `{ items, page, pageSize, total }` |
-| `GET /api/scores/{id}` | The score document, with its `ETag`. Honors `If-None-Match`. | `200` document, or `304` |
-| `POST /api/scores` | Create a score from a score document (the request body is the document). The title is `meta.title`. | `201` summary, `Location`, `ETag` |
-| `PUT /api/scores/{id}` | Replace the document. Requires `If-Match`. | `200` `{ id, title, schemaVersion, version, updatedAt }`, new `ETag` |
-| `PATCH /api/scores/{id}` | Rename: body `{ "title": "..." }`. Also rewrites `meta.title` in the stored document. Requires `If-Match`. | `200` same shape as `PUT`, new `ETag` |
-| `POST /api/scores/{id}/duplicate` | Copy the score, titled "<title> (copy)". | `201` summary, `Location`, `ETag` |
-| `DELETE /api/scores/{id}` | Delete the score. | `204` |
+| Method and path                      | What it does                                                                                                                                                               | Success                                                              |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `GET /api/scores?q=&page=&pageSize=` | List your scores, most recently changed first. `q` is a case-insensitive title search. `page` starts at 1, `pageSize` is 1 to 100 (default 20). Never returns the content. | `200` `{ items, page, pageSize, total }`                             |
+| `GET /api/scores/{id}`               | The score document, with its `ETag`. Honors `If-None-Match`.                                                                                                               | `200` document, or `304`                                             |
+| `POST /api/scores`                   | Create a score from a score document (the request body is the document). The title is `meta.title`.                                                                        | `201` summary, `Location`, `ETag`                                    |
+| `PUT /api/scores/{id}`               | Replace the document. Requires `If-Match`.                                                                                                                                 | `200` `{ id, title, schemaVersion, version, updatedAt }`, new `ETag` |
+| `PATCH /api/scores/{id}`             | Rename: body `{ "title": "..." }`. Also rewrites `meta.title` in the stored document. Requires `If-Match`.                                                                 | `200` same shape as `PUT`, new `ETag`                                |
+| `POST /api/scores/{id}/duplicate`    | Copy the score, titled "<title> (copy)".                                                                                                                                   | `201` summary, `Location`, `ETag`                                    |
+| `DELETE /api/scores/{id}`            | Delete the score.                                                                                                                                                          | `204`                                                                |
 
 A summary is `{ id, title, schemaVersion, version, createdAt, updatedAt }`.
 
@@ -48,13 +48,13 @@ The schema file is embedded in the API assembly. Generic JSON Schema libraries t
 
 ## Limits
 
-| Limit | Value |
-| ----- | ----- |
-| Score body | 4 MiB |
-| Writes (create, update, rename, duplicate, delete) | 120 per minute and per user (`RateLimiting:ScoreWrites:PermitLimit`, `WindowSeconds`) |
-| Scores per user | 200 (`Scores:MaxScoresPerUser`), `409` beyond for create and duplicate (`type` `urn:polymnia:problem:score-limit`) |
-| Page size | 100 |
-| Search text `q` | 100 characters |
+| Limit                                              | Value                                                                                                              |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Score body                                         | 4 MiB                                                                                                              |
+| Writes (create, update, rename, duplicate, delete) | 120 per minute and per user (`RateLimiting:ScoreWrites:PermitLimit`, `WindowSeconds`)                              |
+| Scores per user                                    | 200 (`Scores:MaxScoresPerUser`), `409` beyond for create and duplicate (`type` `urn:polymnia:problem:score-limit`) |
+| Page size                                          | 100                                                                                                                |
+| Search text `q`                                    | 100 characters                                                                                                     |
 
 Reads (list, get): 600 per minute and per user (`RateLimiting:ScoreWrites:ReadPermitLimit`). Over a budget: `429` with `Retry-After` (seconds). At most 16 writes run at the same time, all users together (`MaxConcurrentWrites`), and one user has at most 2 writes and 4 reads in flight. A body not received within 15 s gets `408`; a response not read within 20 s is cut.
 
@@ -71,13 +71,13 @@ Errors are `application/problem+json` (RFC 9457) without stack traces: `400` inv
 - The list is a projection: it never loads `content`. Reads use `AsNoTracking()`. Responses are compressed (no secret in them). `GET` sets `Cache-Control: private, no-cache` so clients revalidate with the `ETag`.
 - Measured on a 500-measure score (935 KB), p95 over 200 requests, in process against PostgreSQL 17 in Docker Desktop on Windows (`POLYMNIA_PERF=true dotnet test --solution api/Polymnia.slnx --filter-class "*ScorePerformanceTests"`):
 
-| Operation | p95 |
-| --------- | --- |
-| `GET` score | about 26 ms |
-| `GET` with `If-None-Match` (304) | about 3 ms |
-| `GET` list (20 scores) | about 8 ms |
-| `PUT` score | about 128 ms |
-| `PUT` score, gzip body (61 KB) | about 132 ms |
+| Operation                        | p95          |
+| -------------------------------- | ------------ |
+| `GET` score                      | about 26 ms  |
+| `GET` with `If-None-Match` (304) | about 3 ms   |
+| `GET` list (20 scores)           | about 8 ms   |
+| `PUT` score                      | about 128 ms |
+| `PUT` score, gzip body (61 KB)   | about 132 ms |
 
 The 50 ms budget is met for get and list. It is not met for a full-document `PUT` of 1 MB on this setup: about 55 ms is the transfer of 1 MB to the database through the Docker Desktop port proxy alone (a bare `SELECT length($1)`), about 30 ms is PostgreSQL parsing the document as `jsonb`, and about 27 ms is validation. Sending the body gzip-compressed does not change it (the wire to the API is not the bottleneck here). A Linux host with a local database removes the first part. Reducing the rest means not sending the whole document on each save (incremental updates), which is a design change for the editor.
 

@@ -151,6 +151,7 @@ function assignSlurNumbers(score: Score): Map<string, SlurMarks> {
 interface Ctx {
   slurs: Map<string, SlurMarks>;
   staves: number;
+  dropped: Record<string, number>;
 }
 
 function noteXml(
@@ -183,7 +184,14 @@ function noteXml(
     return s;
   };
 
-  if (e.kind === 'rest') {
+  // MusicXML octaves go from 0 to 9: pitches below C0 (octave -1 of the model) cannot be written.
+  // They are left out (never moved to another octave) and counted in the export report.
+  const writable = e.kind === 'note' ? e.pitches.filter((p) => p.octave >= 0) : [];
+  if (e.kind === 'note' && writable.length < e.pitches.length) {
+    ctx.dropped['pitch (below octave 0)'] =
+      (ctx.dropped['pitch (below octave 0)'] ?? 0) + e.pitches.length - writable.length;
+  }
+  if (e.kind === 'rest' || writable.length === 0) {
     const notations = eventNotations();
     return (
       `<note><rest/>${common}${tail}` +
@@ -192,7 +200,7 @@ function noteXml(
     );
   }
   let xml = '';
-  e.pitches.forEach((p: NotePitch, i) => {
+  writable.forEach((p: NotePitch, i) => {
     const tiedFrom =
       prev?.kind === 'note' && prev.pitches.some((q) => q.tieToNext && pitchEquals(q, p));
     let notations = i === 0 ? eventNotations() : '';
@@ -269,6 +277,12 @@ function scorePartXml(part: Part, index: number): string {
 
 /** Exports the score as an uncompressed MusicXML 4.0 partwise document. */
 export function scoreToMusicXml(score: Score): string {
+  return exportWithReport(score).xml;
+}
+
+/** Same, with what could not be written (counts per element type). */
+export function exportWithReport(score: Score): { xml: string; dropped: Record<string, number> } {
+  const dropped: Record<string, number> = {};
   const out: string[] = [HEADER, '<score-partwise version="4.0">'];
   if (score.meta.title) out.push(`<work><work-title>${esc(score.meta.title)}</work-title></work>`);
   out.push('<identification>');
@@ -296,7 +310,7 @@ export function scoreToMusicXml(score: Score): string {
   score.parts.forEach((part, pi) => {
     out.push(`<part id="P${pi + 1}">`);
     const multi = part.staves.length > 1;
-    const ctx: Ctx = { slurs, staves: part.staves.length };
+    const ctx: Ctx = { slurs, staves: part.staves.length, dropped };
     const prev = new Map<string, ScoreEvent | undefined>();
     score.measures.forEach((info, m) => {
       out.push(
@@ -353,5 +367,5 @@ export function scoreToMusicXml(score: Score): string {
     out.push('</part>');
   });
   out.push('</score-partwise>\n');
-  return out.join('');
+  return { xml: out.join(''), dropped };
 }

@@ -8,15 +8,15 @@ En développement, le document OpenAPI est servi sur `/openapi/v1.json`. Il n'es
 
 ## Endpoints
 
-| Méthode et chemin | Rôle | Succès |
-| ----------------- | ---- | ------ |
-| `GET /api/scores?q=&page=&pageSize=` | Liste vos partitions, la plus récemment modifiée d'abord. `q` est une recherche de titre insensible à la casse. `page` commence à 1, `pageSize` va de 1 à 100 (20 par défaut). Ne renvoie jamais le contenu. | `200` `{ items, page, pageSize, total }` |
-| `GET /api/scores/{id}` | Le document, avec son `ETag`. Respecte `If-None-Match`. | `200` document, ou `304` |
-| `POST /api/scores` | Crée une partition à partir d'un document (le corps de la requête est le document). Le titre est `meta.title`. | `201` résumé, `Location`, `ETag` |
-| `PUT /api/scores/{id}` | Remplace le document. Exige `If-Match`. | `200` `{ id, title, schemaVersion, version, updatedAt }`, nouvel `ETag` |
-| `PATCH /api/scores/{id}` | Renomme : corps `{ "title": "..." }`. Réécrit aussi `meta.title` dans le document stocké. Exige `If-Match`. | `200` même forme que `PUT`, nouvel `ETag` |
-| `POST /api/scores/{id}/duplicate` | Copie la partition, intitulée « <titre> (copy) ». | `201` résumé, `Location`, `ETag` |
-| `DELETE /api/scores/{id}` | Supprime la partition. | `204` |
+| Méthode et chemin                    | Rôle                                                                                                                                                                                                         | Succès                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `GET /api/scores?q=&page=&pageSize=` | Liste vos partitions, la plus récemment modifiée d'abord. `q` est une recherche de titre insensible à la casse. `page` commence à 1, `pageSize` va de 1 à 100 (20 par défaut). Ne renvoie jamais le contenu. | `200` `{ items, page, pageSize, total }`                                |
+| `GET /api/scores/{id}`               | Le document, avec son `ETag`. Respecte `If-None-Match`.                                                                                                                                                      | `200` document, ou `304`                                                |
+| `POST /api/scores`                   | Crée une partition à partir d'un document (le corps de la requête est le document). Le titre est `meta.title`.                                                                                               | `201` résumé, `Location`, `ETag`                                        |
+| `PUT /api/scores/{id}`               | Remplace le document. Exige `If-Match`.                                                                                                                                                                      | `200` `{ id, title, schemaVersion, version, updatedAt }`, nouvel `ETag` |
+| `PATCH /api/scores/{id}`             | Renomme : corps `{ "title": "..." }`. Réécrit aussi `meta.title` dans le document stocké. Exige `If-Match`.                                                                                                  | `200` même forme que `PUT`, nouvel `ETag`                               |
+| `POST /api/scores/{id}/duplicate`    | Copie la partition, intitulée « <titre> (copy) ».                                                                                                                                                            | `201` résumé, `Location`, `ETag`                                        |
+| `DELETE /api/scores/{id}`            | Supprime la partition.                                                                                                                                                                                       | `204`                                                                   |
 
 Un résumé est `{ id, title, schemaVersion, version, createdAt, updatedAt }`.
 
@@ -48,13 +48,13 @@ Le fichier de schéma est embarqué dans l'assembly de l'API. Les bibliothèques
 
 ## Limites
 
-| Limite | Valeur |
-| ------ | ------ |
-| Corps d'une partition | 4 Mio |
-| Écritures (création, modification, renommage, duplication, suppression) | 120 par minute et par utilisateur (`RateLimiting:ScoreWrites:PermitLimit`, `WindowSeconds`) |
-| Partitions par utilisateur | 200 (`Scores:MaxScoresPerUser`), `409` au-delà pour création et duplication (`type` `urn:polymnia:problem:score-limit`) |
-| Taille de page | 100 |
-| Texte de recherche `q` | 100 caractères |
+| Limite                                                                  | Valeur                                                                                                                  |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Corps d'une partition                                                   | 4 Mio                                                                                                                   |
+| Écritures (création, modification, renommage, duplication, suppression) | 120 par minute et par utilisateur (`RateLimiting:ScoreWrites:PermitLimit`, `WindowSeconds`)                             |
+| Partitions par utilisateur                                              | 200 (`Scores:MaxScoresPerUser`), `409` au-delà pour création et duplication (`type` `urn:polymnia:problem:score-limit`) |
+| Taille de page                                                          | 100                                                                                                                     |
+| Texte de recherche `q`                                                  | 100 caractères                                                                                                          |
 
 Lectures (liste, get) : 600 par minute et par utilisateur (`RateLimiting:ScoreWrites:ReadPermitLimit`). Au-delà d'un budget : `429` avec `Retry-After` (secondes). Au plus 16 écritures simultanées, tous utilisateurs confondus (`MaxConcurrentWrites`), et un utilisateur a au plus 2 écritures et 4 lectures en cours. Un corps non reçu en 15 s reçoit `408` ; une réponse non lue en 20 s est coupée.
 
@@ -71,12 +71,12 @@ Les erreurs sont en `application/problem+json` (RFC 9457) sans trace de pile : `
 - La liste est une projection : elle ne charge jamais `content`. Les lectures utilisent `AsNoTracking()`. Les réponses sont compressées (aucun secret dedans). `GET` envoie `Cache-Control: private, no-cache` pour que les clients revalident avec l'`ETag`.
 - Mesuré sur une partition de 500 mesures (935 Ko), p95 sur 200 requêtes, en processus contre PostgreSQL 17 dans Docker Desktop sous Windows (`POLYMNIA_PERF=true dotnet test --solution api/Polymnia.slnx --filter-class "*ScorePerformanceTests"`) :
 
-| Opération | p95 |
-| --------- | --- |
-| `GET` partition | environ 26 ms |
-| `GET` avec `If-None-Match` (304) | environ 3 ms |
-| `GET` liste (20 partitions) | environ 8 ms |
-| `PUT` partition | environ 128 ms |
+| Opération                           | p95            |
+| ----------------------------------- | -------------- |
+| `GET` partition                     | environ 26 ms  |
+| `GET` avec `If-None-Match` (304)    | environ 3 ms   |
+| `GET` liste (20 partitions)         | environ 8 ms   |
+| `PUT` partition                     | environ 128 ms |
 | `PUT` partition, corps gzip (61 Ko) | environ 132 ms |
 
 Le budget de 50 ms est tenu pour get et liste. Il n'est pas tenu pour un `PUT` du document complet de 1 Mo sur ce poste : environ 55 ms sont le simple transfert de 1 Mo vers la base via le proxy de ports de Docker Desktop (un `SELECT length($1)` nu), environ 30 ms sont l'analyse `jsonb` par PostgreSQL, et environ 27 ms la validation. Envoyer le corps compressé en gzip ne change rien (le lien vers l'API n'est pas le goulot ici). Un hôte Linux avec base locale supprime la première part. Réduire le reste suppose de ne pas renvoyer tout le document à chaque sauvegarde (mises à jour incrémentales), ce qui est un choix de conception pour l'éditeur.

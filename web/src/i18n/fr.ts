@@ -200,6 +200,11 @@ export const fr: Messages = {
   'focus.label': 'Mode focus',
   'focus.exit': 'pour quitter',
   'focus.toggle': 'Mode focus',
+  'command.exportMusicXml': 'Exporter en MusicXML (.musicxml)',
+  'command.exportMxl': 'Exporter en MusicXML compressé (.mxl)',
+  'io.exportReportTitle': 'Rapport d’export',
+  'io.exportReportIntro':
+    'Le fichier a été exporté. Certaines notes ne peuvent pas être écrites en MusicXML et ont été omises.',
   'io.import': 'Importer',
   'io.importLabel': 'Importer du MusicXML',
   'io.fileInput': 'Fichier MusicXML',

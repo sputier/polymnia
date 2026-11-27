@@ -5,9 +5,14 @@
 Polymnia lit et écrit des partitions MusicXML 4.0 **partwise**, non compressées (`.musicxml`, `.xml`) et compressées (`.mxl`). Le code est dans [`web/src/musicxml/`](../web/src/musicxml) : des fonctions pures sur le [modèle de partition](score-format.fr.md), chargées à la première utilisation (un chunk séparé d'environ 16 Ko gzip, le bundle initial ne change donc pas).
 
 ```ts
-import { exportMusicXml, importMusicXml, scoreToMusicXml, parseMusicXml } from './musicxml';
+import {
+  exportMusicXml,
+  importMusicXml,
+  scoreToMusicXml,
+  parseMusicXml,
+} from "./musicxml";
 
-const file = exportMusicXml(score, 'mxl'); // { bytes, mime, extension }
+const file = exportMusicXml(score, "mxl"); // { bytes, mime, extension }
 const { score, report } = importMusicXml(bytes); // .musicxml, .xml ou .mxl, lève MusicXmlError
 ```
 
@@ -19,25 +24,25 @@ const { score, report } = importMusicXml(bytes); // .musicxml, .xml ou .mxl, lè
 
 ## Correspondances
 
-| Modèle | MusicXML |
-| ------ | -------- |
-| ticks (960 par noire) | `<divisions>960</divisions>` à l'export ; n'importe quelles `<divisions>` à l'import, converties en ticks |
-| partie, portées d'une partie | `<part>` avec `<staves>` et `<staff>` ; `backup` entre portées et voix |
-| voix _v_ de la portée _s_ | `<voice>` `4s+v+1` ; à l'import, par portée, les voix sont classées par numéro (la voix 1 ou le plus petit numéro est la voix 0) |
-| hauteur épelée (écrite) | `<pitch>` step, alter, octave ; `<accidental>` n'est pas nécessaire |
-| `Part.transposition` | `<transpose>` (chromatic et octave-change, de l'écrit au sonore) |
-| clé, changement de clé en début de mesure | `<clef>` (Sol 2, Fa 4, Ut 3 alto, Ut 4 ténor, Sol 2 avec octave -1, percussion) |
-| `time`, `keyFifths` | `<time>`, `<key><fifths>` (épars : seulement aux changements) |
-| `tempoBpm` | `<direction>` avec `<metronome>` et `<sound tempo>` ; à l'import `<sound tempo>` d'abord, sinon le métronome (unités pointées converties en noires par minute) |
-| levée (`length`) | `implicit="yes"` à l'export ; à l'import toute mesure dont le contenu est plus court que la signature reçoit un `length` |
-| accord | notes `<chord/>` |
-| durée, points | `<type>`, `<dot/>`, `<duration>` ; une durée non représentable devient, à l'import, des notes liées ou plusieurs silences |
-| nolet | `<time-modification>` et `<tuplet type>` ; à l'import 3:2 et les autres rapports de 2 à 9, avec ou sans marques de nolet |
-| `tieToNext` | `<tie>` et `<tied>` start/stop |
-| liaison de phrasé | `<slur type number>` (numéros 1 à 16 par partie) |
-| portée de tablature | clé `TAB`, `<staff-details>` (`<staff-lines>`, `<staff-tuning line>`, `<capo>`) |
-| `fretting` | `<technical><string><fret>` |
-| instrument | `<instrument-sound>` et un champ divers `polymnia-instrument-Pn` (identifiant exact du catalogue, pour les allers-retours) ; à l'import l'id de son, puis le nom de la partie, puis `custom` |
+| Modèle                                    | MusicXML                                                                                                                                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ticks (960 par noire)                     | `<divisions>960</divisions>` à l'export ; n'importe quelles `<divisions>` à l'import, converties en ticks                                                                                    |
+| partie, portées d'une partie              | `<part>` avec `<staves>` et `<staff>` ; `backup` entre portées et voix                                                                                                                       |
+| voix _v_ de la portée _s_                 | `<voice>` `4s+v+1` ; à l'import, par portée, les voix sont classées par numéro (la voix 1 ou le plus petit numéro est la voix 0)                                                             |
+| hauteur épelée (écrite)                   | `<pitch>` step, alter, octave ; `<accidental>` n'est pas nécessaire                                                                                                                          |
+| `Part.transposition`                      | `<transpose>` (chromatic et octave-change, de l'écrit au sonore)                                                                                                                             |
+| clé, changement de clé en début de mesure | `<clef>` (Sol 2, Fa 4, Ut 3 alto, Ut 4 ténor, Sol 2 avec octave -1, percussion)                                                                                                              |
+| `time`, `keyFifths`                       | `<time>`, `<key><fifths>` (épars : seulement aux changements)                                                                                                                                |
+| `tempoBpm`                                | `<direction>` avec `<metronome>` et `<sound tempo>` ; à l'import `<sound tempo>` d'abord, sinon le métronome (unités pointées converties en noires par minute)                               |
+| levée (`length`)                          | `implicit="yes"` à l'export ; à l'import toute mesure dont le contenu est plus court que la signature reçoit un `length`                                                                     |
+| accord                                    | notes `<chord/>`                                                                                                                                                                             |
+| durée, points                             | `<type>`, `<dot/>`, `<duration>` ; une durée non représentable devient, à l'import, des notes liées ou plusieurs silences                                                                    |
+| nolet                                     | `<time-modification>` et `<tuplet type>` ; à l'import 3:2 et les autres rapports de 2 à 9, avec ou sans marques de nolet                                                                     |
+| `tieToNext`                               | `<tie>` et `<tied>` start/stop                                                                                                                                                               |
+| liaison de phrasé                         | `<slur type number>` (numéros 1 à 16 par partie)                                                                                                                                             |
+| portée de tablature                       | clé `TAB`, `<staff-details>` (`<staff-lines>`, `<staff-tuning line>`, `<capo>`)                                                                                                              |
+| `fretting`                                | `<technical><string><fret>`                                                                                                                                                                  |
+| instrument                                | `<instrument-sound>` et un champ divers `polymnia-instrument-Pn` (identifiant exact du catalogue, pour les allers-retours) ; à l'import l'id de son, puis le nom de la partie, puis `custom` |
 
 Aller-retour : chaque fixture s'exporte puis se réimporte en la même partition (les ids sont régénérés), avec un rapport vide. Une portée de tablature exportée perd sa clé (inutilisée) : elle revient avec celle par défaut de l'instrument.
 
@@ -61,7 +66,9 @@ Le fichier n'est pas fiable. Dans l'ordre :
 
 ## Limites
 
-Fichier de 20 Mo, XML de 20 Mo, 100 entrées d'archive, 1,5 M de balises, 2000 mesures, 32 parties, 4 portées par partie, 4 voix par mesure, 12 hauteurs par accord, 512 événements par voix (les limites du modèle). Les hauteurs de l'octave -1 sont écrites telles quelles (hors de la plage 0 à 9 de MusicXML).
+Fichier de 20 Mo, XML de 20 Mo, 100 entrées d'archive, 1,5 M de balises, 2000 mesures, 32 parties, 4 portées par partie, 4 voix par mesure, 12 hauteurs par accord, 512 événements par voix (les limites du modèle). Les octaves MusicXML vont de 0 à 9, le modèle contient aussi l'octave -1 (MIDI 0 à 11). À l'export ces hauteurs sont **omises** (jamais déplacées vers une autre octave) : une note dont toutes les hauteurs sont sous le do 0 devient un silence, et le rapport d'export (dialogue après le téléchargement, `dropped` dans `exportMusicXml`) les compte sous `pitch (below octave 0)`.
+
+Les commandes sont aussi dans la palette de commandes (`Ctrl+K`, groupe Fichier) : import (`Ctrl+O`), export MusicXML (`Ctrl+Shift+E`), export MXL (`Ctrl+Shift+M`).
 
 ## Performance
 

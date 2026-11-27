@@ -12,6 +12,7 @@ const MAX_FILE_BYTES = 20_000_000;
 type Dialog =
   | { kind: 'confirm'; file: string; result: ImportResult }
   | { kind: 'report'; report: ImportReport }
+  | { kind: 'exportReport'; dropped: Readonly<Record<string, number>> }
   | { kind: 'error'; code: ImportErrorCode | 'read' };
 
 function fileSlug(title: string): string {
@@ -56,6 +57,7 @@ function hasFiles(event: DragEvent): boolean {
 export interface MusicXmlIO {
   exportAs: (format: ExportFormat) => void;
   importFile: (file: File) => void;
+  pickFile: () => void;
   /** Props for the element that accepts dropped files. */
   dropProps: {
     onDragEnter: (event: DragEvent) => void;
@@ -94,6 +96,9 @@ export function useMusicXmlIO(
           const name = `${fileSlug(title)}.${file.extension}`;
           download(file.bytes, file.mime, name);
           setMessage(t('io.exported').replace('{name}', name));
+          if (Object.keys(file.dropped).length > 0) {
+            setDialog({ kind: 'exportReport', dropped: file.dropped });
+          }
         } catch {
           setDialog({ kind: 'error', code: 'invalid-score' });
         }
@@ -224,6 +229,20 @@ export function useMusicXmlIO(
           <ReportList title={t('io.reportAdjusted')} counts={dialog.report.adjusted} />
         </Modal>
       )}
+      {dialog?.kind === 'exportReport' && (
+        <Modal
+          title={t('io.exportReportTitle')}
+          onClose={close}
+          actions={
+            <button type="button" className="btn primary" data-autofocus onClick={close}>
+              {t('io.close')}
+            </button>
+          }
+        >
+          <p>{t('io.exportReportIntro')}</p>
+          <ReportList title={t('io.reportDropped')} counts={dialog.dropped} />
+        </Modal>
+      )}
       {dialog?.kind === 'error' && (
         <Modal
           title={t('io.errorTitle')}
@@ -241,7 +260,19 @@ export function useMusicXmlIO(
     </>
   );
 
-  return { exportAs, importFile, dropProps, dragging, overlay };
+  /** Opens the file picker without the button (command palette, shortcut). */
+  const pickFile = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.musicxml,.xml,.mxl';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) importFile(file);
+    };
+    input.click();
+  }, [importFile]);
+
+  return { exportAs, importFile, pickFile, dropProps, dragging, overlay };
 }
 
 function ReportList({

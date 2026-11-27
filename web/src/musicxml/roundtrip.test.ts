@@ -23,6 +23,40 @@ describe('round trip: model -> MusicXML -> model', () => {
     });
   }
 
+  it('never writes an octave outside 0 to 9: such pitches are left out and reported', () => {
+    const base = FIXTURES.chords as Score;
+    const low = { step: 'C', alter: 0, octave: -1 } as const;
+    const voice = base.parts[0]!.staves[0]!.measures[0]!.voices[0]!;
+    const [first, ...others] = voice.events;
+    const events = [
+      { kind: 'note' as const, id: 'low1', duration: first!.duration, pitches: [low] },
+      ...others,
+    ];
+    const staff = base.parts[0]!.staves[0]!;
+    const changed: Score = {
+      ...base,
+      parts: [
+        {
+          ...base.parts[0]!,
+          staves: [
+            {
+              ...staff,
+              measures: [
+                { ...staff.measures[0]!, voices: [{ ...voice, events }] },
+                ...staff.measures.slice(1),
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const file = exportMusicXml(changed, 'musicxml');
+    expect(file.dropped).toEqual({ 'pitch (below octave 0)': 1 });
+    const { score: back } = parseMusicXml(new TextDecoder().decode(file.bytes));
+    expect(back.parts[0]!.staves[0]!.measures[0]!.voices[0]!.events[0]!.kind).toBe('rest');
+    expect(exportMusicXml(base, 'musicxml').dropped).toEqual({});
+  });
+
   it('keeps a pickup length, tempo changes and time/key changes', () => {
     const base = FIXTURES.pickup as Score;
     const changed: Score = {

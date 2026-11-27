@@ -197,6 +197,11 @@ export const en = {
   'focus.label': 'Focus mode',
   'focus.exit': 'to exit',
   'focus.toggle': 'Focus mode',
+  'command.exportMusicXml': 'Export as MusicXML (.musicxml)',
+  'command.exportMxl': 'Export as compressed MusicXML (.mxl)',
+  'io.exportReportTitle': 'Export report',
+  'io.exportReportIntro':
+    'The file was exported. Some notes cannot be written in MusicXML and were left out.',
   'io.import': 'Import',
   'io.importLabel': 'Import MusicXML',
   'io.fileInput': 'MusicXML file',

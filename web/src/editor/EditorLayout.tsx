@@ -146,6 +146,27 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
       handler: () => setDialog('palette'),
     },
     {
+      id: 'file.import',
+      keys: 'Mod+O',
+      labelKey: 'io.importLabel',
+      group: 'file',
+      handler: io.pickFile,
+    },
+    {
+      id: 'file.exportMusicXml',
+      keys: 'Mod+Shift+E',
+      labelKey: 'command.exportMusicXml',
+      group: 'file',
+      handler: () => io.exportAs('musicxml'),
+    },
+    {
+      id: 'file.exportMxl',
+      keys: 'Mod+Shift+M',
+      labelKey: 'command.exportMxl',
+      group: 'file',
+      handler: () => io.exportAs('mxl'),
+    },
+    {
       id: 'app.cheatSheet',
       keys: 'Question',
       labelKey: 'shortcut.cheatSheet',

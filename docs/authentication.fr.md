@@ -19,22 +19,22 @@ Si Google signale une erreur ou si l'utilisateur annule, le serveur journalise l
 
 ## Données stockées
 
-| Table | Contenu |
-| --- | --- |
-| `users` | identifiant interne (UUID), `sub` Google (unique), nom affiché, URL de l'avatar, langue préférée, dates de création et de dernière visite |
-| `user_sessions` | hash SHA-256 de la clé de session, identifiant utilisateur, ticket chiffré, dates d'expiration |
-| `data_protection_keys` | clés Data Protection d'ASP.NET Core |
+| Table                  | Contenu                                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`                | identifiant interne (UUID), `sub` Google (unique), nom affiché, URL de l'avatar, langue préférée, dates de création et de dernière visite |
+| `user_sessions`        | hash SHA-256 de la clé de session, identifiant utilisateur, ticket chiffré, dates d'expiration                                            |
+| `data_protection_keys` | clés Data Protection d'ASP.NET Core                                                                                                       |
 
 **Aucune adresse e-mail n'est demandée ni stockée** (le scope est `openid profile`). L'URL de l'avatar n'est conservée que si c'est une URL `https` d'un hôte `*.googleusercontent.com` (la Content Security Policy n'autorise les images que depuis cet hôte).
 
 ## Cookies
 
-| Cookie | Rôle | Attributs |
-| --- | --- | --- |
-| `__Host-Polymnia.Session` | clé de session opaque (aléatoire, 256 bits) | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, pas de `Domain` |
-| `__Host-Polymnia.Correlation.*`, `__Host-Polymnia.Nonce.*` | contrôles `state` et `nonce` de la connexion, courte durée | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` |
-| `__Host-Polymnia.Antiforgery` | jeton antiforgery côté cookie | `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/` |
-| `__Host-XSRF-TOKEN` | jeton antiforgery de requête, lisible par la page | `Secure`, `SameSite=Strict`, `Path=/` (pas `HttpOnly`, volontairement) |
+| Cookie                                                     | Rôle                                                       | Attributs                                                              |
+| ---------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `__Host-Polymnia.Session`                                  | clé de session opaque (aléatoire, 256 bits)                | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, pas de `Domain`        |
+| `__Host-Polymnia.Correlation.*`, `__Host-Polymnia.Nonce.*` | contrôles `state` et `nonce` de la connexion, courte durée | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`                         |
+| `__Host-Polymnia.Antiforgery`                              | jeton antiforgery côté cookie                              | `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`                      |
+| `__Host-XSRF-TOKEN`                                        | jeton antiforgery de requête, lisible par la page          | `Secure`, `SameSite=Strict`, `Path=/` (pas `HttpOnly`, volontairement) |
 
 Le navigateur refuse un cookie `__Host-` qui n'est pas `Secure`, sans `Path=/` ou avec un `Domain`. `SameSite=Lax` (et non `Strict`) sur le cookie de session est nécessaire : le navigateur doit l'envoyer sur la redirection de retour de Google.
 
@@ -61,17 +61,17 @@ Un appel d'API sans session valide renvoie `401`, jamais une redirection vers Go
 
 ## Configuration
 
-| Clé | Variable d'environnement | Signification |
-| --- | --- | --- |
-| `Auth:PublicBaseUrl` | `Auth__PublicBaseUrl` | Origine publique, par exemple `https://polymnia.example` (schéma, hôte, port éventuel ; pas de chemin). `https` obligatoire, sauf `http://localhost…` en Development. |
-| `Auth:Google:ClientId` | `Auth__Google__ClientId` | Identifiant du client OAuth |
-| `Auth:Google:ClientSecret` | `Auth__Google__ClientSecret` | Secret du client OAuth. Ne jamais le commiter. |
-| `Auth:IdleTimeout` | `Auth__IdleTimeout` | Expiration glissante, `7.00:00:00` par défaut |
-| `Auth:AbsoluteTimeout` | `Auth__AbsoluteTimeout` | Durée de vie absolue, `30.00:00:00` par défaut |
-| `DataProtection:CertificatePath` | `DataProtection__CertificatePath` | Fichier PKCS#12 (`.pfx`) qui chiffre les clés Data Protection. Obligatoire hors Development. |
-| `DataProtection:CertificatePasswordFile` | `DataProtection__CertificatePasswordFile` | Fichier texte contenant le mot de passe de ce `.pfx` (à préférer : un secret Docker, pas l'environnement ; un saut de ligne final est ignoré). Prime sur la variable ci-dessous. |
-| `DataProtection:CertificatePassword` | `DataProtection__CertificatePassword` | Le mot de passe lui-même, si un fichier est impossible |
-| `Auth:RateLimit:PermitLimit`, `Auth:RateLimit:Window` | `Auth__RateLimit__PermitLimit`, `Auth__RateLimit__Window` | Requêtes par IP cliente sur `/api/auth/*` par fenêtre, `60` par `00:01:00` par défaut. Au-delà : `429` avec `Retry-After`. |
+| Clé                                                   | Variable d'environnement                                  | Signification                                                                                                                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Auth:PublicBaseUrl`                                  | `Auth__PublicBaseUrl`                                     | Origine publique, par exemple `https://polymnia.example` (schéma, hôte, port éventuel ; pas de chemin). `https` obligatoire, sauf `http://localhost…` en Development.            |
+| `Auth:Google:ClientId`                                | `Auth__Google__ClientId`                                  | Identifiant du client OAuth                                                                                                                                                      |
+| `Auth:Google:ClientSecret`                            | `Auth__Google__ClientSecret`                              | Secret du client OAuth. Ne jamais le commiter.                                                                                                                                   |
+| `Auth:IdleTimeout`                                    | `Auth__IdleTimeout`                                       | Expiration glissante, `7.00:00:00` par défaut                                                                                                                                    |
+| `Auth:AbsoluteTimeout`                                | `Auth__AbsoluteTimeout`                                   | Durée de vie absolue, `30.00:00:00` par défaut                                                                                                                                   |
+| `DataProtection:CertificatePath`                      | `DataProtection__CertificatePath`                         | Fichier PKCS#12 (`.pfx`) qui chiffre les clés Data Protection. Obligatoire hors Development.                                                                                     |
+| `DataProtection:CertificatePasswordFile`              | `DataProtection__CertificatePasswordFile`                 | Fichier texte contenant le mot de passe de ce `.pfx` (à préférer : un secret Docker, pas l'environnement ; un saut de ligne final est ignoré). Prime sur la variable ci-dessous. |
+| `DataProtection:CertificatePassword`                  | `DataProtection__CertificatePassword`                     | Le mot de passe lui-même, si un fichier est impossible                                                                                                                           |
+| `Auth:RateLimit:PermitLimit`, `Auth:RateLimit:Window` | `Auth__RateLimit__PermitLimit`, `Auth__RateLimit__Window` | Requêtes par IP cliente sur `/api/auth/*` par fenêtre, `60` par `00:01:00` par défaut. Au-delà : `429` avec `Retry-After`.                                                       |
 
 - **Tout environnement autre que Development refuse de démarrer** s'il manque l'identifiant client, le secret ou une `Auth:PublicBaseUrl` valide (le message nomme la clé, jamais sa valeur).
 - En Development et dans les tests l'application démarre sans ces valeurs : l'authentification est désactivée, une tentative de connexion renvoie `503` et `/api/me` renvoie `401`.
@@ -116,6 +116,7 @@ Avec `docker-compose.yml` : le `.pfx` et le fichier du mot de passe sont montés
    ```
 
    En Development, `Auth:PublicBaseUrl` vaut `http://localhost:5173` par défaut (le serveur de dev Vite).
+
 3. Lancez l'API (`dotnet run --project api/Polymnia.Api`) et le front end (`npm run dev` dans `web/`). Ouvrez `http://localhost:5173` : le proxy Vite transmet `/api` à l'API, le navigateur ne voit donc qu'une origine et les cookies fonctionnent. Les navigateurs acceptent les cookies `Secure` sur `localhost` en HTTP, sauf Safari : utilisez Chrome ou Firefox pour la connexion locale.
 
 Sans réglages Google, l'application fonctionne mais ne peut connecter personne.

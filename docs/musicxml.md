@@ -5,9 +5,14 @@
 Polymnia reads and writes MusicXML 4.0 **partwise** scores, uncompressed (`.musicxml`, `.xml`) and compressed (`.mxl`). The code is in [`web/src/musicxml/`](../web/src/musicxml), pure functions over the [score model](score-format.md), loaded on first use (a separate chunk of about 16 KB gzip, so the initial bundle is unchanged).
 
 ```ts
-import { exportMusicXml, importMusicXml, scoreToMusicXml, parseMusicXml } from './musicxml';
+import {
+  exportMusicXml,
+  importMusicXml,
+  scoreToMusicXml,
+  parseMusicXml,
+} from "./musicxml";
 
-const file = exportMusicXml(score, 'mxl'); // { bytes, mime, extension }
+const file = exportMusicXml(score, "mxl"); // { bytes, mime, extension }
 const { score, report } = importMusicXml(bytes); // .musicxml, .xml or .mxl, throws MusicXmlError
 ```
 
@@ -19,25 +24,25 @@ const { score, report } = importMusicXml(bytes); // .musicxml, .xml or .mxl, thr
 
 ## Mapping
 
-| Score model | MusicXML |
-| ----------- | -------- |
-| ticks (960 per quarter) | `<divisions>960</divisions>` on export; any `<divisions>` on import, converted to ticks |
-| part, staves of a part | `<part>` with `<staves>` and `<staff>`; backup between staves and voices |
-| voice _v_ of staff _s_ | `<voice>` `4s+v+1`; on import, per staff, voices are ranked by number (voice 1 or the lowest number is voice 0) |
-| spelled pitch (written) | `<pitch>` step, alter, octave; `<accidental>` is not needed |
-| `Part.transposition` | `<transpose>` (chromatic and octave-change, written to sounding) |
-| clef, clef change at a measure start | `<clef>` (G2, F4, C3 alto, C4 tenor, G2 with octave change -1, percussion) |
-| `time`, `keyFifths` | `<time>`, `<key><fifths>` (sparse: only where they change) |
-| `tempoBpm` | `<direction>` with `<metronome>` and `<sound tempo>`; on import `<sound tempo>` first, else the metronome (dotted units converted to quarters per minute) |
-| pickup (`length`) | `implicit="yes"` on export; on import any measure whose content is shorter than the time signature gets a `length` |
-| chord | `<chord/>` notes |
-| duration, dots | `<type>`, `<dot/>`, `<duration>`; unrepresentable durations on import become tied notes or several rests |
-| tuplet | `<time-modification>` and `<tuplet type>`; on import 3:2 and the other ratios 2 to 9, with or without tuplet marks |
-| `tieToNext` | `<tie>` and `<tied>` start/stop |
-| slur | `<slur type number>` (numbers 1 to 16 per part) |
-| tab staff | clef `TAB`, `<staff-details>` (`<staff-lines>`, `<staff-tuning line>`, `<capo>`) |
-| `fretting` | `<technical><string><fret>` |
-| instrument | `<instrument-sound>` and a `polymnia-instrument-Pn` miscellaneous field (exact catalog id, for round trips); on import the sound id, then the part name, then `custom` |
+| Score model                          | MusicXML                                                                                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ticks (960 per quarter)              | `<divisions>960</divisions>` on export; any `<divisions>` on import, converted to ticks                                                                                |
+| part, staves of a part               | `<part>` with `<staves>` and `<staff>`; backup between staves and voices                                                                                               |
+| voice _v_ of staff _s_               | `<voice>` `4s+v+1`; on import, per staff, voices are ranked by number (voice 1 or the lowest number is voice 0)                                                        |
+| spelled pitch (written)              | `<pitch>` step, alter, octave; `<accidental>` is not needed                                                                                                            |
+| `Part.transposition`                 | `<transpose>` (chromatic and octave-change, written to sounding)                                                                                                       |
+| clef, clef change at a measure start | `<clef>` (G2, F4, C3 alto, C4 tenor, G2 with octave change -1, percussion)                                                                                             |
+| `time`, `keyFifths`                  | `<time>`, `<key><fifths>` (sparse: only where they change)                                                                                                             |
+| `tempoBpm`                           | `<direction>` with `<metronome>` and `<sound tempo>`; on import `<sound tempo>` first, else the metronome (dotted units converted to quarters per minute)              |
+| pickup (`length`)                    | `implicit="yes"` on export; on import any measure whose content is shorter than the time signature gets a `length`                                                     |
+| chord                                | `<chord/>` notes                                                                                                                                                       |
+| duration, dots                       | `<type>`, `<dot/>`, `<duration>`; unrepresentable durations on import become tied notes or several rests                                                               |
+| tuplet                               | `<time-modification>` and `<tuplet type>`; on import 3:2 and the other ratios 2 to 9, with or without tuplet marks                                                     |
+| `tieToNext`                          | `<tie>` and `<tied>` start/stop                                                                                                                                        |
+| slur                                 | `<slur type number>` (numbers 1 to 16 per part)                                                                                                                        |
+| tab staff                            | clef `TAB`, `<staff-details>` (`<staff-lines>`, `<staff-tuning line>`, `<capo>`)                                                                                       |
+| `fretting`                           | `<technical><string><fret>`                                                                                                                                            |
+| instrument                           | `<instrument-sound>` and a `polymnia-instrument-Pn` miscellaneous field (exact catalog id, for round trips); on import the sound id, then the part name, then `custom` |
 
 Round trip: every fixture exports and imports back to the same score (ids are regenerated), with an empty report. Exported tab staves lose their (unused) clef: it comes back as the instrument default.
 
@@ -61,7 +66,9 @@ The file is untrusted. In order:
 
 ## Limits
 
-20 MB file, 20 MB XML, 100 archive entries, 1.5 M tags, 2000 measures, 32 parts, 4 staves per part, 4 voices per measure, 12 pitches per chord, 512 events per voice (the model limits). Pitches in octave -1 are written as such (outside the MusicXML 0 to 9 range).
+20 MB file, 20 MB XML, 100 archive entries, 1.5 M tags, 2000 measures, 32 parts, 4 staves per part, 4 voices per measure, 12 pitches per chord, 512 events per voice (the model limits). MusicXML octaves go from 0 to 9, the model also holds octave -1 (MIDI 0 to 11). On export such pitches are **left out** (never moved to another octave): a note whose pitches are all below C0 becomes a rest, and the export report (dialog after the download, `dropped` in `exportMusicXml`) counts them as `pitch (below octave 0)`.
+
+The commands are also in the command palette (`Ctrl+K`, group File): import (`Ctrl+O`), export MusicXML (`Ctrl+Shift+E`), export MXL (`Ctrl+Shift+M`).
 
 ## Performance
 

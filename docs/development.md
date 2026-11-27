@@ -15,20 +15,20 @@ The front end lives in [`web/`](../web): Vite, React and TypeScript (`strict`).
 
 Run them from `web/`.
 
-| Command                | What it does                                              |
-| ---------------------- | --------------------------------------------------------- |
-| `npm ci`               | Install the exact locked dependencies                     |
-| `npm run dev`          | Start the dev server                                      |
-| `npm run lint`         | ESLint and Prettier check                                 |
-| `npm run format`       | Format the code with Prettier                             |
-| `npm run typecheck`    | TypeScript type check                                     |
-| `npm test`             | Unit tests (Vitest and Testing Library)                   |
-| `npm run build`        | Type check and production build into `dist/`              |
-| `npm run size`         | Check the bundle budget (run after `build`)               |
-| `npm run bench`        | Score model benchmarks (Vitest bench, fails over budget)  |
-| `npm run test:e2e`     | Playwright tests (Chromium, builds and serves the app) |
+| Command                      | What it does                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `npm ci`                     | Install the exact locked dependencies                                                             |
+| `npm run dev`                | Start the dev server                                                                              |
+| `npm run lint`               | ESLint and Prettier check                                                                         |
+| `npm run format`             | Format the code with Prettier                                                                     |
+| `npm run typecheck`          | TypeScript type check                                                                             |
+| `npm test`                   | Unit tests (Vitest and Testing Library)                                                           |
+| `npm run build`              | Type check and production build into `dist/`                                                      |
+| `npm run size`               | Check the bundle budget (run after `build`)                                                       |
+| `npm run bench`              | Score model benchmarks (Vitest bench, fails over budget)                                          |
+| `npm run test:e2e`           | Playwright tests (Chromium, builds and serves the app)                                            |
 | `npm run test:visual:update` | Regenerate the visual baselines in the Playwright Docker image (see [engraving.md](engraving.md)) |
-| `npm run test:visual:docker` | Check the visual baselines in that same image |
+| `npm run test:visual:docker` | Check the visual baselines in that same image                                                     |
 
 First run of the end-to-end tests: `npx playwright install chromium`.
 
@@ -52,12 +52,12 @@ French and English, in `web/src/i18n/` (`en.ts` is the source of truth, `fr.ts` 
 
 The back end lives in `api/` (.NET 10, ASP.NET Core, EF Core, PostgreSQL). It serves the API under `/api` and the built front end from `wwwroot`, on a single origin (no CORS needed).
 
-| Project | Role |
-| --- | --- |
-| `Polymnia.Api` | Hosting, endpoints, security headers, static files |
-| `Polymnia.Core` | Domain, no dependencies |
+| Project                   | Role                                               |
+| ------------------------- | -------------------------------------------------- |
+| `Polymnia.Api`            | Hosting, endpoints, security headers, static files |
+| `Polymnia.Core`           | Domain, no dependencies                            |
 | `Polymnia.Infrastructure` | EF Core + Npgsql (`PolymniaDbContext`, migrations) |
-| `Polymnia.Tests` | xUnit v3 tests |
+| `Polymnia.Tests`          | xUnit v3 tests                                     |
 
 ### Prerequisites
 
@@ -133,10 +133,10 @@ The PostgreSQL integration tests use Testcontainers and need Docker. Without Doc
 
 Every pull request and every push to `main` runs [`ci.yml`](../.github/workflows/ci.yml) (jobs `web` and `api`), and [`codeql.yml`](../.github/workflows/codeql.yml) (static analysis, also weekly). Dependabot proposes weekly, grouped updates for npm, NuGet, GitHub Actions and Docker.
 
-| Job   | What it runs                                                                                       | Same thing locally                                                                                             |
-| ----- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `web` | lint, type check, unit tests, build, bundle budget, `npm audit` (runtime dependencies), Playwright | from `web/`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e` |
-| `api` | restore, build with warnings as errors, tests, NuGet vulnerability audit                           | from the repository root: `dotnet build api/Polymnia.slnx -warnaserror`, `dotnet test --solution api/Polymnia.slnx` (integration tests need Docker), `dotnet list api/Polymnia.slnx package --vulnerable --include-transitive` |
-| `docker` | builds the production image (amd64), starts `docker-compose.yml` on it and probes the app, Trivy scan (fails on fixable CRITICAL/HIGH) | the "Test procedure" of [`self-hosting.md`](self-hosting.md) |
+| Job      | What it runs                                                                                                                           | Same thing locally                                                                                                                                                                                                             |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `web`    | lint, type check, unit tests, build, bundle budget, `npm audit` (runtime dependencies), Playwright                                     | from `web/`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e`                                                         |
+| `api`    | restore, build with warnings as errors, tests, NuGet vulnerability audit                                                               | from the repository root: `dotnet build api/Polymnia.slnx -warnaserror`, `dotnet test --solution api/Polymnia.slnx` (integration tests need Docker), `dotnet list api/Polymnia.slnx package --vulnerable --include-transitive` |
+| `docker` | builds the production image (amd64), starts `docker-compose.yml` on it and probes the app, Trivy scan (fails on fixable CRITICAL/HIGH) | the "Test procedure" of [`self-hosting.md`](self-hosting.md)                                                                                                                                                                   |
 
 The `api` job installs the SDK from `global.json` and runs with `CI=true`, so the PostgreSQL integration tests must run (a missing Docker fails the job instead of skipping). Workflows use pinned action versions (full commit SHA), read-only permissions, and upload no artifact unless the end-to-end tests fail.
