@@ -122,6 +122,12 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IConfig
         {
             failures.Add("DataProtection:CertificatePath does not point to an existing file.");
         }
+
+        string? passwordFile = configuration["DataProtection:CertificatePasswordFile"];
+        if (!string.IsNullOrWhiteSpace(passwordFile) && !File.Exists(passwordFile))
+        {
+            failures.Add("DataProtection:CertificatePasswordFile does not point to an existing file.");
+        }
     }
 
     /// <summary>"*", "[*]" and either of them with a port ("*:443") accept every host.</summary>

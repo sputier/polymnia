@@ -52,7 +52,7 @@ internal static class AuthExtensions
         if (!string.IsNullOrWhiteSpace(keyCertificatePath))
         {
             dataProtection.ProtectKeysWithCertificate(
-                LoadKeyCertificate(keyCertificatePath, configuration["DataProtection:CertificatePassword"]));
+                LoadKeyCertificate(keyCertificatePath, ReadCertificatePassword(configuration)));
         }
 
         // The OpenID Connect handler logs Google's error_description verbatim (attacker-controlled through
@@ -164,6 +164,33 @@ internal static class AuthExtensions
 
         services.AddAuthorization();
         return services;
+    }
+
+    /// <summary>
+    /// The password of the key certificate: read from <c>DataProtection:CertificatePasswordFile</c> when set (a Docker
+    /// secret keeps it out of the environment), otherwise <c>DataProtection:CertificatePassword</c>.
+    /// The file content is the password; trailing line breaks are not part of it.
+    /// </summary>
+    internal static string? ReadCertificatePassword(IConfiguration configuration)
+    {
+        string? file = configuration["DataProtection:CertificatePasswordFile"];
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            return configuration["DataProtection:CertificatePassword"];
+        }
+
+        try
+        {
+            return File.ReadAllText(file).TrimEnd('\r', '\n');
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException("DataProtection:CertificatePasswordFile could not be read.", ex);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new InvalidOperationException("DataProtection:CertificatePasswordFile could not be read (permissions).", ex);
+        }
     }
 
     private static X509Certificate2 LoadKeyCertificate(string path, string? password)

@@ -21,12 +21,23 @@ x-polymnia: &polymnia
     # The Data Protection keys (stored in the database) are encrypted with this certificate. Required: see
     # docs/authentication.md for the one-line openssl command that creates it.
     DataProtection__CertificatePath: /run/secrets/polymnia_keys
-    DataProtection__CertificatePassword: ${POLYMNIA_KEYS_CERT_PASSWORD:?Set POLYMNIA_KEYS_CERT_PASSWORD in .env (see .env.example)}
+    # The password is read from a Docker secret file, not from the environment (`docker inspect` would show it).
+    DataProtection__CertificatePasswordFile: /run/secrets/polymnia_keys_password
     # Behind a reverse proxy only. Only the compose network is trusted as a proxy source.
     ForwardedHeaders__Enabled: ${POLYMNIA_FORWARDED_HEADERS:-false}
     ForwardedHeaders__KnownNetworks__0: ${POLYMNIA_SUBNET:-172.31.250.0/24}
   secrets:
-    - polymnia_keys
+    # Long syntax: owned by the container user (UID 1654), readable by it only. Compose applies uid/gid/mode
+    # to file secrets since v2.23; on older versions they are ignored and the host file mode applies
+    # (then make both files readable, chmod 644: see docs/authentication.md).
+    - source: polymnia_keys
+      uid: "1654"
+      gid: "1654"
+      mode: 0400
+    - source: polymnia_keys_password
+      uid: "1654"
+      gid: "1654"
+      mode: 0400
   read_only: true
   tmpfs:
     - /tmp
@@ -82,8 +93,11 @@ services:
 
 secrets:
   polymnia_keys:
-    # PKCS#12 file, readable by the container user (chmod 644; it is password protected).
+    # PKCS#12 file (password protected).
     file: ${POLYMNIA_KEYS_CERT_FILE:-./secrets/polymnia-keys.pfx}
+  polymnia_keys_password:
+    # Text file holding the password of the PKCS#12 file (a trailing newline is ignored).
+    file: ${POLYMNIA_KEYS_CERT_PASSWORD_FILE:-./secrets/polymnia-keys.password}
 
 networks:
   default:

@@ -283,6 +283,67 @@ public sealed class AuthWithoutDatabaseTests
     }
 
     [Fact]
+    public void The_certificate_password_can_come_from_a_file_which_wins_over_the_variable()
+    {
+        string file = Path.Combine(Path.GetTempPath(), "polymnia-pw-" + Guid.NewGuid().ToString("N"));
+        File.WriteAllText(file, "from-file\n");
+        try
+        {
+            IConfiguration both = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataProtection:CertificatePassword"] = "from-variable",
+                ["DataProtection:CertificatePasswordFile"] = file,
+            }).Build();
+            IConfiguration variableOnly = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataProtection:CertificatePassword"] = "from-variable",
+            }).Build();
+
+            Assert.Equal("from-file", AuthExtensions.ReadCertificatePassword(both)); // trailing newline is not part of it
+            Assert.Equal("from-variable", AuthExtensions.ReadCertificatePassword(variableOnly));
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void The_host_starts_with_the_certificate_password_read_from_a_file_and_stops_when_it_is_wrong()
+    {
+        string good = Path.Combine(Path.GetTempPath(), "polymnia-pw-" + Guid.NewGuid().ToString("N"));
+        string bad = Path.Combine(Path.GetTempPath(), "polymnia-pw-" + Guid.NewGuid().ToString("N"));
+        File.WriteAllText(good, TestCertificate.Password + "\n");
+        File.WriteAllText(bad, "wrong-password");
+        try
+        {
+            using (var ok = new TestApp(settings: new() { ["DataProtection:CertificatePassword"] = string.Empty, ["DataProtection:CertificatePasswordFile"] = good }))
+            {
+                using HttpClient client = ok.CreateClient();
+            }
+
+            using var wrong = new TestApp(settings: new() { ["DataProtection:CertificatePasswordFile"] = bad });
+            Exception ex = Assert.ThrowsAny<Exception>(() => wrong.CreateClient());
+            Assert.DoesNotContain("wrong-password", ex.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(good);
+            File.Delete(bad);
+        }
+    }
+
+    [Fact]
+    public void A_missing_certificate_password_file_stops_the_host()
+    {
+        using var app = new TestApp(settings: new() { ["DataProtection:CertificatePasswordFile"] = "/nonexistent/password" });
+
+        Exception ex = Assert.ThrowsAny<Exception>(() => app.CreateClient());
+
+        Assert.Contains("CertificatePasswordFile", ex.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_certificate_without_a_private_key_stops_the_host()
     {
         using var app = new TestApp(

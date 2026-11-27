@@ -69,7 +69,8 @@ An API call without a valid session is a `401`, never a redirect to Google.
 | `Auth:IdleTimeout` | `Auth__IdleTimeout` | Sliding expiration, default `7.00:00:00` |
 | `Auth:AbsoluteTimeout` | `Auth__AbsoluteTimeout` | Absolute lifetime, default `30.00:00:00` |
 | `DataProtection:CertificatePath` | `DataProtection__CertificatePath` | PKCS#12 file (`.pfx`) that encrypts the Data Protection keys. Required outside Development. |
-| `DataProtection:CertificatePassword` | `DataProtection__CertificatePassword` | Password of that file |
+| `DataProtection:CertificatePasswordFile` | `DataProtection__CertificatePasswordFile` | Text file holding the password of that `.pfx` (preferred: a Docker secret, not in the environment; a trailing newline is ignored). Wins over the variable below. |
+| `DataProtection:CertificatePassword` | `DataProtection__CertificatePassword` | The password itself, if you cannot use a file |
 | `Auth:RateLimit:PermitLimit`, `Auth:RateLimit:Window` | `Auth__RateLimit__PermitLimit`, `Auth__RateLimit__Window` | Requests per client IP on `/api/auth/*` per window, default `60` per `00:01:00`. Above it: `429` with `Retry-After`. |
 
 - **Any environment except Development fails to start** if the client id, the client secret or a valid `Auth:PublicBaseUrl` is missing (the message names the key, never its value).
@@ -83,13 +84,14 @@ An API call without a valid session is a `401`, never a redirect to Google.
 Create a self-signed certificate once (it only encrypts keys, nobody connects to it) and keep the file and its password in your secret store:
 
 ```
-mkdir -p secrets
+mkdir -p secrets && umask 077
+openssl rand -hex 24 > secrets/polymnia-keys.password
 openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -subj "/CN=polymnia-keys" -days 3650
-openssl pkcs12 -export -inkey key.pem -in cert.pem -out secrets/polymnia-keys.pfx -passout pass:<choose a password>
-shred -u key.pem cert.pem; chmod 644 secrets/polymnia-keys.pfx
+openssl pkcs12 -export -inkey key.pem -in cert.pem -out secrets/polymnia-keys.pfx -passout file:secrets/polymnia-keys.password
+shred -u key.pem cert.pem
 ```
 
-With `docker-compose.yml`: the file is mounted as a Docker secret at `/run/secrets/polymnia_keys` (path set by `POLYMNIA_KEYS_CERT_FILE`, default `./secrets/polymnia-keys.pfx`) and the password comes from `POLYMNIA_KEYS_CERT_PASSWORD` in `.env`. Without compose, set `DataProtection__CertificatePath` and `DataProtection__CertificatePassword`. The file is password protected, so `chmod 644` lets the container user read it. **Keep the file: without it the stored keys cannot be read, every session and token becomes invalid and users sign in again.** The file must contain the private key and be within its validity period, otherwise the application refuses to start. **Enabling encryption on a database that already holds keys:** existing keys stay readable but unencrypted until they expire (90 days); to encrypt everything at once, run `DELETE FROM data_protection_keys;` once the certificate is configured (every session and token becomes invalid, users sign in again). Threat model: this protects a leaked database or backup; someone who can read the host (the `.pfx`, `.env`, `docker inspect`) can still decrypt, as the application itself must. To rotate the certificate, generate a new file and replace it, accepting that users sign in again.
+With `docker-compose.yml`: the `.pfx` and the password file are mounted as Docker secrets at `/run/secrets/polymnia_keys` and `/run/secrets/polymnia_keys_password` (host paths set by `POLYMNIA_KEYS_CERT_FILE` and `POLYMNIA_KEYS_CERT_PASSWORD_FILE`, defaults `./secrets/polymnia-keys.pfx` and `./secrets/polymnia-keys.password`). Compose (v2.23 or newer) hands them to the container user (UID 1654) with mode `0400`, so the host files can stay owner-only (`chmod 600`). On an older Compose the `uid`/`gid`/`mode` settings are ignored and the host file mode applies: make both files readable (`chmod 644`) or upgrade. Without compose, set `DataProtection__CertificatePath` and `DataProtection__CertificatePasswordFile` (or `DataProtection__CertificatePassword`). **Keep both files: without them the stored keys cannot be read, every session and token becomes invalid and users sign in again.** The certificate must contain the private key and be within its validity period, otherwise the application refuses to start. **Enabling encryption on a database that already holds keys:** existing keys stay readable but unencrypted until they expire (90 days); to encrypt everything at once, run `DELETE FROM data_protection_keys;` once the certificate is configured (every session and token becomes invalid, users sign in again). Threat model: this protects a leaked database or backup; someone who can read the running host or container can still decrypt, as the application itself must. To rotate the certificate, generate a new file and replace it, accepting that users sign in again.
 
 ## Rate limiting and audit log
 

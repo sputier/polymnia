@@ -69,7 +69,8 @@ Un appel d'API sans session valide renvoie `401`, jamais une redirection vers Go
 | `Auth:IdleTimeout` | `Auth__IdleTimeout` | Expiration glissante, `7.00:00:00` par défaut |
 | `Auth:AbsoluteTimeout` | `Auth__AbsoluteTimeout` | Durée de vie absolue, `30.00:00:00` par défaut |
 | `DataProtection:CertificatePath` | `DataProtection__CertificatePath` | Fichier PKCS#12 (`.pfx`) qui chiffre les clés Data Protection. Obligatoire hors Development. |
-| `DataProtection:CertificatePassword` | `DataProtection__CertificatePassword` | Mot de passe de ce fichier |
+| `DataProtection:CertificatePasswordFile` | `DataProtection__CertificatePasswordFile` | Fichier texte contenant le mot de passe de ce `.pfx` (à préférer : un secret Docker, pas l'environnement ; un saut de ligne final est ignoré). Prime sur la variable ci-dessous. |
+| `DataProtection:CertificatePassword` | `DataProtection__CertificatePassword` | Le mot de passe lui-même, si un fichier est impossible |
 | `Auth:RateLimit:PermitLimit`, `Auth:RateLimit:Window` | `Auth__RateLimit__PermitLimit`, `Auth__RateLimit__Window` | Requêtes par IP cliente sur `/api/auth/*` par fenêtre, `60` par `00:01:00` par défaut. Au-delà : `429` avec `Retry-After`. |
 
 - **Tout environnement autre que Development refuse de démarrer** s'il manque l'identifiant client, le secret ou une `Auth:PublicBaseUrl` valide (le message nomme la clé, jamais sa valeur).
@@ -83,13 +84,14 @@ Un appel d'API sans session valide renvoie `401`, jamais une redirection vers Go
 Créez une fois un certificat auto-signé (il ne sert qu'à chiffrer les clés, personne ne se connecte avec) et gardez le fichier et son mot de passe dans votre gestionnaire de secrets :
 
 ```
-mkdir -p secrets
+mkdir -p secrets && umask 077
+openssl rand -hex 24 > secrets/polymnia-keys.password
 openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -subj "/CN=polymnia-keys" -days 3650
-openssl pkcs12 -export -inkey key.pem -in cert.pem -out secrets/polymnia-keys.pfx -passout pass:<choisir un mot de passe>
-shred -u key.pem cert.pem; chmod 644 secrets/polymnia-keys.pfx
+openssl pkcs12 -export -inkey key.pem -in cert.pem -out secrets/polymnia-keys.pfx -passout file:secrets/polymnia-keys.password
+shred -u key.pem cert.pem
 ```
 
-Avec `docker-compose.yml` : le fichier est monté comme secret Docker sur `/run/secrets/polymnia_keys` (chemin défini par `POLYMNIA_KEYS_CERT_FILE`, `./secrets/polymnia-keys.pfx` par défaut) et le mot de passe vient de `POLYMNIA_KEYS_CERT_PASSWORD` dans `.env`. Sans compose, renseignez `DataProtection__CertificatePath` et `DataProtection__CertificatePassword`. Le fichier est protégé par mot de passe : `chmod 644` permet à l'utilisateur du conteneur de le lire. **Conservez ce fichier : sans lui, les clés stockées sont illisibles, toutes les sessions et tous les jetons deviennent invalides et les utilisateurs doivent se reconnecter.** Le fichier doit contenir la clé privée et être dans sa période de validité, sinon l'application refuse de démarrer. **Activer le chiffrement sur une base qui contient déjà des clés :** les clés existantes restent lisibles mais non chiffrées jusqu'à leur expiration (90 jours) ; pour tout chiffrer d'un coup, exécutez `DELETE FROM data_protection_keys;` une fois le certificat configuré (toutes les sessions et tous les jetons deviennent invalides, les utilisateurs se reconnectent). Modèle de menace : cela protège une base ou une sauvegarde divulguée ; qui peut lire l'hôte (le `.pfx`, `.env`, `docker inspect`) peut encore déchiffrer, comme l'application elle-même. Pour changer de certificat, générez un nouveau fichier et remplacez-le, en acceptant que les utilisateurs se reconnectent.
+Avec `docker-compose.yml` : le `.pfx` et le fichier du mot de passe sont montés comme secrets Docker sur `/run/secrets/polymnia_keys` et `/run/secrets/polymnia_keys_password` (chemins hôte définis par `POLYMNIA_KEYS_CERT_FILE` et `POLYMNIA_KEYS_CERT_PASSWORD_FILE`, par défaut `./secrets/polymnia-keys.pfx` et `./secrets/polymnia-keys.password`). Compose (v2.23 ou plus récent) les remet à l'utilisateur du conteneur (UID 1654) en mode `0400` : les fichiers de l'hôte peuvent rester en lecture propriétaire seule (`chmod 600`). Avec un Compose plus ancien, `uid`/`gid`/`mode` sont ignorés et le mode du fichier hôte s'applique : rendez les deux fichiers lisibles (`chmod 644`) ou mettez à jour. Sans compose, renseignez `DataProtection__CertificatePath` et `DataProtection__CertificatePasswordFile` (ou `DataProtection__CertificatePassword`). **Conservez les deux fichiers : sans eux, les clés stockées sont illisibles, toutes les sessions et tous les jetons deviennent invalides et les utilisateurs doivent se reconnecter.** Le certificat doit contenir la clé privée et être dans sa période de validité, sinon l'application refuse de démarrer. **Activer le chiffrement sur une base qui contient déjà des clés :** les clés existantes restent lisibles mais non chiffrées jusqu'à leur expiration (90 jours) ; pour tout chiffrer d'un coup, exécutez `DELETE FROM data_protection_keys;` une fois le certificat configuré (toutes les sessions et tous les jetons deviennent invalides, les utilisateurs se reconnectent). Modèle de menace : cela protège une base ou une sauvegarde divulguée ; qui peut lire l'hôte en fonctionnement ou le conteneur peut encore déchiffrer, comme l'application elle-même. Pour changer de certificat, générez un nouveau fichier et remplacez-le, en acceptant que les utilisateurs se reconnectent.
 
 ## Limitation de débit et journal d'audit
 
