@@ -74,6 +74,8 @@ export class SaveQueue {
   private attempts = 0;
   /** Set when the diffs can no longer be trusted (conflict): the next content save sends the whole document. */
   private sendInFull = false;
+  /** Saves left to send in full after the server refused a patch (400, 413). */
+  private fullSavesLeft = 0;
   private released = false;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   private maxTimer: ReturnType<typeof setTimeout> | undefined;
@@ -252,7 +254,9 @@ export class SaveQueue {
    */
   private async sendContent(): Promise<{ version: number }> {
     if (!this.plan) return this.backend.saveContent(this.getContent(), this.version);
-    const plan = this.plan(this.sendInFull);
+    const full = this.sendInFull || this.fullSavesLeft > 0;
+    if (this.fullSavesLeft > 0) this.fullSavesLeft -= 1;
+    const plan = this.plan(full);
     if (plan.nothingToSave) return { version: this.version };
     if (plan.patch !== null && this.backend.savePatch) {
       try {
@@ -262,6 +266,9 @@ export class SaveQueue {
       } catch (error) {
         if (!(error instanceof ApiError && (error.status === 400 || error.status === 413)))
           throw error;
+        // The server cannot patch this document (for example it is close to the size limit): the next saves are
+        // full ones too, so every autosave does not pay a patch that cannot succeed first.
+        this.fullSavesLeft = 20;
       }
     }
     const result = await this.backend.saveContent(plan.text(), this.version);
@@ -335,6 +342,7 @@ export class SaveQueue {
     this.clearTimers();
     this.clearRetry();
     this.version = version;
+    this.fullSavesLeft = 0;
     this.sendInFull = false; // the caller replaced the base with the server document it just loaded
     this.dirtyContent = false;
     this.dirtyTitle = false;

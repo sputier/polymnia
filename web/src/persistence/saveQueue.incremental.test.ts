@@ -128,6 +128,22 @@ describe('SaveQueue incremental saves', () => {
     },
   );
 
+  it('after a refused patch, the next saves are full ones, then patches resume', async () => {
+    const { plan } = planned();
+    const { queue, backend, edit } = setup(plan);
+    backend.savePatch.mockRejectedValueOnce(new ApiError(413));
+    edit();
+    await queue.flush();
+    for (let i = 0; i < 20; i++) {
+      edit();
+      await queue.flush();
+    }
+    expect(backend.savePatch).toHaveBeenCalledTimes(1);
+    edit();
+    await queue.flush();
+    expect(backend.savePatch).toHaveBeenCalledTimes(2);
+  });
+
   it('reports a score too large when the whole document is refused too', async () => {
     const { plan, plans } = planned();
     const { queue, backend, edit } = setup(plan);

@@ -489,7 +489,8 @@ public sealed class ScorePatchTests(ScoreApiFixture fixture) : IClassFixture<Sco
         Assert.InRange((await stored.Content.ReadAsByteArrayAsync(Ct)).Length, 1, ScoreLimits.MaxContentBytes);
         Assert.Equal(etag, stored.Headers.ETag!.Tag);
         // The refusal was for size only: the document is within one batch of the limit, and small edits still work.
-Assert.True((await stored.Content.ReadAsByteArrayAsync(Ct)).Length > ScoreLimits.MaxContentBytes - 800_000);        using HttpResponseMessage tiny = await PatchAsync(client, id, etag, Parse("""{"op":"setMeasureInfo","measureId":"m1400","value":{"id":"m1400","keyFifths":1}}"""));       
+        Assert.True((await stored.Content.ReadAsByteArrayAsync(Ct)).Length > ScoreLimits.MaxContentBytes - 800_000);
+        using HttpResponseMessage tiny = await PatchAsync(client, id, etag, Parse("""{"op":"setMeasureInfo","measureId":"m1400","value":{"id":"m1400","keyFifths":1}}"""));       
         Assert.Equal(HttpStatusCode.OK, tiny.StatusCode);
     }
 
@@ -522,12 +523,29 @@ Assert.True((await stored.Content.ReadAsByteArrayAsync(Ct)).Length > ScoreLimits
     }
 
     [Fact]
+    public async Task A_small_configured_budget_refuses_a_heavy_patch_cleanly()
+    {
+        fixture.Postgres.SkipIfUnavailable();
+        using var app = new TestApp(
+            connectionString: fixture.Postgres.ConnectionString,
+            settings: new() { ["RateLimiting:ScoreWrites:PermitLimit"] = "3", ["RateLimiting:ScoreWrites:WindowSeconds"] = "3600" });
+        using HttpClient client = await ScoreTestClients.SignInAsync(app);
+        (Guid id, string etag) = await CreateAsync(client);
+        JsonNode cheap = Parse("""{"op":"setSlurs","slurs":[]}""");
+
+        using HttpResponseMessage heavy = await PatchAsync(client, id, etag, [.. Enumerable.Range(0, 64).Select(_ => cheap.DeepClone())]);
+
+        // The budget (3) cannot pay for it after the create: a clean 429, never an exception.
+        Assert.Equal(HttpStatusCode.TooManyRequests, heavy.StatusCode);
+    }
+
+    [Fact]
     public async Task A_patch_is_charged_to_the_write_budget_by_the_edits_it_needs()
     {
         fixture.Postgres.SkipIfUnavailable();
         using var app = new TestApp(
             connectionString: fixture.Postgres.ConnectionString,
-            settings: new() { ["RateLimiting:ScoreWrites:PermitLimit"] = "24" });
+            settings: new() { ["RateLimiting:ScoreWrites:PermitLimit"] = "24", ["RateLimiting:ScoreWrites:WindowSeconds"] = "3600" });
         using HttpClient client = await ScoreTestClients.SignInAsync(app);
         (Guid id, string etag) = await CreateAsync(client);
         JsonNode cheap = Parse("""{"op":"setSlurs","slurs":[]}""");

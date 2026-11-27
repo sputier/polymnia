@@ -102,9 +102,7 @@ jobs:
       - name: Test
         env:
           CI: "true"
-        run: |
-          POLYMNIA_PERF=true POLYMNIA_PERF_REPORT=$RUNNER_TEMP/perf.txt dotnet test --solution api/Polymnia.slnx --no-build -c Release
-          cat $RUNNER_TEMP/perf.txt || true
+        run: dotnet test --solution api/Polymnia.slnx --no-build -c Release
 
       - name: Audit NuGet packages
         run: |

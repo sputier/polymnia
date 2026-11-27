@@ -107,8 +107,8 @@ Les erreurs sont en `application/problem+json` (RFC 9457) sans trace de pile : `
 | `GET` liste (20 partitions)         | environ 8 ms   |
 | `PUT` partition                     | environ 128 ms |
 | `PUT` partition, corps gzip (61 Ko) | environ 132 ms |
-| `PATCH` content, 1 mesure (580 o)    | environ 35 à 44 ms |
-| `PATCH` content, 3 mesures sur 3 portées (1 Ko) | environ 65 à 72 ms |
+| `PATCH` content, 1 mesure (580 o)    | environ 40 ms (local), 72 ms (CI Linux) |
+| `PATCH` content, 3 mesures sur 3 portées (1 Ko) | environ 75 ms (local), 135 ms (CI Linux) |
 
 Le budget de 50 ms est tenu pour get et liste. Il n'est pas tenu pour un `PUT` du document complet de 1 Mo sur ce poste : environ 55 ms sont le simple transfert de 1 Mo vers la base via le proxy de ports de Docker Desktop (un `SELECT length($1)` nu), environ 30 ms sont l'analyse `jsonb` par PostgreSQL, et environ 27 ms la validation. Envoyer le corps compressé en gzip ne change rien (le lien vers l'API n'est pas le goulot ici). Un hôte Linux avec base locale supprime la première part. Une mise à jour incrémentale n'envoie pas le document : PostgreSQL le réécrit sur place avec `jsonb_set` (environ 15 ms par mégaoctet et par réécriture, mesuré) ; une mesure modifiée tient donc le budget et chaque mesure de plus sur une autre portée ajoute environ 15 ms. Le `PUT` complet reste pour les premiers enregistrements et les conflits.
 

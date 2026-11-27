@@ -275,10 +275,11 @@ internal static class ScoreEndpoints
 
         // A patch costs the database one rewrite of the document per edit: charge the write budget for it, on top of
         // the permit the filter already took (1 + edits / 8, at most 9 in all).
-        int extra = Math.Min(EstimateEdits(parsed.Patch!), ScoreLimits.MaxPatchEdits) / 8;
+        ScoreRateLimiters limiters = context.RequestServices.GetRequiredService<ScoreRateLimiters>();
+        // Never ask for more than the budget can ever hold (a small configured limit would make the call throw).
+        int extra = Math.Min(Math.Min(EstimateEdits(parsed.Patch!), ScoreLimits.MaxPatchEdits) / 8, limiters.PermitLimit - 1);
         if (extra > 0)
         {
-            ScoreRateLimiters limiters = context.RequestServices.GetRequiredService<ScoreRateLimiters>();
             using RateLimitLease lease = await limiters.Writes.AcquireAsync(owner, extra, ct);
             if (!lease.IsAcquired)
             {

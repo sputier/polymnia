@@ -108,7 +108,7 @@ Errors are `application/problem+json` (RFC 9457) without stack traces: `400` inv
 | `PUT` score                      | about 128 ms |
 | `PUT` score, gzip body (61 KB)   | about 132 ms |
 | `PATCH` content, 1 measure (580 B) | about 35 to 44 ms |
-| `PATCH` content, 3 measures in 3 staves (1 KB) | about 65 to 72 ms |
+| `PATCH` content, 3 measures in 3 staves (1 KB) | about 75 ms (local), 135 ms (CI Linux runner) |
 
 The 50 ms budget is met for get and list. It is not met for a full-document `PUT` of 1 MB on this setup: about 55 ms is the transfer of 1 MB to the database through the Docker Desktop port proxy alone (a bare `SELECT length($1)`), about 30 ms is PostgreSQL parsing the document as `jsonb`, and about 27 ms is validation. Sending the body gzip-compressed does not change it (the wire to the API is not the bottleneck here). A Linux host with a local database removes the first part. An incremental update does not send the document: PostgreSQL rewrites it in place with `jsonb_set` (about 15 ms per megabyte and per rewrite, measured), so one changed measure meets the budget and each further measure in another staff adds about 15 ms. A full `PUT` stays for first saves and conflicts.
 
