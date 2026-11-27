@@ -7,6 +7,7 @@ import { App } from './App';
 import './styles/tokens.css';
 import './styles/app.css';
 import './styles/editor.css';
+import './styles/palette.css';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element not found');

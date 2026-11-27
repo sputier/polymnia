@@ -24,6 +24,8 @@ export interface HitResult {
   readonly measureIndex: number;
   /** Event under the point, when there is one. */
   readonly eventId?: string;
+  /** Tick (offset in the measure) of the column nearest to the point: where a click enters a note. */
+  readonly tick?: number;
   /** Natural pitch on the staff line or space under the point (standard staves only). */
   readonly pitch?: Pitch;
 }
@@ -130,11 +132,22 @@ export function hitTest(layout: Layout, x: number, y: number): HitResult | null 
     }
   }
 
+  let tick: number | undefined;
+  let bestX = Infinity;
+  measure.shape.columns.forEach((col, i) => {
+    const d = Math.abs(x - (measure.colX[i]! + HEAD_W / 2));
+    if (d < bestX) {
+      bestX = d;
+      tick = col.tick;
+    }
+  });
+
   const result: HitResult = {
     systemIndex: system.index,
     partId: slot.partId,
     staffId: slot.staffId,
     measureIndex: measure.index,
+    ...(tick !== undefined ? { tick } : {}),
     ...(eventId !== undefined ? { eventId } : {}),
   };
   if (

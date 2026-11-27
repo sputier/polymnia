@@ -3,14 +3,16 @@ import { useI18n } from '../i18n/i18n';
 import type { UiMode } from './uiMode';
 
 export type InputMode = 'note' | 'select';
-export type Duration = 'whole' | 'half' | 'quarter' | 'eighth' | 'sixteenth';
 
 interface StatusBarProps {
   inputMode: InputMode;
-  duration: Duration;
+  /** Already translated, e.g. "Quarter" or "Dotted half". */
+  duration: string;
   measure: number;
-  beat: number;
+  beat: number | string;
   saveState: SaveState;
+  /** Last notice ("Not enough room in the measure."), shown without a second live region. */
+  notice?: string;
   uiMode: UiMode;
 }
 
@@ -20,6 +22,7 @@ export function StatusBar({
   measure,
   beat,
   saveState,
+  notice,
   uiMode,
 }: StatusBarProps) {
   const { t } = useI18n();
@@ -31,7 +34,7 @@ export function StatusBar({
       </span>
       <span className="cell">
         <span className="visually-hidden">{t('status.duration')}: </span>
-        {t(`duration.${duration}`)}
+        {duration}
       </span>
       <span className="cell">
         <span className="visually-hidden">{t('status.position')}: </span>
@@ -39,6 +42,7 @@ export function StatusBar({
         {measure} · {t('status.beat')}
         {beat}
       </span>
+      {notice && <span className="cell notice">{notice}</span>}
       <span className="sp" />
       <span className="cell hide-sm">
         {uiMode === 'advanced' ? t('mode.advanced') : t('mode.simple')}
