@@ -46,7 +46,7 @@ Each measurement discards warm-up iterations, takes 5 to 400 samples, prints a l
 - the **median** against the strict budget, the same everywhere;
 - the **p95** against twice the budget (`P95_FACTOR`, on every machine: a laptop also runs an IDE and a browser, and shared CI runners are about twice as slow as the reference laptop, see [engraving.md](engraving.md)).
 
-A one-sample measurement (cold start) gets the CI factor (`CI_FACTOR`: 2 when `CI` is set) on its own budget. Reading a failure: a median over budget is a real regression; a p95 over budget alone points to a noisy tail, so rerun `npm run test:perf` locally before touching a budget. Nothing else should run during a measurement: use `PLAYWRIGHT_PORT` if another preview server holds port 4173.
+The keystroke median budget is the one exception to "same everywhere": 16 ms locally, 24 ms on CI (medians of 9 to 15 ms measured over 20 CI runners). A one-sample measurement (cold start) gets the CI factor (`CI_FACTOR`: 2 when `CI` is set) on its own budget. Reading a failure: a median over budget is a real regression; a p95 over budget alone points to a noisy tail, so rerun `npm run test:perf` locally before touching a budget. Nothing else should run during a measurement: use `PLAYWRIGHT_PORT` if another preview server holds port 4173.
 
 ### Design tokens and themes
 

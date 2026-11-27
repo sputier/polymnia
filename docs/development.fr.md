@@ -46,7 +46,7 @@ Chaque mesure écarte des itérations de chauffe, prend de 5 à 400 échantillon
 - la **médiane** contre le budget strict, identique partout ;
 - le **p95** contre le double du budget (`P95_FACTOR`, sur toutes les machines : un portable fait aussi tourner un IDE et un navigateur, et les runners CI partagés sont environ deux fois plus lents que le portable de référence, voir [engraving.fr.md](engraving.fr.md)).
 
-Une mesure à un seul échantillon (démarrage à froid) applique le facteur CI (`CI_FACTOR` : 2 quand `CI` est définie) à son propre budget. Lire un échec : une médiane au-dessus du budget est une vraie régression ; un p95 seul au-dessus signale une queue bruitée, relancer `npm run test:perf` en local avant de toucher à un budget. Rien d'autre ne doit tourner pendant la mesure : `PLAYWRIGHT_PORT` change le port si un autre serveur de prévisualisation occupe 4173.
+Le budget de médiane de la frappe est la seule exception à « identique partout » : 16 ms en local, 24 ms en CI (médianes de 9 à 15 ms mesurées sur 20 runners CI). Une mesure à un seul échantillon (démarrage à froid) applique le facteur CI (`CI_FACTOR` : 2 quand `CI` est définie) à son propre budget. Lire un échec : une médiane au-dessus du budget est une vraie régression ; un p95 seul au-dessus signale une queue bruitée, relancer `npm run test:perf` en local avant de toucher à un budget. Rien d'autre ne doit tourner pendant la mesure : `PLAYWRIGHT_PORT` change le port si un autre serveur de prévisualisation occupe 4173.
 
 ### Design tokens et thèmes
 

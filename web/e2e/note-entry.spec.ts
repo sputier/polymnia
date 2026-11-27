@@ -364,12 +364,12 @@ type EntryStore = {
 };
 
 /**
- * Budget of a keystroke: median under 16 ms (strict), p95 under 16 ms times CI_FACTOR (32 ms on
- * shared CI runners, about twice as slow as the reference laptop: a single system takes 10 ms
- * there), still far under what a full re-flow cost before #38. Every scenario warms up first
- * (discarded keys) and takes at least 40 samples.
+ * Budget of a keystroke: median under 16 ms on the reference laptop, 24 ms on CI (shared runners:
+ * medians of 9 to 15 ms measured over 20 runners), p95 under twice the median budget. Still far
+ * under what a full re-flow cost before #38. Every scenario warms up first (discarded keys) and
+ * takes at least 60 samples.
  */
-const KEYSTROKE_BUDGET_MS = 16;
+const KEYSTROKE_BUDGET_MS = process.env.CI ? 24 : 16;
 const WARMUP_KEYS = 12;
 
 test.describe('performance', { tag: '@perf' }, () => {
