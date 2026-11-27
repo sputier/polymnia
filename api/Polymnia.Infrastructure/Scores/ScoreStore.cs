@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using NpgsqlTypes;
@@ -14,6 +15,24 @@ namespace Polymnia.Infrastructure.Scores;
 public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOptions<ScoreOptions> options)
 {
     private readonly int _maxScores = options.Value.MaxScoresPerUser;
+    private readonly long _maxStorage = options.Value.MaxStorageBytesPerUser;
+
+    /// <summary>
+    /// Bytes the user's scores take in the database (<c>pg_column_size</c>: the stored size, never reads the document).
+    /// The quota is checked AFTER a write, inside the transaction that holds the owner's advisory lock, so concurrent
+    /// writes of one user cannot overshoot it and no estimate of the new size is needed.
+    /// </summary>
+    private async Task<long> StoredBytesAsync(Guid owner, CancellationToken ct)
+    {
+        List<long> sizes = await db.Database.SqlQuery<long>(
+            $"SELECT COALESCE(SUM(pg_column_size(content)), 0)::bigint AS \"Value\" FROM scores WHERE owner_id = {owner}")
+            .ToListAsync(ct);
+        return sizes.Count == 0 ? 0 : sizes[0];
+    }
+
+    /// <summary>Serializes the writes of one user (the quota check and the write cannot race); released with the transaction.</summary>
+    private Task<int> LockOwnerAsync(Guid owner, CancellationToken ct) =>
+        db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({owner.ToString()}, 0))", ct);
 
     public async Task<ScorePage> ListAsync(Guid owner, string? search, int page, int pageSize, CancellationToken ct)
     {
@@ -220,8 +239,12 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
     {
         ArgumentNullException.ThrowIfNull(document);
         DateTimeOffset now = clock.GetUtcNow();
+
         try
         {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await LockOwnerAsync(owner, ct);
+            long before = await StoredBytesAsync(owner, ct);
             int rows = await db.Scores
                 .Where(s => s.OwnerId == owner && s.Id == id && s.Version == expectedVersion)
                 .ExecuteUpdateAsync(
@@ -232,9 +255,20 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
                         .SetProperty(s => s.Version, s => s.Version + 1)
                         .SetProperty(s => s.UpdatedAt, now),
                     ct);
-            return rows > 0
-                ? new(ScoreOutcome.Ok, new ScoreSaved(id, document.Title, document.SchemaVersion, expectedVersion + 1, now))
-                : await FailureAsync(owner, id, ct);
+            if (rows == 0)
+            {
+                return await FailureAsync(owner, id, ct); // 404 or 409 first, never a quota answer
+            }
+
+            // Over the limit and growing: refused. A save that shrinks (or keeps) the total is always allowed.
+            long after = await StoredBytesAsync(owner, ct);
+            if (after > _maxStorage && after > before)
+            {
+                return new(ScoreOutcome.StorageQuotaExceeded);
+            }
+
+            await transaction.CommitAsync(ct);
+            return new(ScoreOutcome.Ok, new ScoreSaved(id, document.Title, document.SchemaVersion, expectedVersion + 1, now));
         }
         catch (PostgresException ex) when (IsInvalidData(ex))
         {
@@ -299,7 +333,15 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
         await db.Database.OpenConnectionAsync(ct);
         try
         {
-            await using NpgsqlCommand command = new() { Connection = (NpgsqlConnection)db.Database.GetDbConnection() };
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await LockOwnerAsync(owner, ct);
+            long before = await StoredBytesAsync(owner, ct);
+
+            await using NpgsqlCommand command = new()
+            {
+                Connection = (NpgsqlConnection)db.Database.GetDbConnection(),
+                Transaction = (NpgsqlTransaction)transaction.GetDbTransaction(),
+            };
             command.CommandTimeout = 10;
             command.CommandText = PatchSql(plan, command.Parameters, owner, id, expectedVersion, now);
 
@@ -316,6 +358,13 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
 
             if (title is not null)
             {
+                long after = await StoredBytesAsync(owner, ct);
+                if (after > _maxStorage && after > before)
+                {
+                    return new(ScoreOutcome.StorageQuotaExceeded);
+                }
+
+                await transaction.CommitAsync(ct);
                 return new(ScoreOutcome.Ok, new ScoreSaved(id, title, schemaVersion, expectedVersion + 1, now));
             }
         }
@@ -530,10 +579,7 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
         try
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
-
-            // Serializes the creations of one user so the quota check and the insert cannot race.
-            await db.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT pg_advisory_xact_lock(hashtextextended({owner.ToString()}, 0))", ct);
+            await LockOwnerAsync(owner, ct);
 
             if (await db.Scores.AsNoTracking().CountAsync(s => s.OwnerId == owner, ct) >= _maxScores)
             {
@@ -544,6 +590,12 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
             if (rows == 0)
             {
                 return new(ScoreOutcome.NotFound);
+            }
+
+            // A new row only ever adds: over the limit means refused (the transaction is rolled back on disposal).
+            if (await StoredBytesAsync(owner, ct) > _maxStorage)
+            {
+                return new(ScoreOutcome.StorageQuotaExceeded);
             }
 
             await transaction.CommitAsync(ct);

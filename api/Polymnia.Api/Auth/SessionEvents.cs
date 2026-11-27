@@ -27,7 +27,7 @@ internal static class SessionEvents
         string? subject = google.FindFirstValue("sub");
         if (string.IsNullOrWhiteSpace(subject))
         {
-            context.Fail("Missing subject.");
+            FailSignIn(context, "MissingSubject");
             return;
         }
 
@@ -40,17 +40,48 @@ internal static class SessionEvents
                 : null;
             if (knownSubject is null || knownSubject != subject)
             {
-                context.Fail("Re-authentication with a different account.");
+                FailSignIn(context, "ReauthDifferentAccount");
                 return;
             }
         }
 
-        UserProvisioner provisioner =context.HttpContext.RequestServices.GetRequiredService<UserProvisioner>();
-        Guid userId = await provisioner.SignInAsync(
-            subject,
-            google.FindFirstValue("name"),
-            google.FindFirstValue("picture"),
-            context.HttpContext.RequestAborted);
+        UserProvisioner provisioner = context.HttpContext.RequestServices.GetRequiredService<UserProvisioner>();
+
+        // Registration brakes: only a person with no account yet is subject to them (existing users are unaffected).
+        // The per-address budget is in memory; the daily cap is enforced by the provisioner under a database lock.
+        ILogger audit = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
+        AuthOptions authOptions = context.HttpContext.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value;
+        if (!await provisioner.ExistsAsync(subject, context.HttpContext.RequestAborted)
+            && !context.HttpContext.RequestServices.GetRequiredService<RegistrationGate>()
+                .TryTakeAddress(AuthExtensions.ClientKey(context.HttpContext.Connection.RemoteIpAddress) ?? "unknown"))
+        {
+            CloseRegistration(context, audit, "address");
+            return;
+        }
+
+        Guid? created;
+        try
+        {
+            created = await provisioner.SignInAsync(
+                subject,
+                google.FindFirstValue("name"),
+                google.FindFirstValue("picture"),
+                authOptions.Registration.MaxNewAccountsPerDay,
+                context.HttpContext.RequestAborted);
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == Npgsql.PostgresErrorCodes.LockNotAvailable)
+        {
+            // The registration lock was not obtained in time: fail closed with the generic "sign-in failed" answer.
+            AuthLog.RegistrationLockTimeout(audit);
+            FailSignIn(context, "RegistrationLockTimeout");
+            return;
+        }
+
+        if (created is not { } userId)
+        {
+            CloseRegistration(context, audit, "instance");
+            return;
+        }
 
         TimeSpan idle = context.HttpContext.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value.IdleTimeout;
         TimeProvider time = context.HttpContext.RequestServices.GetRequiredService<TimeProvider>();
@@ -150,6 +181,34 @@ internal static class SessionEvents
     {
         ArgumentNullException.ThrowIfNull(context);
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Ends the sign-in on the generic "sign-in failed" page. <c>context.Fail</c> is not enough in a TicketReceived handler:
+    /// the remote handler would still sign the Google principal in (which then fails with a 500), so the response is handled here.
+    /// </summary>
+    private static void FailSignIn(TicketReceivedContext context, string reason)
+    {
+        ILogger logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
+        AuthLog.SignInFailed(logger, reason);
+        context.Response.Redirect("/?signin=failed");
+        context.HandleResponse();
+    }
+
+    private static void CloseRegistration(TicketReceivedContext context, ILogger audit, string scope)
+    {
+        AuthLog.RegistrationClosed(audit, scope);
+        context.Response.Redirect("/?signin=closed");
+        context.HandleResponse();
+    }
+
+    /// <summary>Front-channel logout is not supported: the request is answered 404 and the session is left alone.</summary>
+    public static Task OnRemoteSignOut(RemoteSignOutContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        context.HandleResponse();
         return Task.CompletedTask;
     }
 

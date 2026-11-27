@@ -120,7 +120,7 @@ Pour développer le front avec rechargement à chaud, lancer `npm run dev` dans 
 ### Base de sécurité
 
 - Redirection HTTPS et HSTS (1 an, sans sous-domaines, sans preload) hors Development.
-- En-têtes sur chaque réponse, erreurs comprises : `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (caméra, géolocalisation, micro... refusés ; `midi=(self)` autorisé pour Web MIDI), `Cross-Origin-Opener-Policy: same-origin`. L'en-tête `Server` est supprimé.
+- En-têtes sur chaque réponse, erreurs comprises : `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (caméra, géolocalisation, micro... refusés ; `midi=(self)` autorisé pour Web MIDI), `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`, `X-Frame-Options: DENY`. L'en-tête `Server` est supprimé.
 - Les erreurs sont des ProblemDetails ; les stack traces n'apparaissent qu'en Development.
 - Les corps de requête sont limités à 1 Mio par défaut ; un endpoint qui a besoin de plus doit le demander explicitement.
 - Renseigner `AllowedHosts` avec le vrai nom d'hôte en production (valeur par défaut : `*`).

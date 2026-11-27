@@ -44,6 +44,9 @@ public enum ScoreOutcome
     NotFound,
     Conflict,
     QuotaExceeded,
+
+    /// <summary>The total size of the user's stored scores would exceed <c>Scores:MaxStorageBytesPerUser</c>.</summary>
+    StorageQuotaExceeded,
     InvalidContent,
 
     /// <summary>A patch that cannot be applied to the stored document (unknown id, inconsistent structure, limit).</summary>

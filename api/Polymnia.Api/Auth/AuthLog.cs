@@ -38,6 +38,12 @@ internal static partial class AuthLog
     [LoggerMessage(EventId = 15, EventName = "AuthDataExportFailed", Level = LogLevel.Warning, Message = "The data export of user {UserId} was interrupted.")]
     public static partial void DataExportFailed(ILogger logger, Guid userId, Exception exception);
 
+    [LoggerMessage(EventId = 17, EventName = "AuthRegistrationClosed", Level = LogLevel.Warning, Message = "A new account was refused: the {Scope} registration limit is reached.")]
+    public static partial void RegistrationClosed(ILogger logger, string scope);
+
+    [LoggerMessage(EventId = 18, EventName = "AuthRegistrationLockTimeout", Level = LogLevel.Warning, Message = "A new account could not be created: the registration lock was not available within 5 seconds.")]
+    public static partial void RegistrationLockTimeout(ILogger logger);
+
     [LoggerMessage(EventId = 16, EventName = "AuthReauthRequired", Level = LogLevel.Information, Message = "User {UserId} must sign in again before deleting the account.")]
     public static partial void ReauthRequired(ILogger logger, Guid userId);
 }

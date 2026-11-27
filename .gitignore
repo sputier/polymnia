@@ -27,6 +27,11 @@ TestResults/
 .env.*
 secrets/
 *.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.password
 !.env.example
 appsettings.*.local.json
 

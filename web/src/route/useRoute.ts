@@ -20,7 +20,14 @@ function read(): string {
 export function parseRoute(hash: string): Route {
   const path = hash.split('?')[0] ?? '';
   const score = /^#\/scores\/([^/]+)\/?$/.exec(path);
-  if (score) return { name: 'score', id: decodeURIComponent(score[1]!) };
+  if (score) {
+    try {
+      return { name: 'score', id: decodeURIComponent(score[1]!) };
+    } catch {
+      // A malformed escape ("#/scores/%") in a crafted link: the library, never an unhandled error that blanks the app.
+      return { name: 'library' };
+    }
+  }
   // The public viewer of a share link (docs/sharing.md). The token is in the fragment, which a browser never sends:
   // it stays out of server logs and of Referer.
   const shared = /^#\/s\/([A-Za-z0-9_-]{1,128})\/?$/.exec(path);

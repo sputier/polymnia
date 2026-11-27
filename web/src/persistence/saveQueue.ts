@@ -10,13 +10,14 @@
 //   and edits made while a save is in flight are saved by the next one.
 // - The edits stay in memory until a save succeeds. Nothing here ever drops them, whatever the error.
 import { ApiError } from '../api/client';
-import { isNetworkError } from '../api/scores';
+import { isNetworkError, STORAGE_QUOTA_PROBLEM } from '../api/scores';
 import type { SavePlan } from './scoreSync';
 
 export type SaveStatus = 'saved' | 'saving' | 'offline' | 'conflict' | 'error' | 'unauthorized';
 
 /** Why a save did not go through, for the message shown to the user. */
-export type SaveProblem = 'too-large' | 'rejected' | 'server' | 'gone' | 'rate-limited';
+export type SaveProblem =
+  'too-large' | 'storage-full' | 'rejected' | 'server' | 'gone' | 'rate-limited';
 
 export interface SaveSnapshot {
   readonly status: SaveStatus;
@@ -304,7 +305,10 @@ export class SaveQueue {
       }, delay);
       return;
     }
-    if (status === 413) return this.set('error', 'too-large');
+    if (status === 413) {
+      const full = error instanceof ApiError && error.problemType === STORAGE_QUOTA_PROBLEM;
+      return this.set('error', full ? 'storage-full' : 'too-large');
+    }
     if (status === 404) return this.set('error', 'gone');
     if (status >= 500) {
       this.set('error', 'server');

@@ -39,7 +39,9 @@ function GoogleMark() {
 export function SignIn() {
   const { t } = useI18n();
   const button = useRef<HTMLAnchorElement>(null);
-  const failed = new URLSearchParams(window.location.search).get('signin') === 'failed';
+  const signin = new URLSearchParams(window.location.search).get('signin');
+  const failed = signin === 'failed';
+  const closed = signin === 'closed';
   // The notice that an account deletion just went through: read at mount, cleared once shown.
   const [deleted] = useState(peekAccountDeleted);
 
@@ -67,6 +69,11 @@ export function SignIn() {
         {deleted && (
           <p role="status" className="signin-notice">
             {t('auth.accountDeleted')}
+          </p>
+        )}
+        {closed && (
+          <p role="alert" className="signin-error">
+            {t('auth.closed')}
           </p>
         )}
         {failed && (

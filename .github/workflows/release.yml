@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      checks: read
     outputs:
       version: ${{ steps.tag.outputs.version }}
     steps:
@@ -53,6 +54,21 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Never ship a commit whose CI did not pass: the image is built from the tag, not from a tested artifact.
+      - name: Require a green CI on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "web" or .name == "api" or .name == "docker")] | map(.name + "=" + (.conclusion // "pending")) | .[]')"
+          echo "$runs"
+          for job in web api docker; do
+            if ! grep -qx "$job=success" <<< "$runs"; then
+              echo "::error::The CI job '$job' has not succeeded on commit $GITHUB_SHA."
+              exit 1
+            fi
+          done
 
   image:
     name: Build and push image

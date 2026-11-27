@@ -17,7 +17,7 @@ internal static class ScoreApiExtensions
 
         services.AddOptions<Polymnia.Core.Scores.ScoreOptions>()
             .Bind(configuration.GetSection(Polymnia.Core.Scores.ScoreOptions.SectionName))
-            .Validate(static o => o.MaxScoresPerUser > 0, "Scores:MaxScoresPerUser must be positive.")
+            .Validate(static o => o.MaxScoresPerUser > 0 && o.MaxStorageBytesPerUser > 0, "Scores:MaxScoresPerUser and Scores:MaxStorageBytesPerUser must be positive.")
             .ValidateOnStart();
 
         services.AddOptions<ScoreRateLimitOptions>()
@@ -57,6 +57,7 @@ internal static class ScoreApiExtensions
     /// <summary>Request decompression (authentication, rate limiting and authorization come from the sign-in feature).</summary>
     public static WebApplication UseScoreApi(this WebApplication app)
     {
+        app.UseCompressedBodyPolicy();
         app.UseRequestDecompression();
         return app;
     }

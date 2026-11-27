@@ -72,6 +72,18 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
     volumes:
       - polymnia-db:/var/lib/postgresql/data
+    # Least privilege: the entrypoint only needs to fix the ownership of the data directory and drop to the
+    # postgres user (tested with a fresh and an existing volume). No way to gain privileges afterwards.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
     # No published port: only the app reaches the database, over the private compose network.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]

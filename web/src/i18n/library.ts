@@ -36,6 +36,7 @@ export const libraryEn = {
   'library.errorGeneric': 'Something went wrong. Please try again.',
   'library.errorNotFound': 'This score no longer exists.',
   'library.errorTooLarge': 'This score is too large.',
+  'library.errorStorage': 'Your storage space is full. Delete a score to free some room.',
   'dialog.cancel': 'Cancel',
   'dialog.close': 'Close',
   'rename.title': 'Rename score',
@@ -62,6 +63,8 @@ export const libraryEn = {
     'You are offline. Your changes are kept and saved when you are back online.',
   'save.noticeTooLarge':
     'This score is too large to save (limit 4 MiB). Your changes stay in this tab. Remove some content to save again.',
+  'save.noticeStorageFull':
+    'Your storage space is full (100 MiB by default). Your changes stay in this tab. Delete a score you no longer need to save again.',
   'save.noticeRejected': 'The server refused this score. Your changes stay in this tab.',
   'save.noticeGone': 'This score no longer exists on the server. Your changes stay in this tab.',
   'save.noticeRateLimited': 'Too many saves in a row. Saving again shortly.',
@@ -126,6 +129,8 @@ export const libraryFr = {
   'library.errorGeneric': 'Un problème est survenu. Réessayez.',
   'library.errorNotFound': 'Cette partition n’existe plus.',
   'library.errorTooLarge': 'Cette partition est trop volumineuse.',
+  'library.errorStorage':
+    'Votre espace de stockage est plein. Supprimez une partition pour libérer de la place.',
   'dialog.cancel': 'Annuler',
   'dialog.close': 'Fermer',
   'rename.title': 'Renommer la partition',
@@ -152,6 +157,8 @@ export const libraryFr = {
     'Vous êtes hors ligne. Vos modifications sont conservées et enregistrées au retour de la connexion.',
   'save.noticeTooLarge':
     'Cette partition est trop volumineuse pour être enregistrée (limite : 4 Mio). Vos modifications restent dans cet onglet. Retirez du contenu pour enregistrer de nouveau.',
+  'save.noticeStorageFull':
+    'Votre espace de stockage est plein (100 Mio par défaut). Vos modifications restent dans cet onglet. Supprimez une partition inutile pour enregistrer de nouveau.',
   'save.noticeRejected':
     'Le serveur a refusé cette partition. Vos modifications restent dans cet onglet.',
   'save.noticeGone':

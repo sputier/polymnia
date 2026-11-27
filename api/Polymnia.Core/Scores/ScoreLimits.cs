@@ -34,6 +34,9 @@ public static class ScoreLimits
     /// <summary>Default maximum number of scores one user can own.</summary>
     public const int DefaultMaxScoresPerUser = 200;
 
+    /// <summary>Default total content size one user can store: 100 MiB.</summary>
+    public const long DefaultMaxStorageBytesPerUser = 100L * 1024 * 1024;
+
     public const int DefaultPageSize = 20;
 
     public const int MaxPageSize = 100;

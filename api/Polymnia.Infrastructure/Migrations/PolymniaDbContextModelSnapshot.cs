@@ -205,6 +205,26 @@ namespace Polymnia.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Polymnia.Core.Users.RegistrationEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "CreatedAt" }, "ix_registration_events_created_at");
+
+                    b.ToTable("registration_events", (string)null);
+                });
+
             modelBuilder.Entity("Polymnia.Core.Users.User", b =>
                 {
                     b.Property<Guid>("Id")

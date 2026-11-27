@@ -51,6 +51,19 @@ Any other ASP.NET Core setting can be added to the `environment` of the `app` se
 
 **`AllowedHosts` must be set.** It is the list of `Host` headers the app accepts; any other host gets `400`. The compose file refuses to start without it, so a forgotten value never turns into an open `*`.
 
+## Abuse limits and alerts
+
+Settings of the `app` service (ASP.NET Core configuration: add them to its `environment`, with `__` for `:`).
+
+| Setting                                              | Default | Effect                                                                                                                                                                                  |
+| ---------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Scores__MaxStorageBytesPerUser`                     | 100 MiB | Total size of one user's scores. Beyond it, create, duplicate and save answer `413` (`urn:polymnia:problem:quota-exceeded`) and the app says the storage is full. Deleting scores frees room. |
+| `Auth__Registration__MaxNewAccountsPerDay`           | 100     | New accounts per rolling 24 hours on the whole instance (exact: counted in a table of timestamps kept 2 days, so deleting accounts does not reopen registrations, under a database lock so simultaneous first sign-ins cannot exceed it). Over it, a **new** person lands on a "registrations temporarily closed" notice; existing users sign in as usual.               |
+| `Auth__Registration__MaxNewAccountsPerAddressPerDay` | 10      | New accounts per client address (IPv4, or IPv6 /64) per 24 hours, counted in memory per instance. Needs forwarded headers behind a proxy (see below).                                   |
+| `Monitoring__DatabaseSizeWarningBytes`               | 5 GiB   | When the database is larger, a warning is logged at start-up and every hour (`DatabaseSizeExceeded`). `0` disables it. Watch your logs for it.                                          |
+
+The database password must not be the placeholder of `.env.example` and must have at least 16 characters (`openssl rand -hex 16`): outside Development the `migrate` service, and so the whole stack, refuses to start otherwise.
+
 ## Reverse proxy and TLS
 
 The app listens on `127.0.0.1:8080` only. Put a reverse proxy in front, terminating TLS and forwarding to that port, and keep the `Host` header (most proxies do by default). Caddy example:

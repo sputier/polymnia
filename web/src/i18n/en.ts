@@ -160,6 +160,8 @@ export const en = {
   'auth.hint': 'to sign in',
   'auth.free': 'Free and open source (MIT license)',
   'auth.failed': 'Sign-in did not complete. Please try again.',
+  'auth.closed':
+    'New registrations are temporarily closed on this server. Please try again later. Existing accounts are not affected.',
   'auth.loading': 'Loading...',
   'auth.error': 'The server is not reachable. Check your connection and try again.',
   'auth.retry': 'Try again',

@@ -46,6 +46,8 @@ export interface LoadedScore {
 }
 
 export const SCORE_LIMIT_PROBLEM = 'urn:polymnia:problem:score-limit';
+/** The user's total storage is full (413): not the same as one score being too large. */
+export const STORAGE_QUOTA_PROBLEM = 'urn:polymnia:problem:quota-exceeded';
 
 /** Bodies smaller than this are not worth compressing. */
 const GZIP_THRESHOLD = 1024;

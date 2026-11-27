@@ -14,6 +14,7 @@ interface SaveNoticesProps {
 
 const NOTICE: Record<string, MessageKey> = {
   'too-large': 'save.noticeTooLarge',
+  'storage-full': 'save.noticeStorageFull',
   rejected: 'save.noticeRejected',
   gone: 'save.noticeGone',
   'rate-limited': 'save.noticeRateLimited',

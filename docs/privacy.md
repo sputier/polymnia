@@ -13,6 +13,7 @@ For people who run an instance. Polymnia stores little personal data and gives e
 | `share_links`               | hash of the link token, score id, dates (the token itself is never stored)                                                                                              | sharing                    | until revoked or the account is deleted                                                                     |
 | `contact_messages` | topic, message text and, only if the sender gives one, a reply address. **No account, no IP address, no user agent.** Forwarded by e-mail to you when SMTP is configured ([Contact form](contact.md)) | contact form | `Contact:RetentionDays` (default 90), purged hourly whatever the status; backups keep them until they rotate out |
 | `user_sessions`             | SHA-256 of the session key, user id, encrypted ticket, dates                                                                                                            | staying signed in          | idle `Auth:IdleTimeout` (7 d), absolute `Auth:AbsoluteTimeout` (30 d), expired rows purged hourly           |
+| `registration_events`       | one timestamp per account creation, kept 2 days for the daily registration cap. **No user id, no IP address**; not removed when an account is deleted, and not personal data |
 | `data_protection_keys`      | encryption keys of cookies and tokens (no personal data; encrypted at rest with your certificate)                                                                       | security                   | key lifetime (90 days), then rotated                                                                        |
 | Application logs            | audit events (sign-in, sign-out, export, deletion, rate limits) with the **internal user id only**: no name, e-mail, Google id, token or score content                  | security, abuse prevention | **you decide** (`Legal:LogRetentionDays`, default 30): the app does not rotate logs, your log pipeline does |
 | Reverse proxy and host logs | typically IP addresses and URLs. **Not produced by Polymnia**: your proxy and provider settings apply                                                                   | operation                  | yours to define and to disclose                                                                             |
@@ -46,6 +47,10 @@ All from the account menu (the name in the toolbar):
 - **Correction** (rectification): the name and avatar come from Google and are refreshed at each sign-in; the user changes them in their Google account.
 
 Anything else (restriction, objection, questions) reaches you through `Legal:Contact`. You have one month to answer. With `Legal:Contact=/#/contact` that is the [contact form](contact.md): topic "Personal data", forwarded to your mailbox by SMTP (`Contact:*`, an address nobody ever sees) and kept `Contact:RetentionDays` days. The privacy page lists these messages, their retention and what is not stored with them.
+
+## Storage and registration limits
+
+To keep the amount of stored personal data bounded, each user can store at most 100 MiB of scores (`Scores:MaxStorageBytesPerUser`), the instance accepts at most 100 new accounts per day and 10 per client address (`Auth:Registration:*`), and a warning is logged when the database grows past a threshold (`Monitoring:DatabaseSizeWarningBytes`). See [self-hosting](self-hosting.md#abuse-limits-and-alerts).
 
 ## Audit trail
 

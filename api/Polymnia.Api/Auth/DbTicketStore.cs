@@ -212,6 +212,21 @@ internal sealed class SessionCleanupService(
 {
     private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
 
+    /// <summary>One cleanup: expired sessions, and registration events older than two days (the cap only counts the last day).</summary>
+    internal async Task PurgeAsync(CancellationToken ct)
+    {
+        await using AsyncServiceScope scope = scopes.CreateAsyncScope();
+        PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
+        DateTimeOffset now = time.GetUtcNow();
+        int removed = await db.Sessions
+            .Where(s => s.ExpiresAt <= now)
+            .ExecuteDeleteAsync(ct);
+        AuthLog.SessionsRemoved(logger, removed);
+
+        DateTimeOffset keepFrom = now - TimeSpan.FromDays(2);
+        await db.RegistrationEvents.Where(e => e.CreatedAt < keepFrom).ExecuteDeleteAsync(ct);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(Interval, time);
@@ -219,13 +234,7 @@ internal sealed class SessionCleanupService(
         {
             try
             {
-                await using AsyncServiceScope scope = scopes.CreateAsyncScope();
-                PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
-                DateTimeOffset now = time.GetUtcNow();
-                int removed = await db.Sessions
-                    .Where(s => s.ExpiresAt <= now)
-                    .ExecuteDeleteAsync(stoppingToken);
-                AuthLog.SessionsRemoved(logger, removed);
+                await PurgeAsync(stoppingToken);
             }
 #pragma warning disable CA1031 // A failed cleanup must never stop the host; it is retried at the next tick.
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
