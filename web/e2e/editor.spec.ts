@@ -94,6 +94,8 @@ test.describe('editor shell (desktop)', () => {
       'Score title',
       'Open the command palette',
       'Focus mode',
+      'Score',
+      'Chord sheet',
       'Simple',
       'Advanced',
       'Import MusicXML',

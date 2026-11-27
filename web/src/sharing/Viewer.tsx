@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSheetView } from '../components/useSheetView';
+import { ViewToggle } from '../components/ViewToggle';
+import { ChordSheet } from '../route/chunks';
 import { ApiError } from '../api/client';
 import { isNetworkError } from '../api/scores';
 import { loadSharedScore } from '../api/shares';
@@ -67,6 +70,7 @@ export function SharedViewer({ token }: { token: string }) {
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [engraver, setEngraver] = useState<Engraver | null>(null);
+  const sheetView = useSheetView(engraver);
 
   // Never indexed, and no Referer from this page (the link is a credential).
   useHeadMeta('robots', 'noindex, nofollow');
@@ -143,6 +147,7 @@ export function SharedViewer({ token }: { token: string }) {
         </a>
         <span className="viewer-badge">{t('viewer.readOnly')}</span>
         <span className="sp" />
+        {score && <ViewToggle view={sheetView.view} onChange={sheetView.setView} />}
         <LanguageSwitch />
         <ThemeSwitch />
       </header>
@@ -189,7 +194,24 @@ export function SharedViewer({ token }: { token: string }) {
           <div className="score-area">
             <section className="paper" aria-label={t('paper.label')}>
               <h1 className="ptitle">{score.meta.title || t('editor.untitled')}</h1>
-              <ScoreView score={score} onEngraver={setEngraver} />
+              {sheetView.view === 'sheet' ? (
+                <Suspense
+                  fallback={
+                    <p className="muted" role="status">
+                      {t('sheet.loading')}
+                    </p>
+                  }
+                >
+                  <ChordSheet
+                    score={score}
+                    onMeasure={sheetView.openMeasure}
+                    partId={sheetView.sheetPart}
+                    onPartChange={sheetView.setSheetPart}
+                  />
+                </Suspense>
+              ) : (
+                <ScoreView score={score} onEngraver={setEngraver} />
+              )}
             </section>
           </div>
         </main>

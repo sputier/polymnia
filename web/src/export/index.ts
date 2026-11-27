@@ -14,6 +14,9 @@ import {
   type PagePlan,
   type Paper,
 } from './pages';
+import { diagramParts } from '../chords/sheet';
+import { buildSheetPages } from './sheetPages';
+import type { NoteNaming } from '../score/chords';
 import { loadTextFont, measurer } from './textFont';
 import { buildPdf } from './pdf';
 import { renderPng } from './png';
@@ -196,15 +199,101 @@ export function exportPng(
       },
       staffSpaceMm,
     );
-    if (files.length === 1) {
-      return { bytes: files[0]!, mime: 'image/png', extension: 'png', dropped, pages };
+    return pngFile(files, dropped, pages);
+  });
+}
+
+/** One PNG, or a ZIP of `page-N.png` when there are several. */
+function pngFile(
+  files: readonly Uint8Array<ArrayBuffer>[],
+  dropped: Record<string, number>,
+  pages: number,
+): ExportFile {
+  if (files.length === 1) {
+    return { bytes: files[0]!, mime: 'image/png', extension: 'png', dropped, pages };
+  }
+  const width = String(files.length).length;
+  const entries: Record<string, [Uint8Array, { level: 0 }]> = {};
+  files.forEach((f, i) => {
+    entries[`page-${String(i + 1).padStart(width, '0')}.png`] = [f, { level: 0 }];
+  });
+  const zip = zipSync(entries) as Uint8Array<ArrayBuffer>;
+  return { bytes: zip, mime: 'application/zip', extension: 'zip', dropped, pages };
+}
+
+export interface ChordSheetExport {
+  readonly naming: NoteNaming;
+  /** Part whose diagrams are printed (the one chosen in the view); none: the first with strings. */
+  readonly partId?: string | undefined;
+  readonly diagramsLabel: string;
+  readonly capoLabel?: ((fret: number) => string) | undefined;
+}
+
+/** The pages of the chord sheet, with the chord library loaded when diagrams are printed. */
+async function sheetPages(
+  score: Score,
+  title: string,
+  paper: Paper,
+  options: ChordSheetExport,
+  measure?: (text: string, size: number) => number,
+): Promise<Page[]> {
+  const parts = diagramParts(score);
+  const part = parts.find((p) => p.id === options.partId) ?? parts[0];
+  const lookup = part ? (await import('../chords/library')).lookupShape : undefined;
+  return buildSheetPages(
+    score,
+    title,
+    paper,
+    {
+      naming: options.naming,
+      part,
+      lookup,
+      diagramsLabel: options.diagramsLabel,
+      capoLabel: options.capoLabel,
+    },
+    measure,
+  );
+}
+
+/** The chord sheet as a PDF (`'pdf'`) or PNG (`'png'`: one image, a ZIP when it spans several pages). */
+export function exportChordSheet(
+  format: 'pdf' | 'png',
+  score: Score,
+  title: string,
+  paper: Paper,
+  options: ChordSheetExport,
+  onProgress?: (p: Progress) => void,
+): Promise<ExportFile> {
+  return timed(`export:sheet-${format}`, async () => {
+    const dropped: Record<string, number> = {};
+    // Helvetica widths first, to know every text; the Unicode font (when there is text beyond
+    // WinAnsi) then gives the exact widths for the final pages.
+    let pages = await sheetPages(score, title, paper, options);
+    onProgress?.({ done: 0, total: pages.length });
+    if (format === 'png') {
+      const files: Uint8Array<ArrayBuffer>[] = [];
+      for (const [i, page] of pages.entries()) {
+        await tick();
+        files.push(await renderPng(page));
+        onProgress?.({ done: i + 1, total: pages.length });
+      }
+      return pngFile(files, dropped, pages.length);
     }
-    const width = String(files.length).length;
-    const entries: Record<string, [Uint8Array, { level: 0 }]> = {};
-    files.forEach((f, i) => {
-      entries[`page-${String(i + 1).padStart(width, '0')}.png`] = [f, { level: 0 }];
-    });
-    const zip = zipSync(entries) as Uint8Array<ArrayBuffer>;
-    return { bytes: zip, mime: 'application/zip', extension: 'zip', dropped, pages };
+    const font = await loadTextFont([
+      title,
+      score.meta.title,
+      score.meta.composer,
+      ...pages.flatMap((p) => p.items.flatMap((i) => (i.kind === 'text' ? [i.text] : []))),
+    ]);
+    if (font) pages = await sheetPages(score, title, paper, options, measurer(font, textWidth));
+    const bytes = buildPdf(
+      pages,
+      { title: title || score.meta.title, author: score.meta.composer, creator: 'Polymnia' },
+      font,
+    );
+    for (const cp of font?.missing ?? [])
+      dropped[`pdf-text-U+${cp.toString(16).toUpperCase().padStart(4, '0')}`] = 1;
+    onProgress?.({ done: pages.length, total: pages.length });
+    return { bytes, mime: 'application/pdf', extension: 'pdf', dropped, pages: pages.length };
   });
 }
