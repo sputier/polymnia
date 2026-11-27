@@ -19,6 +19,7 @@ import type {
   StaffType,
   TimeSignature,
 } from '../score/types';
+import { getChordNaming } from './chordNaming';
 import { DIAGRAM_BAND, chordWidth, diagramPlan, diagramStrings, CHORD } from './chords';
 import {
   STAFF_SPACE,
@@ -472,7 +473,7 @@ function shapeKey(
       if (!sm.chords) return '';
       const part = score.parts[s.partIndex]!;
       const flags = sm.chords.map((c) => (plan.has(c.id) ? 1 : 0)).join('');
-      return `${flags}/${diagramStrings(part) ?? 0}/${part.capo ?? 0}/${part.chordCapoShapes ? 1 : 0}`;
+      return `${flags}/${diagramStrings(part) ?? 0}/${part.capo ?? 0}/${part.chordCapoShapes ? 1 : 0}/${getChordNaming()}`;
     })
     .join(',');
   return `${keyFifthsAt(score, measure)}|${t.beats}/${t.beatType}|${measureLength(score, measure)}|${clefs.join(',')}|${chords}`;

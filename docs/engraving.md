@@ -6,18 +6,18 @@ The engraver turns a score (see [score-format.md](score-format.md)) into SVG. It
 
 ## Modules
 
-| File              | Role                                                                             | VexFlow             |
-| ----------------- | -------------------------------------------------------------------------------- | ------------------- |
-| `notation.ts`     | Staff geometry (clef to y), accidental state, beam groups, tick helpers          | no                  |
-| `layout.ts`       | Measure widths, system breaking, justification, event x positions                | no                  |
-| `hitTest.ts`      | Point to `{partId, staffId, measureIndex, eventId, pitch}`, event bounding boxes | no                  |
-| `draw.ts`         | Draws one system (staves, notes, beams, tuplets, ties, slurs, connectors, names) | yes                 |
-| `chords.ts`, `chordMetrics.ts`, `chordAnchor.ts` | Chord symbol typography and widths, diagram sizes, where the text field goes | no |
-| `drawChords.ts`   | Draws the chord symbols and fretboard diagrams of a measure (context text and paths) | context only (type import) |
-| `engraver.ts`     | Owns the SVG, incremental and progressive re-render, highlighting                | yes                 |
-| `vexflowSetup.ts` | Configures VexFlow (fonts) and loads Bravura                                     | yes                 |
-| `fonts.ts`        | URL of the hashed Bravura file, `<link rel="preload">`                           | no (initial bundle) |
-| `ScoreView.tsx`   | React component: lazy loading, resize, props to engraver                         | no (lazy)           |
+| File                                             | Role                                                                                 | VexFlow                    |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------- |
+| `notation.ts`                                    | Staff geometry (clef to y), accidental state, beam groups, tick helpers              | no                         |
+| `layout.ts`                                      | Measure widths, system breaking, justification, event x positions                    | no                         |
+| `hitTest.ts`                                     | Point to `{partId, staffId, measureIndex, eventId, pitch}`, event bounding boxes     | no                         |
+| `draw.ts`                                        | Draws one system (staves, notes, beams, tuplets, ties, slurs, connectors, names)     | yes                        |
+| `chords.ts`, `chordMetrics.ts`, `chordAnchor.ts` | Chord symbol typography and widths, diagram sizes, where the text field goes         | no                         |
+| `drawChords.ts`                                  | Draws the chord symbols and fretboard diagrams of a measure (context text and paths) | context only (type import) |
+| `engraver.ts`                                    | Owns the SVG, incremental and progressive re-render, highlighting                    | yes                        |
+| `vexflowSetup.ts`                                | Configures VexFlow (fonts) and loads Bravura                                         | yes                        |
+| `fonts.ts`                                       | URL of the hashed Bravura file, `<link rel="preload">`                               | no (initial bundle)        |
+| `ScoreView.tsx`                                  | React component: lazy loading, resize, props to engraver                             | no (lazy)                  |
 
 Everything that does not need VexFlow is pure TypeScript and unit-tested in jsdom. `ScoreView` loads `engraver.ts` (and so VexFlow) with a dynamic `import()` after the first paint: **VexFlow is not in the initial bundle**. VexFlow is MIT licensed (see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). The `vexflow/core` entry point is used: it carries **no font**. It is not tree-shakable in practice (the library registers its classes globally), so the editor chunk stays at about 180 KB gzip (see "Numbers").
 
@@ -53,7 +53,7 @@ Other rules: a pickup measure uses its own `length` (it gets less width); braces
 
 Chord symbols (and, for guitar and ukulele, diagrams) are part of the engraving, so the screen, the PDF and the PNG show the same thing. The model is described in [score-format.md](score-format.md#chord-symbols), entry in [editor.md](editor.md#chord-symbols).
 
-**Typography** (`chords.ts`, pure). A symbol is a list of text _runs_: root letter, then the quality, then the bass. Everything is set in the UI font (Inter) at 15 px; `m`, `maj`, `dim`, `aug` and `sus` stay on the baseline; numbers, alterations and added tones (`7`, `b5`, `#9`, `6/9`, `add9`, `(maj7)`) are **raised** (5.5 px) and smaller (10.5 px); sharps and flats are **Bravura glyphs** (U+E262, U+E260, double sharp and flat), never `#` and `b`, lifted to the x-height. So `F#m7b5` is "F", sharp, "m", raised "7", raised flat, raised "5". With a capo and the "show the shape" option the shape follows in parentheses at 12 px: `D (C)`. Widths come from an estimate of Inter's advances (`charEm`): enough to keep neighbours apart, and it does not depend on the font having loaded.
+**Typography** (`chords.ts`, pure). A symbol is a list of text _runs_: root letter, then the quality, then the bass. Everything is set in the UI font (Inter) at 15 px; `m`, `maj`, `dim`, `aug` and `sus` stay on the baseline; numbers, alterations and added tones (`7`, `b5`, `#9`, `6/9`, `add9`, `(maj7)`) are **raised** (5.5 px) and smaller (10.5 px); sharps and flats are **Bravura glyphs** (U+E262, U+E260, double sharp and flat), never `#` and `b`, lifted to the x-height. So `F#m7b5` is "F", sharp, "m", raised "7", raised flat, raised "5". With a capo and the "show the shape" option the shape follows in parentheses at 12 px: `D (C)`. The note names follow the user preference `chordNaming` (`chordNaming.ts`: letters or French solfège, default letters): `Rém7`, `Sol/Si`, `Fa♯m` (the root is text, the accidental still a Bravura glyph). The preference is part of the measure shape cache key and of the system signature, so a switch recomputes widths and redraws only what changed; `ScoreView` redraws when it changes. Widths come from an estimate of Inter's advances (`charEm`): enough to keep neighbours apart, and it does not depend on the font having loaded.
 
 **Layout** (`layout.ts`, `chords.ts`).
 
@@ -164,20 +164,20 @@ Commit the changed PNG files with the code that changed the rendering, and say w
 
 Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 measures, grand staff, 23 systems at 1100 px (34 before #46), mostly eighth notes with accidentals and ties.
 
-| What                                                                            | Budget          | Measured                                                                  |
-| ------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------- |
-| First system painted (after the chunk is loaded)                                | < 100 ms        | about 27 ms                                |
-| Full render, first ever (JIT cold), all systems                                 | n/a             | about 207 ms (drawing runs in idle chunks) |
-| Full render, warm (median of 7)                                                 | < 200 ms        | about 83 ms                                                              |
-| One edit, median / max of 25                                                    | < 16 ms         | about 4.9 ms / 9 ms                                                        |
-| Keystroke, filled score, median / p95 / max of 40                               | p95 < 16 ms     | 9.6 / 14.1 / 15.2 ms (edit on screen; systems hold more measures, so each one costs more)                                     |
-| Keystroke with a re-flow at the top of a filled score, median / p95 / max of 40 | p95 < 16 ms     | 9.3 / 13.7 / 14.0 ms, 1 system at most    |
-| Keystroke while filling an empty score, median / p95 / max of 400               | p95 < 16 ms     | 3.7 / 7.1 / 12.6 ms                         |
-| Highlight (selection + playing)                                                 | class toggle    | < 1 ms                                                                    |
-| Layout alone (jsdom)                                                            | n/a             | a few ms                                                                  |
-| Initial JS                                                                      | <= 110 KB gzip  | 75 KB                                                                     |
-| Editor chunk (VexFlow + engraving, no font)                                     | <= 200 KB gzip  | 180 KB (was 468 KB with the fonts)                                        |
-| Bravura font file                                                               | <= 250 KB woff2 | 247 KB, separate file, immutable cache                                    |
+| What                                                                            | Budget          | Measured                                                                                  |
+| ------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------- |
+| First system painted (after the chunk is loaded)                                | < 100 ms        | about 27 ms                                                                               |
+| Full render, first ever (JIT cold), all systems                                 | n/a             | about 207 ms (drawing runs in idle chunks)                                                |
+| Full render, warm (median of 7)                                                 | < 200 ms        | about 83 ms                                                                               |
+| One edit, median / max of 25                                                    | < 16 ms         | about 4.9 ms / 9 ms                                                                       |
+| Keystroke, filled score, median / p95 / max of 40                               | p95 < 16 ms     | 9.6 / 14.1 / 15.2 ms (edit on screen; systems hold more measures, so each one costs more) |
+| Keystroke with a re-flow at the top of a filled score, median / p95 / max of 40 | p95 < 16 ms     | 9.3 / 13.7 / 14.0 ms, 1 system at most                                                    |
+| Keystroke while filling an empty score, median / p95 / max of 400               | p95 < 16 ms     | 3.7 / 7.1 / 12.6 ms                                                                       |
+| Highlight (selection + playing)                                                 | class toggle    | < 1 ms                                                                                    |
+| Layout alone (jsdom)                                                            | n/a             | a few ms                                                                                  |
+| Initial JS                                                                      | <= 110 KB gzip  | 75 KB                                                                                     |
+| Editor chunk (VexFlow + engraving, no font)                                     | <= 200 KB gzip  | 180 KB (was 468 KB with the fonts)                                                        |
+| Bravura font file                                                               | <= 250 KB woff2 | 247 KB, separate file, immutable cache                                                    |
 
 The browser tests (`@perf`, project `perf`, see [development.md](development.md)) take warm-up iterations and many samples, assert the median against the strict budget and the p95 against twice the budget. They assert warm full render < 200 ms, cold < 600 ms (JIT, parallel workers, slower CI machines), edit median < 16 ms, keystroke median < 16 ms and p95 < 32 ms in the three scenarios above (CI runners are about twice as slow as the reference laptop).
 

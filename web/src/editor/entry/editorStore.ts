@@ -77,6 +77,7 @@ import {
 import { diagramPlan } from '../../score/diagrams';
 import { beatTicks } from '../../playback/timeline';
 import type { HitResult } from '../../engraving/hitTest';
+import { getChordNaming } from '../../engraving/chordNaming';
 import type { Notice } from './describe';
 import { alterInForce, nearestOctave, referencePitch } from './pitchInput';
 import {
@@ -1433,7 +1434,7 @@ export class EditorStore {
   /** The chord symbol at a position of the entry staff, as text (the text field shows it). */
   chordTextAt(pos: ChordEntryPos): string {
     const c = this.chordAtPos(pos);
-    return c ? formatChord(c) : '';
+    return c ? formatChord(c, getChordNaming()) : '';
   }
 
   /**
@@ -1477,7 +1478,10 @@ export class EditorStore {
     }
     this.commit(setChord({ ...pos, chord }), () => ({
       cursor: { measure: pos.measure, tick: pos.tick },
-      ...this.say({ key: 'notice.chordSet', params: { chord: formatChord(chord) } }),
+      ...this.say({
+        key: 'notice.chordSet',
+        params: { chord: formatChord(chord, getChordNaming()) },
+      }),
     }));
     return true;
   }
@@ -1571,7 +1575,7 @@ export class EditorStore {
     return this.commit(setChordDiagram({ ...pos, diagram: !shown }), () =>
       this.say({
         key: shown ? 'notice.chordDiagramOff' : 'notice.chordDiagramOn',
-        params: { chord: formatChord(chord) },
+        params: { chord: formatChord(chord, getChordNaming()) },
       }),
     );
   }

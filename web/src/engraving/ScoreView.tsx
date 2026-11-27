@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../i18n/i18n';
+import { useChordNaming } from './chordNaming';
 import type { Score } from '../score/types';
 import type { Engraver, ensureChordLibrary as EnsureChordLibrary } from './engraver';
 import type { HitResult } from './hitTest';
@@ -58,6 +59,7 @@ export function ScoreView({
   overlay,
 }: ScoreViewProps) {
   const { t, language } = useI18n();
+  const chordNaming = useChordNaming();
   const preview = useMemo(() => previewParams(), []);
   const hostRef = useRef<HTMLDivElement>(null);
   const [engraver, setEngraver] = useState<Engraver | null>(null);
@@ -156,7 +158,7 @@ export function ScoreView({
     return () => {
       cancelled = true;
     };
-  }, [engraver, effective, width, preview.fixture, score]);
+  }, [engraver, effective, width, preview.fixture, score, chordNaming]);
 
   // Screen reader summary of the whole score (the selected event goes through the live region).
   useEffect(() => {

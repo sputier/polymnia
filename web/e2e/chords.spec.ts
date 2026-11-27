@@ -367,6 +367,82 @@ test.describe('export and playback', () => {
     expect(shown(withDiagrams)).toContain('Cmaj7');
   });
 
+  test('chord names: Do Ré Mi from the palette, on screen, in the PDF, kept after a reload (#63)', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await openEditor(page);
+    await page.keyboard.press('Alt+k');
+    for (const [i, name] of ['Dm7', 'G/B', 'F#m', 'C'].entries()) {
+      await page.keyboard.type(name);
+      await page.keyboard.press(i === 3 ? 'Enter' : 'Space');
+    }
+    await expect.poll(() => symbols(page)).toEqual(['Dm7', 'G/B', 'F#m', 'C']);
+
+    await page.keyboard.press('Control+k');
+    await page.getByRole('combobox', { name: 'Search commands' }).fill('chord names');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => symbols(page)).toEqual(['Rém7', 'Sol/Si', 'Fa#m', 'Do']);
+    // Sharps stay music glyphs, in French too.
+    await expect(page.locator('svg.pm-score .vf-pm-chord').nth(2)).toContainText('Fa');
+
+    const content = await exportPdf(page);
+    const text = shown(content);
+    expect(text).toContain('Ré');
+    expect(text).toContain('Sol');
+    expect(text).toContain('Si');
+    expect(text).not.toContain('Dm7');
+
+    // The preference is the user's: it survives a reload, and typing still accepts English.
+    await page.reload();
+    await page.waitForFunction(() => !!(window as unknown as W).__polymnia?.store);
+    await expect(page.locator('svg.pm-score')).toBeVisible();
+    await page.evaluate(() => {
+      const { store } = (window as unknown as W).__polymnia;
+      const staffId = store.getState().score.parts[0]!.staves[0]!.id;
+      store.openChordEntry({ staffId, measure: 0, tick: 0 });
+      store.commitChord('Am7');
+      store.closeChordEntry();
+    });
+    await expect.poll(() => symbols(page)).toEqual(['Lam7']);
+  });
+
+  test('chord names: the toggle re-renders a 100-measure score within budget (#63)', async ({
+    page,
+  }) => {
+    await openEditor(page, '?new=100');
+    await page.evaluate(() => {
+      const store = (window as unknown as W).__polymnia.store;
+      const staffId = store.getState().score.parts[0]!.staves[0]!.id;
+      for (let m = 0; m < 60; m++) {
+        for (let t = 0; t < 4; t++) {
+          store.openChordEntry({ staffId, measure: m, tick: t * 960 });
+          store.commitChord(['C', 'Am7', 'F#m7b5', 'G/B'][(m + t) % 4]!);
+        }
+      }
+      store.closeChordEntry();
+    });
+    await page.waitForFunction(
+      () => document.querySelectorAll('svg.pm-score .vf-pm-chord').length >= 8,
+    );
+    const toggle = async (expected: string) => {
+      const t0 = Date.now();
+      await page.keyboard.press('Control+k');
+      await page.getByRole('combobox', { name: 'Search commands' }).fill('chord names');
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(
+        (name) =>
+          document.querySelector('svg.pm-score .vf-pm-chord')?.getAttribute('data-chord') === name,
+        expected,
+        { polling: 'raf' },
+      );
+      return Date.now() - t0;
+    };
+    const times = [await toggle('Do'), await toggle('C'), await toggle('Do'), await toggle('C')];
+    console.log(`chord names toggle (100 measures, 240 symbols): ${times.join(', ')} ms`);
+    expect(Math.max(...times)).toBeLessThan(process.env.CI ? 1500 : 750);
+  });
+
   test('chord playback is muted by default and can be switched on', async ({ page }) => {
     await openEditor(page);
     await page.keyboard.press('Alt+k');

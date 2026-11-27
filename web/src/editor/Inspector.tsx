@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { setChordNaming, useChordNaming } from '../engraving/chordNaming';
 import { useI18n } from '../i18n/i18n';
 import {
   clefAt,
@@ -129,8 +130,35 @@ export function Inspector({ store, state }: Props) {
         </div>
       </fieldset>
 
+      <ChordNamesField />
+
       <RangeWarnings score={score} />
     </div>
+  );
+}
+
+/** Display of chord symbols (C D E / Do Ré Mi): a preference of the user, not of the score. */
+function ChordNamesField() {
+  const { t } = useI18n();
+  const naming = useChordNaming();
+  return (
+    <fieldset className="field">
+      <legend>{t('inspector.chordNames')}</legend>
+      <div className="row">
+        {(['letters', 'solfege'] as const).map((n) => (
+          <button
+            key={n}
+            type="button"
+            className="btn"
+            aria-pressed={naming === n}
+            onClick={() => setChordNaming(n)}
+          >
+            {t(n === 'letters' ? 'inspector.chordNamesLetters' : 'inspector.chordNamesSolfege')}
+          </button>
+        ))}
+      </div>
+      <p className="side-hint">{t('inspector.chordNamesHint')}</p>
+    </fieldset>
   );
 }
 
