@@ -10,7 +10,7 @@ In Development, the OpenAPI document is served at `/openapi/v1.json`. It is not 
 
 | Method and path                      | What it does                                                                                                                                                               | Success                                                              |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `GET /api/scores?q=&page=&pageSize=` | List your scores, most recently changed first. `q` is a case-insensitive title search. `page` starts at 1, `pageSize` is 1 to 100 (default 20). Never returns the content. | `200` `{ items, page, pageSize, total }`                             |
+| `GET /api/scores?q=&page=&pageSize=` | List your scores, most recently changed first. `q` is a case-insensitive title search. `page` starts at 1, `pageSize` is 1 to 100 (default 20). Never returns the content, but each item has a cheap preview computed from it: `measureCount` and `instruments` (the instrument id of each part), for the rows of the page only. | `200` `{ items, page, pageSize, total }`                             |
 | `GET /api/scores/{id}`               | The score document, with its `ETag`. Honors `If-None-Match`.                                                                                                               | `200` document, or `304`                                             |
 | `POST /api/scores`                   | Create a score from a score document (the request body is the document). The title is `meta.title`.                                                                        | `201` summary, `Location`, `ETag`                                    |
 | `PUT /api/scores/{id}`               | Replace the document. Requires `If-Match`.                                                                                                                                 | `200` `{ id, title, schemaVersion, version, updatedAt }`, new `ETag` |
@@ -18,7 +18,7 @@ In Development, the OpenAPI document is served at `/openapi/v1.json`. It is not 
 | `POST /api/scores/{id}/duplicate`    | Copy the score, titled "<title> (copy)".                                                                                                                                   | `201` summary, `Location`, `ETag`                                    |
 | `DELETE /api/scores/{id}`            | Delete the score.                                                                                                                                                          | `204`                                                                |
 
-A summary is `{ id, title, schemaVersion, version, createdAt, updatedAt }`.
+A summary is `{ id, title, schemaVersion, version, createdAt, updatedAt }`. A list item is a summary plus `measureCount` and `instruments`.
 
 ## Access control
 

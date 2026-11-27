@@ -1,4 +1,5 @@
 import type { Messages } from './en';
+import { libraryFr } from './library';
 
 export const fr: Messages = {
   'app.name': 'Polymnia',
@@ -251,4 +252,5 @@ export const fr: Messages = {
   'io.error.empty': 'Le fichier ne contient pas de musique.',
   'io.error.invalid-score': 'La partition ne peut pas être représentée dans Polymnia.',
   'io.error.read': 'Le fichier n’a pas pu être lu.',
+  ...libraryFr,
 };

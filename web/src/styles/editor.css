@@ -128,7 +128,10 @@ kbd {
   background: var(--warn);
 }
 
-.save[data-state='offline'] .dot {
+.save[data-state='offline'] .dot,
+.save[data-state='conflict'] .dot,
+.save[data-state='error'] .dot,
+.save[data-state='unauthorized'] .dot {
   background: var(--danger);
 }
 

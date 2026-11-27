@@ -2,13 +2,13 @@
 
 **English** · [Français](editor.fr.md)
 
-The editor lives at `#/editor` (hash routing, no router dependency). The home page links to it.
+A stored score opens at `#/scores/<id>` from the [library](library.md), the signed-in home; it loads the score and saves it as you write (see [library.md](library.md)). `#/editor` is a scratch editor that is never saved, used by previews, fixtures and tests (hash routing, no router dependency).
 
 ## Layout
 
 | Area        | Role                                                                                                                                                                                                                                                                                 |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Top bar     | Back link, instruments toggle, editable score title, save status (`Saved`, `Saving…`, `Offline`), Simple/Advanced toggle, Import, Share (placeholder) and Export menu (MusicXML, MXL, MIDI, PDF, PNG; see [musicxml.md](musicxml.md) and [export.md](export.md)), theme and language switches, inspector toggle (Advanced only) |
+| Top bar     | Back link, instruments toggle, editable score title, save status (`Saved`, `Saving…`, `Offline`, `Conflict`, `Not saved`, `Sign-in needed`), Simple/Advanced toggle, Import, Share (placeholder) and Export menu (MusicXML, MXL, MIDI, PDF, PNG; see [musicxml.md](musicxml.md) and [export.md](export.md)), theme and language switches, inspector toggle (Advanced only) |
 | Left panel  | Instruments, collapsible. In Simple mode it also shows a hint to reach Advanced mode                                                                                                                                                                                                 |
 | Center      | The note input palette, the score on a "paper" surface and the shortcut reminder strip                                                                                                                                                                                               |
 | Right panel | Inspector, collapsible, **Advanced mode only**                                                                                                                                                                                                                                       |
@@ -38,6 +38,8 @@ The choice is stored in `localStorage` (`polymnia.uiMode`; failures are ignored)
 | `Home`                        | Back to the start of the score                                                      |
 | `Ctrl+K` (`Cmd+K` on macOS)   | Open the command palette (works while typing in a field)                            |
 | `Alt+F` (`Option+F` on macOS) | Focus mode                                                                          |
+| `Ctrl+S` (`Cmd+S` on macOS)   | Save now (a stored score; also works while typing in the title)                     |
+| `Alt+L` (`Option+L` on macOS) | Back to the library                                                                 |
 | `?`                           | Keyboard shortcut cheat sheet                                                       |
 | `Esc`                         | Leave focus mode, else close the open panel (narrow screens), else leave note input |
 

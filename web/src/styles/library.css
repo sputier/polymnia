@@ -1,0 +1,369 @@
+/* Score library, dialogs of the library and autosave notices. Colors come from tokens.css only. */
+.lib {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.lib-top {
+  flex: none;
+  gap: 12px;
+}
+
+.lib-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 380px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.lib-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.lib-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.lib-main {
+  flex: 1;
+  overflow: auto;
+  padding: 28px clamp(16px, 4vw, 56px) 160px;
+}
+
+.lib-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.lib-head h1 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.card:hover,
+.card:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.card-open {
+  /* 200 cards render lazily: off-screen ones are skipped by the browser (not the card itself: its menu overflows). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 190px;
+  display: block;
+  padding: 12px 12px 12px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 10px;
+}
+
+.card-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.thumb {
+  display: block;
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--score-ink);
+}
+
+.thumb-staff {
+  display: block;
+  width: 100%;
+  height: auto;
+  stroke: currentColor;
+  stroke-width: 0.8;
+  opacity: 0.7;
+}
+
+.card h3 {
+  margin: 10px 28px 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chip {
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+}
+
+.meta {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card-more {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 5px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+}
+
+.menu > * {
+  display: flex;
+  align-items: center;
+  padding: 7px 9px;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.menu > *:hover,
+.menu > *:focus-visible {
+  background: var(--accent-soft);
+}
+
+.menu .danger {
+  color: var(--danger);
+}
+
+.lib-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.lib-empty h2 {
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+
+.lib-more {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 8px 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+/* Dialogs */
+.dlg-form {
+  width: min(520px, 100%);
+  max-height: 86vh;
+  overflow: auto;
+}
+
+.dlg-new {
+  width: min(600px, 100%);
+}
+
+.dlg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.dlg-body h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.dlg-body p {
+  margin: 0;
+}
+
+.dlg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dlg-choices {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field > span,
+.field > legend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field input:not([type='checkbox']),
+.field select {
+  height: 34px;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.hint {
+  font-size: 12px;
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 4px 12px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.form-error {
+  color: var(--danger);
+}
+
+/* Autosave */
+.save-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 44px;
+  z-index: 60;
+  max-width: min(640px, calc(100% - 32px));
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 13px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--warn);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+}
+
+.save-notice[role='alert'] {
+  border-left-color: var(--danger);
+}
+
+.route-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 80px 16px;
+}
+
+@media (max-width: 720px) {
+  .lib-top .lbl {
+    display: none;
+  }
+}

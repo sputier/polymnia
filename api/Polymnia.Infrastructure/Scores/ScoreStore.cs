@@ -24,15 +24,45 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
         }
 
         int total = await query.CountAsync(ct);
-        List<ScoreSummary> items = await query
+        List<ScoreSummary> rows = await query
             .OrderByDescending(s => s.UpdatedAt)
             .ThenByDescending(s => s.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(s => new ScoreSummary(s.Id, s.Title, s.SchemaVersion, s.Version, s.CreatedAt, s.UpdatedAt))
             .ToListAsync(ct);
+
+        // The preview (measure count, instruments) is read from the content of the rows of this page only, never of
+        // the whole library, and only a few bytes per score leave the database.
+        Dictionary<Guid, PreviewRow> previews = [];
+        if (rows.Count > 0)
+        {
+            Guid[] ids = [.. rows.Select(r => r.Id)];
+            List<PreviewRow> found = await db.Database
+                .SqlQuery<PreviewRow>(
+                    $"""
+                    SELECT id AS "Id",
+                           COALESCE((jsonb_path_query_first(content, '$.measures.size()'))::int, 0) AS "MeasureCount",
+                           ARRAY(SELECT jsonb_array_elements_text(jsonb_path_query_array(content, '$.parts[*].instrument'))) AS "Instruments"
+                    FROM scores
+                    WHERE owner_id = {owner} AND id = ANY({ids})
+                    """)
+                .ToListAsync(ct);
+            previews = found.ToDictionary(p => p.Id);
+        }
+
+        List<ScoreListItem> items = [.. rows.Select(r =>
+        {
+            previews.TryGetValue(r.Id, out PreviewRow? preview);
+            return new ScoreListItem(
+                r.Id, r.Title, r.SchemaVersion, r.Version, r.CreatedAt, r.UpdatedAt,
+                preview?.MeasureCount ?? 0, preview?.Instruments ?? []);
+        })];
         return new ScorePage(items, page, pageSize, total);
     }
+
+    // Result of the preview query: column aliases are the property names.
+    private sealed record PreviewRow(Guid Id, int MeasureCount, string[] Instruments);
 
     /// <summary>
     /// Reads the content. With <paramref name="knownVersion"/> (from <c>If-None-Match</c>), a cheap version-only

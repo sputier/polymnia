@@ -2,13 +2,13 @@
 
 [English](editor.md) · **Français**
 
-L'éditeur est à l'adresse `#/editor` (routage par hash, sans dépendance de routeur). La page d'accueil y mène.
+Une partition enregistrée s'ouvre sur `#/scores/<id>` depuis la [bibliothèque](library.fr.md), l'accueil de l'utilisateur connecté ; elle est chargée et enregistrée au fil de la saisie (voir [library.fr.md](library.fr.md)). `#/editor` est un éditeur de brouillon jamais enregistré, utilisé par les aperçus, fixtures et tests (routage par hash, sans dépendance de routeur).
 
 ## Disposition
 
 | Zone           | Rôle                                                                                                                                                                                                                                                                                                                               |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Barre du haut  | Lien de retour, bascule des instruments, titre modifiable, état d'enregistrement (`Enregistré`, `Enregistrement…`, `Hors ligne`), bascule Simple/Avancé, Importer, Partager (maquette) et menu Exporter (MusicXML, MXL, MIDI, PDF, PNG ; voir [musicxml.fr.md](musicxml.fr.md) et [export.fr.md](export.fr.md)), thème et langue, bascule de l'inspecteur (mode Avancé uniquement) |
+| Barre du haut  | Lien de retour, bascule des instruments, titre modifiable, état d'enregistrement (`Enregistré`, `Enregistrement…`, `Hors ligne`, `Conflit`, `Non enregistré`, `Connexion requise`), bascule Simple/Avancé, Importer, Partager (maquette) et menu Exporter (MusicXML, MXL, MIDI, PDF, PNG ; voir [musicxml.fr.md](musicxml.fr.md) et [export.fr.md](export.fr.md)), thème et langue, bascule de l'inspecteur (mode Avancé uniquement) |
 | Panneau gauche | Instruments, repliable. En mode Simple, il indique comment accéder au mode Avancé                                                                                                                                                                                                                                                  |
 | Centre         | La palette de saisie, la partition sur une surface « papier » et la bande de rappel des raccourcis                                                                                                                                                                                                                                 |
 | Panneau droit  | Inspecteur, repliable, **mode Avancé uniquement**                                                                                                                                                                                                                                                                                  |
@@ -38,6 +38,8 @@ Le choix est stocké dans `localStorage` (`polymnia.uiMode` ; les erreurs sont i
 | `Origine` (`Home`)             | Retour au début de la partition                                                                 |
 | `Ctrl+K` (`Cmd+K` sur macOS)   | Ouvrir la palette de commandes (fonctionne aussi dans un champ texte)                           |
 | `Alt+F` (`Option+F` sur macOS) | Mode focus                                                                                      |
+| `Ctrl+S` (`Cmd+S` sur macOS)   | Enregistrer maintenant (partition enregistrée ; fonctionne aussi dans le titre)                 |
+| `Alt+L` (`Option+L` sur macOS) | Retour à la bibliothèque                                                                        |
 | `?`                            | Aide-mémoire des raccourcis clavier                                                             |
 | `Échap`                        | Quitter le mode focus, sinon fermer le panneau ouvert (écrans étroits), sinon quitter la saisie |
 

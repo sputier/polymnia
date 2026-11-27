@@ -7,7 +7,21 @@ public sealed record ScoreSummary(
 /// <summary>What a content update or a rename returns.</summary>
 public sealed record ScoreSaved(Guid Id, string Title, int SchemaVersion, long Version, DateTimeOffset UpdatedAt);
 
-public sealed record ScorePage(IReadOnlyList<ScoreSummary> Items, int Page, int PageSize, int Total);
+/// <summary>
+/// One row of the list: the summary plus a cheap preview computed from the content (number of measures and the
+/// instrument id of each part). The content itself is never returned.
+/// </summary>
+public sealed record ScoreListItem(
+    Guid Id,
+    string Title,
+    int SchemaVersion,
+    long Version,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    int MeasureCount,
+    IReadOnlyList<string> Instruments);
+
+public sealed record ScorePage(IReadOnlyList<ScoreListItem> Items, int Page, int PageSize, int Total);
 
 /// <summary>A validated score document, ready to store.</summary>
 public sealed record ScoreDocument(string Json, string Title, int SchemaVersion);

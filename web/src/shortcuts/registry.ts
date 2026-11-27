@@ -65,6 +65,7 @@ const SYMBOL_KEYS: Record<string, string> = {
   minus: '-',
   equal: '=',
   period: '.',
+  slash: '/',
   // `?` is Shift+/ on QWERTY and Shift+, on AZERTY: match the produced character.
   question: '?',
 };
@@ -114,6 +115,7 @@ const DISPLAY: Record<string, string> = {
   minus: '-',
   equal: '=',
   period: '.',
+  slash: '/',
   question: '?',
 };
 

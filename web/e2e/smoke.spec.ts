@@ -10,11 +10,14 @@ test.beforeEach(async ({ page }) => {
     }),
   );
   await page.route('**/api/auth/antiforgery', (route) => route.fulfill({ status: 204 }));
+  await page.route('**/api/scores**', (route) =>
+    route.fulfill({ json: { items: [], page: 1, pageSize: 50, total: 0 } }),
+  );
 });
 
 test('loads, switches theme and language without reload', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Polymnia' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My scores' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   const marker = await page.evaluate(() => {
@@ -28,7 +31,7 @@ test('loads, switches theme and language without reload', async ({ page }) => {
 
   await page.getByRole('button', { name: /FR/ }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
-  await expect(page.getByText('Composez de la musique dans votre navigateur.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Mes partitions' })).toBeVisible();
 
   const stillThere = await page.evaluate(
     () => (window as unknown as { __marker?: number }).__marker,
@@ -49,6 +52,9 @@ test('follows the OS dark preference on first visit', async ({ browser }) => {
     }),
   );
   await page.route('**/api/auth/antiforgery', (route) => route.fulfill({ status: 204 }));
+  await page.route('**/api/scores**', (route) =>
+    route.fulfill({ json: { items: [], page: 1, pageSize: 50, total: 0 } }),
+  );
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
