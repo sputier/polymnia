@@ -20,6 +20,7 @@ namespace Polymnia.Infrastructure.Migrations
                 .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
@@ -42,6 +43,62 @@ namespace Polymnia.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("data_protection_keys", (string)null);
+                });
+
+            modelBuilder.Entity("Polymnia.Core.Scores.Score", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "OwnerId", "UpdatedAt" }, "ix_scores_owner_id_updated_at")
+                        .IsDescending(false, true);
+
+                    b.HasIndex(new[] { "Title" }, "ix_scores_title_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex(new[] { "Title" }, "ix_scores_title_trgm"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex(new[] { "Title" }, "ix_scores_title_trgm"), new[] { "gin_trgm_ops" });
+
+                    b.ToTable("scores", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_scores_content_object", "jsonb_typeof(content) = 'object'");
+
+                            t.HasCheckConstraint("ck_scores_version_positive", "version > 0");
+                        });
                 });
 
             modelBuilder.Entity("Polymnia.Core.Users.User", b =>
@@ -127,6 +184,15 @@ namespace Polymnia.Infrastructure.Migrations
                         .HasDatabaseName("ix_user_sessions_user_id");
 
                     b.ToTable("user_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Polymnia.Core.Scores.Score", b =>
+                {
+                    b.HasOne("Polymnia.Core.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Polymnia.Infrastructure.Sessions.UserSession", b =>
