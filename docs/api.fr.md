@@ -83,4 +83,4 @@ Le budget de 50 ms est tenu pour get et liste. Il n'est pas tenu pour un `PUT` d
 
 ## Authentification et CSRF
 
-Les endpoints exigent le cookie de session décrit dans [Authentication](authentication.md) ; l'identifiant utilisateur est sa claim `NameIdentifier` (un GUID). Toute méthode non sûre (`POST`, `PUT`, `PATCH`, `DELETE`) doit porter le jeton antiforgery dans l'en-tête `X-XSRF-TOKEN`, `duplicate` et `DELETE` compris (`400` sinon, avant toute lecture) ; un test le vérifie. `scores.owner_id` est une clé étrangère vers `users.id` avec `ON DELETE CASCADE` : supprimer un utilisateur supprime ses partitions.
+Les endpoints exigent le cookie de session décrit dans [Authentication](authentication.fr.md) ; l'identifiant utilisateur est sa claim `NameIdentifier` (un GUID). Toute méthode non sûre (`POST`, `PUT`, `PATCH`, `DELETE`) doit porter le jeton antiforgery dans l'en-tête `X-XSRF-TOKEN`, `duplicate` et `DELETE` compris (`400` sinon, avant toute lecture) ; un test le vérifie. `scores.owner_id` est une clé étrangère vers `users.id` avec `ON DELETE CASCADE` : supprimer un utilisateur supprime ses partitions.
