@@ -99,6 +99,7 @@ test.describe('editor shell (desktop)', () => {
       'Import MusicXML',
       'Share',
       'Export',
+      'About and credits',
       'Switch to dark theme',
       'EN English',
       'FR Français',
