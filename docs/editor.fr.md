@@ -8,7 +8,7 @@ L'éditeur est à l'adresse `#/editor` (routage par hash, sans dépendance de ro
 
 | Zone | Rôle |
 | --- | --- |
-| Barre du haut | Lien de retour, bascule des instruments, titre modifiable, état d'enregistrement (`Enregistré`, `Enregistrement…`, `Hors ligne`), bascule Simple/Avancé, Partager et Exporter (maquettes), thème et langue, bascule de l'inspecteur (mode Avancé uniquement) |
+| Barre du haut | Lien de retour, bascule des instruments, titre modifiable, état d'enregistrement (`Enregistré`, `Enregistrement…`, `Hors ligne`), bascule Simple/Avancé, Importer, Partager (maquette) et menu Exporter (MusicXML, MXL ; voir [musicxml.fr.md](musicxml.fr.md)), thème et langue, bascule de l'inspecteur (mode Avancé uniquement) |
 | Panneau gauche | Instruments, repliable. En mode Simple, il indique comment accéder au mode Avancé |
 | Centre | La palette de saisie, la partition sur une surface « papier » et la bande de rappel des raccourcis |
 | Panneau droit | Inspecteur, repliable, **mode Avancé uniquement** |

@@ -98,6 +98,7 @@ test.describe('editor shell (desktop)', () => {
       'Focus mode',
       'Simple',
       'Advanced',
+      'Import MusicXML',
       'Share',
       'Export',
       'Switch to dark theme',

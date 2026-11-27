@@ -16,6 +16,7 @@ import { describeDuration, describeEvent, formatNotice, positionLabel } from './
 import { EditorStore, newEditorScore } from './entry/editorStore';
 import { entryShortcuts } from './entry/entryShortcuts';
 import { sequenceOf } from './entry/plan';
+import { useMusicXmlIO } from './musicXmlIO';
 import { Palette } from './Palette';
 import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
@@ -98,6 +99,7 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
   const overlay = useMediaQuery(OVERLAY_QUERY);
   const advanced = mode === 'advanced';
   const [title, setTitle] = useState('');
+  const io = useMusicXmlIO(store, title, setTitle);
   // null = "not chosen yet": open on wide screens, closed as an overlay.
   const [leftChoice, setLeftChoice] = useState<boolean | null>(null);
   const [rightChoice, setRightChoice] = useState<boolean | null>(null);
@@ -243,7 +245,12 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
   const showScrim = overlay && (leftOpen || rightOpen);
 
   return (
-    <div className="editor" data-mode={mode} {...(focus ? { 'data-focus': '' } : {})}>
+    <div
+      className="editor"
+      data-mode={mode}
+      {...(focus ? { 'data-focus': '' } : {})}
+      {...io.dropProps}
+    >
       <TopBar
         onOpenPalette={() => setDialog('palette')}
         onToggleFocus={() => setFocus(true)}
@@ -256,6 +263,8 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
         onToggleLeft={toggleLeft}
         rightOpen={rightOpen}
         onToggleRight={toggleRight}
+        onExport={io.exportAs}
+        onImportFile={io.importFile}
       />
       <div className="body">
         <SidePanel
@@ -332,6 +341,7 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
           <CommandDialogs dialog={dialog} onClose={() => setDialog(null)} onOpen={setDialog} />
         </Suspense>
       )}
+      {io.overlay}
     </div>
   );
 }

@@ -11,6 +11,7 @@ libraries) are not redistributed in the served files and are listed in `web/pack
 | [Bravura](https://github.com/steinbergmedia/bravura) (SMuFL music font), through the [`@vexflow-fonts/bravura`](https://www.npmjs.com/package/@vexflow-fonts/bravura) package | Notation glyphs | 1.392 | SIL OFL 1.1 | `/assets/bravura-*.woff2`, unmodified |
 | [Inter](https://github.com/rsms/inter), through `@fontsource/inter` | User interface and score text | see `web/package.json` | SIL OFL 1.1 | `/assets/inter-*.woff2` |
 | [IBM Plex Mono](https://github.com/IBM/plex), through `@fontsource/ibm-plex-mono` | Code and shortcut keys | see `web/package.json` | SIL OFL 1.1 | `/assets/ibm-plex-mono-*.woff2` |
+| [fflate](https://github.com/101arrowz/fflate) | ZIP (MXL) reading and writing | 0.8.3 | MIT | MusicXML chunk (`/assets/musicxml-*.js`), loaded on first import or export |
 | [React](https://react.dev/) | User interface | see `web/package.json` | MIT | Initial bundle |
 | [Tone.js](https://tonejs.github.io/) | Audio engine for playback | 15.1.22 | MIT | Playback chunk (`/assets/toneBackend-*.js`, lazy) |
 | Instrument samples (see "Audio samples" below) | Playback sounds | n/a | CC0 1.0 (all of them) | `/assets/<Note>-<hash>.ogg`, re-encoded |
@@ -61,6 +62,32 @@ The MIT License
 
 Copyright (c) 2023-2026 VexFlow contributors (see AUTHORS.md)
 Copyright (c) 2010-2022 Mohit Muthanna Cheppudira
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## fflate (MIT)
+
+```
+MIT License
+
+Copyright (c) 2026 Arjun Barrett
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

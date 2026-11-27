@@ -8,6 +8,7 @@ import { SaveStatus, type SaveState } from '../components/SaveStatus';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useI18n } from '../i18n/i18n';
 import { ROUTE_HREF } from '../route/useRoute';
+import { ExportMenu, ImportButton, type ExportFormat } from './FileMenu';
 import type { UiMode } from './uiMode';
 
 interface TopBarProps {
@@ -22,6 +23,8 @@ interface TopBarProps {
   onToggleRight: () => void;
   onOpenPalette: () => void;
   onToggleFocus: () => void;
+  onExport: (format: ExportFormat) => void;
+  onImportFile: (file: File) => void;
 }
 
 export function TopBar(props: TopBarProps) {
@@ -75,6 +78,7 @@ export function TopBar(props: TopBarProps) {
         <Icon name="focus" />
       </button>
       <ModeToggle mode={props.mode} onChange={props.onModeChange} />
+      <ImportButton onFile={props.onImportFile} />
       <button
         type="button"
         className="btn"
@@ -85,16 +89,7 @@ export function TopBar(props: TopBarProps) {
         <Icon name="share" />
         <span className="lbl">{t('editor.share')}</span>
       </button>
-      <button
-        type="button"
-        className="btn primary"
-        aria-disabled="true"
-        aria-label={t('editor.export')}
-        title={`${t('editor.export')} · ${t('editor.soon')}`}
-      >
-        <Icon name="download" />
-        <span className="lbl">{t('editor.export')}</span>
-      </button>
+      <ExportMenu onExport={props.onExport} />
       <ThemeSwitch />
       <LanguageSwitch />
       <AccountMenu />

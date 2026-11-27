@@ -11,6 +11,7 @@ import './styles/app.css';
 import './styles/editor.css';
 import './styles/palette.css';
 import './styles/commands.css';
+import './styles/file-io.css';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element not found');
