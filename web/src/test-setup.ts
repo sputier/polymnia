@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { loadAllCatalogs } from './i18n/i18n';
+
+// The catalogs are lazy chunks in the app; tests render synchronously, so they are loaded up front.
+await loadAllCatalogs();
 
 beforeEach(() => {
   localStorage.clear();

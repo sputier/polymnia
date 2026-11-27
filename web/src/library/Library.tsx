@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { duplicateScore, renameScore, type ScoreListItem } from '../api/scores';
 import { AccountMenu } from '../auth/AccountMenu';
 import { useSession } from '../auth/session';
@@ -9,19 +9,15 @@ import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import type { DialogKind } from '../editor/commands/CommandDialogs';
 import { format, useI18n } from '../i18n/i18n';
+import { CommandDialogs, LibraryShare, NewScoreDialog, prefetchEditor } from '../route/chunks';
 import { navigate, scoreHref } from '../route/useRoute';
 import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
 import { cancelDelete, scheduleDelete, UNDO_WINDOW_MS } from './deferredDelete';
-import { NewScoreDialog } from './NewScoreDialog';
-import { LibraryShare } from '../sharing/LibraryShare';
 import { RenameDialog } from './dialogs';
 import { ScoreCard, type CardAction } from './ScoreCard';
 import { describeFailure } from './text';
 import { useLibrary } from './useLibrary';
-
-const loadCommandDialogs = () => import('../editor/commands/CommandDialogs');
-const CommandDialogs = lazy(loadCommandDialogs);
 
 interface Toast {
   id: number;
@@ -78,9 +74,14 @@ export function Library() {
     [expire, t, toast],
   );
 
-  // Idle-time fetch of the palette chunk, so Ctrl+K opens instantly.
+  // Idle-time fetch of the palette chunk (Ctrl+K opens instantly) and of the editor (opening a score is instant).
   useEffect(() => {
-    const load = () => void loadCommandDialogs();
+    const load = () => {
+      void CommandDialogs.preload();
+      void NewScoreDialog.preload();
+      void LibraryShare.preload();
+      prefetchEditor(); // opening a score is the likely next step
+    };
     if (typeof requestIdleCallback === 'function') {
       const id = requestIdleCallback(load);
       return () => cancelIdleCallback(id);
@@ -366,13 +367,15 @@ export function Library() {
       </div>
 
       {modal?.kind === 'new' && (
-        <NewScoreDialog
-          onClose={() => setModal(null)}
-          onCreated={(id) => {
-            setModal(null);
-            navigate(scoreHref(id));
-          }}
-        />
+        <Suspense fallback={null}>
+          <NewScoreDialog
+            onClose={() => setModal(null)}
+            onCreated={(id) => {
+              setModal(null);
+              navigate(scoreHref(id));
+            }}
+          />
+        </Suspense>
       )}
       {modal?.kind === 'rename' && (
         <RenameDialog
@@ -382,11 +385,13 @@ export function Library() {
         />
       )}
       {modal?.kind === 'share' && (
-        <LibraryShare
-          scoreId={modal.score.id}
-          title={modal.score.title}
-          onClose={() => setModal(null)}
-        />
+        <Suspense fallback={null}>
+          <LibraryShare
+            scoreId={modal.score.id}
+            title={modal.score.title}
+            onClose={() => setModal(null)}
+          />
+        </Suspense>
       )}
       {palette && (
         <Suspense fallback={null}>

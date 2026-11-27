@@ -77,7 +77,7 @@ Chromium, build de production, portable Windows 11, partition de piano de 100 me
 | PDF (gravure, pages, écriture)    | < 3 s                               | 100 à 120 ms                                    |
 | PNG (3 pages en 2x, zippées)      | < 2 s                               | 155 à 175 ms                                    |
 | Chunk d'export                    | budget gzip 70 Ko (`npm run size`)  | 48,6 Ko (dont 41 Ko de contours de glyphes)     |
-| JS initial                        | <= 150 Ko gzip                      | non modifié par le code d'export (les entrées de menu et la préférence de papier pèsent quelques centaines d'octets) |
+| JS initial                        | <= 110 Ko gzip                      | non modifié par le code d'export (les entrées de menu et la préférence de papier pèsent quelques centaines d'octets) |
 
 ## Tests
 

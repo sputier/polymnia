@@ -21,7 +21,7 @@ Thank you for your interest in Polymnia. This guide explains how to propose a ch
 
 ## Project priorities: security and performance first
 
-Security and performance come before new features. A change that weakens security (secrets, injection, permissive CORS or CSP, unvalidated input) or that blows the performance budget (initial JavaScript above 150 KB gzip, heavy libraries not lazy-loaded) is not merged until fixed.
+Security and performance come before new features. A change that weakens security (secrets, injection, permissive CORS or CSP, unvalidated input) or that blows the performance budget (initial JavaScript above 110 KB gzip, heavy libraries not lazy-loaded) is not merged until fixed.
 
 ## Checks
 

@@ -15,27 +15,38 @@ Le front end se trouve dans [`web/`](../web) : Vite, React et TypeScript (`stric
 
 À lancer depuis `web/`.
 
-| Commande                                | Rôle                                                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `npm ci`                                | Installe exactement les dépendances verrouillées                                                              |
-| `npm run dev`                           | Démarre le serveur de développement                                                                           |
-| `npm run lint`                          | Vérifie ESLint et Prettier                                                                                    |
-| `npm run format`                        | Formate le code avec Prettier                                                                                 |
-| `npm run typecheck`                     | Vérification des types TypeScript                                                                             |
-| `npm test`                              | Tests unitaires (Vitest et Testing Library)                                                                   |
-| `npm run build`                         | Vérifie les types et construit la version de production dans `dist/`                                          |
-| `npm run size`                          | Vérifie le budget de poids (à lancer après `build`)                                                           |
-| `npm run bench`                         | Benchmarks du modèle de partition (échoue au-delà du budget)                                                  |
-| `npm run test:visual:update`            | Régénère les références visuelles dans l'image Docker de Playwright (voir [engraving.fr.md](engraving.fr.md)) |
-| `npm run test:visual:docker`            | Vérifie les références visuelles dans cette même image                                                        |
-| `npm run test:e2e`, `npm run test:perf` | Tests fonctionnels Playwright (Chromium, construit et sert l'application, en parallèle)                       |
-| `npm run test:perf`                     | Tests de performance Playwright (`@perf`) : un seul worker, sans nouvel essai                                 |
+| Commande                                      | Rôle                                                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `npm ci`                                      | Installe exactement les dépendances verrouillées                                                              |
+| `npm run dev`                                 | Démarre le serveur de développement                                                                           |
+| `npm run lint`                                | Vérifie ESLint et Prettier                                                                                    |
+| `npm run format`                              | Formate le code avec Prettier                                                                                 |
+| `npm run typecheck`                           | Vérification des types TypeScript                                                                             |
+| `npm test`                                    | Tests unitaires (Vitest et Testing Library)                                                                   |
+| `npm run build`                               | Vérifie les types et construit la version de production dans `dist/`                                          |
+| `npm run size`                                | Vérifie le budget de poids (à lancer après `build`)                                                           |
+| `npm run build:report`, `npm run size:report` | Construit avec le visualiseur de bundle, puis liste les plus gros modules des chunks initiaux                 |
+| `npm run bench`                               | Benchmarks du modèle de partition (échoue au-delà du budget)                                                  |
+| `npm run test:visual:update`                  | Régénère les références visuelles dans l'image Docker de Playwright (voir [engraving.fr.md](engraving.fr.md)) |
+| `npm run test:visual:docker`                  | Vérifie les références visuelles dans cette même image                                                        |
+| `npm run test:e2e`, `npm run test:perf`       | Tests fonctionnels Playwright (Chromium, construit et sert l'application, en parallèle)                       |
+| `npm run test:perf`                           | Tests de performance Playwright (`@perf`) : un seul worker, sans nouvel essai                                 |
 
 Première exécution des tests de bout en bout : `npx playwright install chromium`.
 
 ### Budget de performance
 
-Le JavaScript initial du premier écran doit rester à **150 Ko gzip** ou moins. `npm run size` lit `dist/index.html`, additionne les scripts chargés au premier affichage (compressés en gzip) et échoue au-delà du budget. Les bibliothèques lourdes (VexFlow, Tone.js, échantillons) doivent être chargées à la demande avec `import()` dynamique, pour ne jamais compter dans le premier écran.
+Le JavaScript initial, ce que `index.html` charge avant tout écran, doit rester à **110 Ko gzip** ou moins (il fait environ 75 Ko : React, la vérification de session, l'écran de connexion et la langue active). `npm run size` lit `dist/index.html`, additionne les scripts chargés au premier affichage (compressés en gzip) et échoue au-delà du budget ; il affiche aussi, à titre indicatif, ce que télécharge chaque écran (initial plus ses propres chunks). Les bibliothèques lourdes (VexFlow, Tone.js, échantillons) doivent être chargées à la demande avec `import()` dynamique, pour ne jamais compter dans le premier écran.
+
+Découpage du bundle (#50) :
+
+- **Un chunk par écran**, dans `web/src/route/chunks.ts` : bibliothèque, partition enregistrée, éditeur libre, lecteur partagé et page de confidentialité. La bibliothèque ne charge jamais de code de l'éditeur et l'éditeur jamais de code de la bibliothèque ; les dialogues de la bibliothèque qui demandent le modèle de partition ou l'import/export (nouvelle partition, partage) et la palette de commandes ont leur propre chunk, récupéré au repos après le premier affichage. Ajoutez un écran ou un gros dialogue à cet endroit, avec `preloadable()` (un `React.lazy` qui s'affiche sans suspendre une fois son chunk préchargé : sinon React garde un repli Suspense à l'écran au moins 300 ms).
+- **Pas de cascade** : le build écrit `dist/route-preload.js` (`web/vite-plugins/routePreload.ts`), chargé en premier par `index.html`, qui ajoute des liens `modulepreload` pour les chunks de l'écran de la barre d'adresse et de la langue active, téléchargés pendant l'exécution d'`index.js`. `main.tsx` lance aussi le chunk de l'écran et le catalogue avant la réponse de la vérification de session. Depuis la bibliothèque, ouvrir une partition est instantané : les chunks de l'éditeur et le moteur de gravure sont préchargés quand le navigateur est au repos.
+- **Langues** : `en.ts` et `fr.ts` sont deux chunks à la demande. Seule la langue active est téléchargée avant le premier affichage (`loadCatalog`) ; l'autre au changement de langue (et dès que le pointeur ou le focus atteint son bouton), ou à l'ouverture de la palette de commandes (elle cherche les libellés dans toutes les langues).
+- **Raccourcis** : ils sont enregistrés par l'écran qui les possède (`useShortcuts`) : un écran chargé à la demande enregistre ses commandes à son montage ; la palette liste le registre de l'écran courant. Les tests « pas de combinaison de touches en double » sont inchangés.
+- `vite.config.ts` fixe deux groupes, `react` et `shell` (session, connexion, client d'API, route, sélecteur de langue), pour que le premier chargement soit une poignée de fichiers plutôt qu'un par module partagé.
+
+Lire le rapport de bundle : `npm run build:report` construit avec le visualiseur (`rollup-plugin-visualizer`, dépendance de développement, `dist/stats.json`), puis `npm run size:report` liste les plus gros modules des chunks initiaux (`npm run size:report -- Library --top=15` pour un autre chunk, repéré par son nom de fichier). Les tailles gzip par module sont des estimations (chaque module est compressé seul, la somme dépasse donc le chunk réel) : servez-vous-en pour classer les modules, puis confirmez avec `npm run size`. Un module des chunks initiaux qui appartient à un seul écran est importé statiquement depuis le shell : rendez cet import dynamique.
 
 ### Tests de performance
 
@@ -58,7 +69,7 @@ Inter (interface) et IBM Plex Mono (raccourcis, barre d'état) sont auto-héberg
 
 ### Internationalisation
 
-Français et anglais, dans `web/src/i18n/` (`en.ts` fait référence, `fr.ts` doit définir les mêmes clés, vérifié par le compilateur et par un test). La langue est détectée depuis le choix mémorisé, puis `navigator.languages`, puis l'anglais, et peut être changée à l'exécution. Ne codez jamais un texte d'interface en dur : ajoutez une clé aux deux catalogues et utilisez `t('cle')` via `useI18n()`. La couche est un petit module typé sans dépendance d'exécution, pour garder un bundle léger.
+Français et anglais, dans `web/src/i18n/` (`en.ts` fait référence, `fr.ts` doit définir les mêmes clés, vérifié par le compilateur et par un test). La langue est détectée depuis le choix mémorisé, puis `navigator.languages`, puis l'anglais, et peut être changée à l'exécution. Ne codez jamais un texte d'interface en dur : ajoutez une clé aux deux catalogues et utilisez `t('cle')` via `useI18n()`. La couche est un petit module typé sans dépendance d'exécution, pour garder un bundle léger. Chaque langue est un chunk à la demande : seule la langue active est chargée avant le premier affichage (voir « Budget de performance ») ; dans les tests, `test-setup.ts` charge les catalogues d'avance.
 
 ## Back end
 

@@ -2,7 +2,7 @@ import { ApiError } from '../api/client';
 import { isNetworkError, SCORE_LIMIT_PROBLEM } from '../api/scores';
 import type { MessageKey } from '../i18n/en';
 import type { Language } from '../i18n/i18n';
-import { getInstrument } from '../score';
+import { getInstrument } from '../score/instruments';
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 365 * 24 * 3600],

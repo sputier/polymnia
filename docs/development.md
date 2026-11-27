@@ -15,27 +15,38 @@ The front end lives in [`web/`](../web): Vite, React and TypeScript (`strict`).
 
 Run them from `web/`.
 
-| Command                                 | What it does                                                                                      |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `npm ci`                                | Install the exact locked dependencies                                                             |
-| `npm run dev`                           | Start the dev server                                                                              |
-| `npm run lint`                          | ESLint and Prettier check                                                                         |
-| `npm run format`                        | Format the code with Prettier                                                                     |
-| `npm run typecheck`                     | TypeScript type check                                                                             |
-| `npm test`                              | Unit tests (Vitest and Testing Library)                                                           |
-| `npm run build`                         | Type check and production build into `dist/`                                                      |
-| `npm run size`                          | Check the bundle budget (run after `build`)                                                       |
-| `npm run bench`                         | Score model benchmarks (Vitest bench, fails over budget)                                          |
-| `npm run test:e2e`, `npm run test:perf` | Functional Playwright tests (Chromium, builds and serves the app, parallel)                       |
-| `npm run test:perf`                     | Performance Playwright tests (`@perf`): one worker, no retry                                      |
-| `npm run test:visual:update`            | Regenerate the visual baselines in the Playwright Docker image (see [engraving.md](engraving.md)) |
-| `npm run test:visual:docker`            | Check the visual baselines in that same image                                                     |
+| Command                                       | What it does                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `npm ci`                                      | Install the exact locked dependencies                                                             |
+| `npm run dev`                                 | Start the dev server                                                                              |
+| `npm run lint`                                | ESLint and Prettier check                                                                         |
+| `npm run format`                              | Format the code with Prettier                                                                     |
+| `npm run typecheck`                           | TypeScript type check                                                                             |
+| `npm test`                                    | Unit tests (Vitest and Testing Library)                                                           |
+| `npm run build`                               | Type check and production build into `dist/`                                                      |
+| `npm run size`                                | Check the bundle budget (run after `build`)                                                       |
+| `npm run build:report`, `npm run size:report` | Build with the bundle visualizer, then list the biggest modules of the initial chunks             |
+| `npm run bench`                               | Score model benchmarks (Vitest bench, fails over budget)                                          |
+| `npm run test:e2e`, `npm run test:perf`       | Functional Playwright tests (Chromium, builds and serves the app, parallel)                       |
+| `npm run test:perf`                           | Performance Playwright tests (`@perf`): one worker, no retry                                      |
+| `npm run test:visual:update`                  | Regenerate the visual baselines in the Playwright Docker image (see [engraving.md](engraving.md)) |
+| `npm run test:visual:docker`                  | Check the visual baselines in that same image                                                     |
 
 First run of the end-to-end tests: `npx playwright install chromium`.
 
 ### Performance budget
 
-Initial JavaScript for the first screen must stay at or below **150 KB gzip**. `npm run size` reads `dist/index.html`, sums the gzipped scripts it loads on first paint, and exits with an error above the budget. Heavy libraries (VexFlow, Tone.js, samples) must be lazy-loaded with dynamic `import()` so they never count towards the first screen.
+Initial JavaScript, what `index.html` loads before any screen, must stay at or below **110 KB gzip** (it is about 75 KB: React, the session check, the sign-in screen and the active language). `npm run size` reads `dist/index.html`, sums the gzipped scripts it loads on first paint, and exits with an error above the budget; it also prints, for information, what each screen downloads (initial plus its own chunks). Heavy libraries (VexFlow, Tone.js, samples) must be lazy-loaded with dynamic `import()` so they never count towards the first screen.
+
+How the bundle is split (#50):
+
+- **One chunk per screen**, in `web/src/route/chunks.ts`: library, stored score, scratch editor, shared viewer and privacy page. The library never loads editor code and the editor never loads library code; the library dialogs that need the score model or import/export (new score, share) and the command palette are chunks of their own, fetched in idle time after the first paint. Add a screen or a heavy dialog there, with `preloadable()` (a `React.lazy` that renders without suspending once its chunk was preloaded: React otherwise keeps a Suspense fallback on screen for at least 300 ms).
+- **No waterfall**: the build writes `dist/route-preload.js` (`web/vite-plugins/routePreload.ts`), loaded first by `index.html`, which adds `modulepreload` links for the chunks of the screen in the address bar and of the active language, so they download while `index.js` runs. `main.tsx` also starts the screen chunk and the catalog before the session check answers. From the library, opening a score is instant: the editor chunks and the engraver are prefetched when the browser is idle.
+- **Languages**: `en.ts` and `fr.ts` are two lazy chunks. Only the active language is downloaded before the first render (`loadCatalog`); the other one when the user switches (and as soon as the pointer or focus reaches its button), or when the command palette opens (it searches the labels in every language).
+- **Shortcuts** are registered by the screen that owns them (`useShortcuts`), so a lazy screen registers its commands when it mounts; the palette lists the registry of the current screen. The "no duplicate key combo" tests are unchanged.
+- `vite.config.ts` pins two groups, `react` and `shell` (session, sign-in, API client, route, language switch), so the first load is a handful of files instead of one per shared module.
+
+Reading the bundle report: `npm run build:report` builds with the visualizer (`rollup-plugin-visualizer`, dev dependency, `dist/stats.json`), then `npm run size:report` lists the biggest modules of the initial chunks (`npm run size:report -- Library --top=15` for another chunk, matched by file name). The per-module gzip sizes are estimates (each module is compressed alone, so the sum is larger than the real chunk): use them to rank modules, then confirm with `npm run size`. A module that shows up in the initial chunks and belongs to one screen is imported statically from the shell: make that import dynamic.
 
 ### Performance tests
 
@@ -58,7 +69,7 @@ Inter (UI) and IBM Plex Mono (shortcuts, status bar) are self-hosted through `@f
 
 ### Internationalization
 
-French and English, in `web/src/i18n/` (`en.ts` is the source of truth, `fr.ts` must define the same keys, checked by the compiler and by a test). The language is detected from the stored choice, then `navigator.languages`, then English, and can be switched at runtime. Never hard-code a UI string: add a key to both catalogs and use `t('key')` from `useI18n()`. The layer is a small typed module with no runtime dependency, to keep the bundle small.
+French and English, in `web/src/i18n/` (`en.ts` is the source of truth, `fr.ts` must define the same keys, checked by the compiler and by a test). The language is detected from the stored choice, then `navigator.languages`, then English, and can be switched at runtime. Never hard-code a UI string: add a key to both catalogs and use `t('key')` from `useI18n()`. The layer is a small typed module with no runtime dependency, to keep the bundle small. Each language is a lazy chunk: only the active one is loaded before the first render (see "Performance budget"); in tests the catalogs are loaded up front by `test-setup.ts`.
 
 ## Back end
 

@@ -7,6 +7,7 @@ import type { SaveState } from '../components/SaveStatus';
 import { ScoreView } from '../engraving/ScoreView';
 import { useI18n } from '../i18n/i18n';
 import type { Shortcut } from '../shortcuts/registry';
+import { CommandDialogs } from '../route/chunks';
 import { useShortcuts } from '../shortcuts/useShortcuts';
 // Not lazy: the keys typed right after Alt+K must find the field.
 import { ChordEntry } from './ChordEntry';
@@ -31,8 +32,6 @@ import { TransportBar } from './TransportBar';
 import { useMediaQuery } from './useMediaQuery';
 import { useUiMode } from './uiMode';
 
-const loadDialogs = () => import('./commands/CommandDialogs');
-const CommandDialogs = lazy(loadDialogs);
 // The on-screen piano and the MIDI input are a lazy chunk, fetched the first time the piano opens.
 const Piano = lazy(() => import('./piano/Piano'));
 
@@ -161,7 +160,7 @@ export function EditorLayout({
   // Command palette and cheat sheet (lazy chunk, fetched in idle time so the first open is instant).
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   useEffect(() => {
-    const load = () => void loadDialogs();
+    const load = () => void CommandDialogs.preload();
     if (typeof requestIdleCallback === 'function') {
       const id = requestIdleCallback(load);
       return () => cancelIdleCallback(id);

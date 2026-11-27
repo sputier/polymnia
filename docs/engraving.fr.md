@@ -175,7 +175,7 @@ Mesurés dans Chromium (portable Windows 11, build de production), `benchmark100
 | Frappe en remplissant une partition vide, médiane / p95 / max de 400           | p95 < 16 ms       | 3,7 / 7,1 / 12,6 ms                                                     |
 | Surbrillance (sélection + lecture)                                             | bascule de classe | < 1 ms                                                                                                |
 | Layout seul (jsdom)                                                            | n/a               | quelques ms                                                                                           |
-| JS initial                                                                     | <= 150 Ko gzip    | 72,7 Ko                                                                                               |
+| JS initial                                                                     | <= 110 Ko gzip    | 75 Ko                                                                                                 |
 | Chunk de l'éditeur (VexFlow + gravure, sans police)                            | <= 200 Ko gzip    | 180 Ko (468 Ko avec les polices avant)                                                                |
 | Fichier de police Bravura                                                      | <= 250 Ko woff2   | 247 Ko, fichier séparé, cache immuable                                                                |
 

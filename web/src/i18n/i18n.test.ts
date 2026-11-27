@@ -12,6 +12,25 @@ describe('catalogs', () => {
   });
 });
 
+describe('lazy catalogs', () => {
+  it('downloads a catalog on first use only, and switches once it is there', async () => {
+    vi.resetModules();
+    localStorage.clear();
+    const fresh = await import('./i18n');
+    // Nothing is loaded up front: a message falls back to its key.
+    expect(fresh.messageIn('fr', 'app.tagline')).toBe('app.tagline');
+
+    await fresh.loadCatalog('en');
+    expect(fresh.messageIn('en', 'app.tagline')).toBe(en['app.tagline']);
+    expect(fresh.messageIn('fr', 'app.tagline')).toBe(en['app.tagline']); // English is the fallback
+
+    await fresh.setLanguage('fr');
+    expect(fresh.messageIn('fr', 'app.tagline')).toBe(fr['app.tagline']);
+    expect(document.documentElement.lang).toBe('fr');
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('fr');
+  });
+});
+
 describe('detectLanguage', () => {
   it('uses the first supported browser language', () => {
     vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['de-DE', 'fr-CA', 'en']);

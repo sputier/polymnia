@@ -21,7 +21,7 @@ Merci de votre intérêt pour Polymnia. Ce guide explique comment proposer une m
 
 ## Priorités du projet : sécurité et performance d'abord
 
-La sécurité et la performance passent avant les nouvelles fonctionnalités. Une modification qui affaiblit la sécurité (secrets, injection, CORS ou CSP permissifs, entrées non validées) ou qui dépasse le budget de performance (JavaScript initial au-dessus de 150 Ko gzip, bibliothèques lourdes non chargées à la demande) n'est pas fusionnée tant qu'elle n'est pas corrigée.
+La sécurité et la performance passent avant les nouvelles fonctionnalités. Une modification qui affaiblit la sécurité (secrets, injection, CORS ou CSP permissifs, entrées non validées) ou qui dépasse le budget de performance (JavaScript initial au-dessus de 110 Ko gzip, bibliothèques lourdes non chargées à la demande) n'est pas fusionnée tant qu'elle n'est pas corrigée.
 
 ## Vérifications
 
