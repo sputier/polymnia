@@ -102,6 +102,7 @@ test.describe('editor shell (desktop)', () => {
       'Switch to dark theme',
       'EN English',
       'FR Français',
+      'Ada Lovelace',
       'Sign out',
     ];
     for (const name of names) {
