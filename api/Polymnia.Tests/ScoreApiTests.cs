@@ -387,6 +387,58 @@ public sealed class ScoreApiTests(ScoreApiFixture fixture) : IClassFixture<Score
         Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
     }
 
+    private static string WithChords(string chordsJson, string diagramMode = "first")
+    {
+        JsonNode node = JsonNode.Parse(Small)!;
+        node["parts"]![0]!["chordDiagrams"] = diagramMode;
+        node["parts"]![0]!["staves"]![0]!["measures"]![0]!["chords"] = JsonNode.Parse(chordsJson);
+        return node.ToJsonString();
+    }
+
+    [Fact]
+    public async Task A_score_with_chord_symbols_is_stored_and_returned_as_it_was_sent()
+    {
+        using HttpClient client = await SignedInAsync();
+        const string chords =
+            "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"B\",\"alter\":-1},\"quality\":\"maj7\",\"bass\":{\"step\":\"D\",\"alter\":0}}," +
+            "{\"id\":\"c2\",\"tick\":1920,\"root\":{\"step\":\"F\",\"alter\":1},\"quality\":\"m7b5\",\"diagram\":true," +
+            "\"frame\":{\"frets\":[1,1,2,3,3,1],\"base\":1,\"barre\":{\"fret\":1,\"from\":1,\"to\":6}}}]";
+        (Guid id, _) = await CreateAsync(client, WithChords(chords));
+
+        using HttpResponseMessage get = await client.GetAsync($"/api/scores/{id}", Ct);
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        JsonElement body = await Body(get);
+        Assert.Equal("first", body.GetProperty("parts")[0].GetProperty("chordDiagrams").GetString());
+        JsonElement stored = body.GetProperty("parts")[0].GetProperty("staves")[0].GetProperty("measures")[0].GetProperty("chords");
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(stored.GetRawText()), JsonNode.Parse(chords)), stored.GetRawText());
+    }
+
+    [Theory]
+    [InlineData("[{\"id\":\"c1\",\"tick\":-1,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m\"}]")]
+    [InlineData("[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"H\",\"alter\":0},\"quality\":\"m\"}]")]
+    [InlineData("[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"<script>\"}]")]
+    [InlineData("[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m\",\"frame\":{\"frets\":[],\"base\":1}}]")]
+    [InlineData("[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m\",\"extra\":1}]")]
+    public async Task Create_rejects_malformed_chord_symbols_with_400(string chords)
+    {
+        using HttpClient client = await SignedInAsync();
+        using HttpResponseMessage response = await client.PostAsync("/api/scores", Json(WithChords(chords)), Ct);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_rejects_an_unknown_chord_diagram_mode_and_too_many_chords_with_400()
+    {
+        using HttpClient client = await SignedInAsync();
+        using HttpResponseMessage mode = await client.PostAsync("/api/scores", Json(WithChords("[]", "none")), Ct);
+        Assert.Equal(HttpStatusCode.BadRequest, mode.StatusCode);
+
+        string one = "{\"id\":\"c{0}\",\"tick\":{0},\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m\"}";
+        string many = "[" + string.Join(",", Enumerable.Range(0, 33).Select(i => one.Replace("{0}", i.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal))) + "]";
+        using HttpResponseMessage tooMany = await client.PostAsync("/api/scores", Json(WithChords(many)), Ct);
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+    }
+
     [Fact]
     public async Task Get_of_another_users_score_or_an_unknown_id_is_404_never_403()
     {

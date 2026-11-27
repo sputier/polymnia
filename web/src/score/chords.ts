@@ -6,11 +6,9 @@
  * `formatQuality(parseQuality(text))`, so every input spelling of a chord (`CM7`, `C^7`, `Cmaj7`)
  * is stored the same way. Chord symbols name concert (sounding) pitches.
  */
-import { midiToPitch } from './pitch';
-import type { Alter, ChordNote, ChordSymbol, StepName } from './types';
+import type { Alter, ChordNote, StepName } from './types';
 
 const STEP_PC: Record<StepName, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-const STEP_NAMES: readonly StepName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
 /** Longest quality suffix stored (also the schema limit). */
 export const MAX_QUALITY_LENGTH = 24;
@@ -442,8 +440,6 @@ const PC_FLAT: readonly (readonly [StepName, Alter])[] = [
 export interface SpellOptions {
   /** Key signature (sharps positive) the chord lives in: decides sharps or flats for the black keys. */
   readonly fifths?: number | undefined;
-  /** Used when the key does not decide (C major or unknown). */
-  readonly preferFlats?: boolean | undefined;
 }
 
 /**
@@ -486,8 +482,7 @@ export function transposeChord(
 ): ChordData {
   if (semitones % 12 === 0) return chord;
   const minor = parseQuality(chord.quality)?.minor ?? false;
-  const preferFlats = opts.preferFlats ?? semitones < 0;
-  const root = spellRoot(notePc(chord.root) + semitones, minor, { ...opts, preferFlats });
+  const root = spellRoot(notePc(chord.root) + semitones, minor, opts);
   const out: ChordData = { root, quality: chord.quality };
   if (!chord.bass) return out;
   // The bass follows the sharps/flats family of the new root, else the usual chord-name spelling.
@@ -613,31 +608,5 @@ export function chordTones(chord: ChordData): ChordTones {
 /** The chord a player forms with a capo: the sounding chord lowered by the capo fret. */
 export function shapeOf(chord: ChordData, capo: number): ChordData {
   if (capo <= 0) return chord;
-  return transposeChord(chord, -capo, { preferFlats: false });
-}
-
-/** Chord key used to compare occurrences ("same chord, same bass"). */
-export function chordKey(chord: ChordData): string {
-  return (
-    formatChord(chord) + '|' + notePc(chord.root) + '|' + (chord.bass ? notePc(chord.bass) : '')
-  );
-}
-
-/** Pitch of the root in a given octave, as a spelled pitch (playback voicings). */
-export function chordRootPitch(chord: ChordData, octave: number) {
-  const base = (octave + 1) * 12 + notePc(chord.root);
-  return midiToPitch(base, 0, chord.root.alter < 0);
-}
-
-export const NOTE_STEPS = STEP_NAMES;
-
-/** True when a symbol shows a diagram once the part's display mode is applied. */
-export function showsDiagram(
-  mode: 'first' | 'all' | undefined,
-  chord: Pick<ChordSymbol, 'diagram'>,
-  firstOfKind: boolean,
-): boolean {
-  if (chord.diagram !== undefined) return chord.diagram;
-  if (mode === 'all') return true;
-  return mode === 'first' && firstOfKind;
+  return transposeChord(chord, -capo);
 }

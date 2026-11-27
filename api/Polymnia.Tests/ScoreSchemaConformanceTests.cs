@@ -101,7 +101,59 @@ public sealed class ScoreSchemaConformanceTests
         { "/slurs", "[{\"id\":\"s1\",\"startEventId\":\"e1\",\"endEventId\":\"e2\"}]" },
         { "/slurs", "[{\"id\":\"s1\",\"startEventId\":\"e1\"}]" },
         { "/slurs", null },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\"}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"bass\":{\"step\":\"G\",\"alter\":0},\"diagram\":true}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[0,1,0,2,3,-1],\"base\":1}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[1,1,2,3,3,1],\"base\":1,\"barre\":{\"fret\":1,\"from\":1,\"to\":6}}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[]" },
+        { "/parts/0/staves/0/measures/0/chords", null },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"extra\":1}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"diagram\":\"yes\"}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[],\"base\":1}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[0,0,0,0,0,0,0,0,0,0,0,0,0],\"base\":1}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[-2],\"base\":1}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[37],\"base\":1}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[0],\"base\":0}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[0],\"base\":1,\"barre\":{\"fret\":1,\"from\":1}}}]" },
+        { "/parts/0/staves/0/measures/0/chords", "[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\",\"frame\":{\"frets\":[0]}}]" },
     };
+
+    // Edits of a score that already has a chord symbol on its first staff measure.
+    public static TheoryData<string, string?> ChordEdits => new()
+    {
+        { "/parts/0/staves/0/measures/0/chords/0/tick", "-1" },
+        { "/parts/0/staves/0/measures/0/chords/0/tick", "122879" },
+        { "/parts/0/staves/0/measures/0/chords/0/tick", "122880" },
+        { "/parts/0/staves/0/measures/0/chords/0/tick", "1.5" },
+        { "/parts/0/staves/0/measures/0/chords/0/id", null },
+        { "/parts/0/staves/0/measures/0/chords/0/root/step", "\"H\"" },
+        { "/parts/0/staves/0/measures/0/chords/0/root/alter", "2" },
+        { "/parts/0/staves/0/measures/0/chords/0/root/alter", "3" },
+        { "/parts/0/staves/0/measures/0/chords/0/root", null },
+        { "/parts/0/staves/0/measures/0/chords/0/quality", "\"\"" },
+        { "/parts/0/staves/0/measures/0/chords/0/quality", "\"maj7#11add9\"" },
+        { "/parts/0/staves/0/measures/0/chords/0/quality", "\"m7 b5\"" },
+        { "/parts/0/staves/0/measures/0/chords/0/quality", "\"<b>\"" },
+        { "/parts/0/staves/0/measures/0/chords/0/quality", "\"aaaaaaaaaaaaaaaaaaaaaaaa\"" },
+        { "/parts/0/staves/0/measures/0/chords/0/quality", "\"aaaaaaaaaaaaaaaaaaaaaaaaa\"" },
+        { "/parts/0/staves/0/measures/0/chords/0/quality", "7" },
+        { "/parts/0/chordDiagrams", "\"first\"" },
+        { "/parts/0/chordDiagrams", "\"all\"" },
+        { "/parts/0/chordDiagrams", "\"none\"" },
+        { "/parts/0/chordDiagrams", "true" },
+        { "/parts/0/chordCapoShapes", "true" },
+        { "/parts/0/chordCapoShapes", "false" },
+        { "/parts/0/chordCapoShapes", "\"x\"" },
+    };
+
+    private static readonly string SmallWithChord = WithChord(Small);
+
+    private static string WithChord(string text)
+    {
+        JsonNode root = JsonNode.Parse(text)!;
+        root["parts"]![0]!["staves"]![0]!["measures"]![0]!["chords"] = JsonNode.Parse("[{\"id\":\"c1\",\"tick\":0,\"root\":{\"step\":\"A\",\"alter\":0},\"quality\":\"m7\"}]");
+        return root.ToJsonString();
+    }
 
     [Fact]
     public void Both_fixtures_are_valid_for_both_implementations()
@@ -126,6 +178,37 @@ public sealed class ScoreSchemaConformanceTests
         bool actual = Subject.Validate(Encoding.UTF8.GetBytes(text)).IsValid;
 
         Assert.True(expected == actual, $"{location} <- {replacement ?? "(removed)"}: reference says {expected}, server says {actual}");
+    }
+
+    [Fact]
+    public void A_score_with_chord_symbols_is_valid_for_both_implementations()
+    {
+        Assert.True(Oracle.Validate(SmallWithChord).IsValid);
+        Assert.True(Subject.Validate(Encoding.UTF8.GetBytes(SmallWithChord)).IsValid);
+    }
+
+    [Theory]
+    [MemberData(nameof(ChordEdits))]
+    public void Chord_symbols_agree_with_the_reference_implementation(string location, string? replacement)
+    {
+        JsonNode root = JsonNode.Parse(SmallWithChord)!;
+        Apply(root, location, replacement);
+        string text = root.ToJsonString();
+
+        bool expected = Oracle.Validate(text).IsValid;
+        bool actual = Subject.Validate(Encoding.UTF8.GetBytes(text)).IsValid;
+
+        Assert.True(expected == actual, $"{location} <- {replacement ?? "(removed)"}: reference says {expected}, server says {actual}");
+    }
+
+    [Theory]
+    [InlineData("m7\\n")]
+    [InlineData("m7\\u2028")]
+    public void A_chord_quality_with_a_trailing_line_break_is_refused(string escapedQuality)
+    {
+        // Same trap as the ids: .NET $ matches before a final newline, the server must not.
+        string text = SmallWithChord.Replace("\"quality\":\"m7\"", $"\"quality\":\"{escapedQuality}\"", StringComparison.Ordinal);
+        Assert.False(Subject.Validate(Encoding.UTF8.GetBytes(text)).IsValid);
     }
 
     [Fact]
