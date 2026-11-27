@@ -17,6 +17,8 @@ COPY schema/ /src/schema/
 RUN npm run build
 
 # ---- API -------------------------------------------------------------------
+# No cache mount for NuGet: with a cached restore layer (CI cache-from) the mount would be empty at publish time,
+# and `--no-restore` would then fail. The restored packages live in the layer instead.
 # Runs on the build platform and cross-publishes for the target architecture (fast arm64 builds).
 # mcr.microsoft.com/dotnet/sdk:10.0-noble
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:8c6edfb26c85153f236d26efebd9ad349aec403583f343f201ee67838b23658d AS publish
@@ -27,11 +29,9 @@ COPY api/Directory.Build.props api/Directory.Packages.props api/
 COPY api/Polymnia.Core/Polymnia.Core.csproj api/Polymnia.Core/
 COPY api/Polymnia.Infrastructure/Polymnia.Infrastructure.csproj api/Polymnia.Infrastructure/
 COPY api/Polymnia.Api/Polymnia.Api.csproj api/Polymnia.Api/
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet restore api/Polymnia.Api/Polymnia.Api.csproj -r "linux-$(case "$TARGETARCH" in amd64) echo x64;; arm64) echo arm64;; *) echo "$TARGETARCH";; esac)"
+RUN dotnet restore api/Polymnia.Api/Polymnia.Api.csproj -r "linux-$(case "$TARGETARCH" in amd64) echo x64;; arm64) echo arm64;; *) echo "$TARGETARCH";; esac)"
 COPY api/ api/
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish api/Polymnia.Api/Polymnia.Api.csproj -c Release --no-restore --no-self-contained \
+RUN dotnet publish api/Polymnia.Api/Polymnia.Api.csproj -c Release --no-restore --no-self-contained \
       -r "linux-$(case "$TARGETARCH" in amd64) echo x64;; arm64) echo arm64;; *) echo "$TARGETARCH";; esac)" \
       -p:UseAppHost=false -p:DebugType=none -p:DebugSymbols=false -o /app
 # The API serves the built front end from wwwroot.
