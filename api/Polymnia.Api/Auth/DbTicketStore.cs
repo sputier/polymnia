@@ -133,7 +133,7 @@ internal sealed class DbTicketStore(
         var found = await db.Sessions
             .AsNoTracking()
             .Where(s => s.KeyHash == hash && s.ExpiresAt > now && s.AbsoluteExpiresAt > now)
-            .Join(db.Users, s => s.UserId, u => u.Id, (s, u) => new { s.Ticket, u.LastSeenAt })
+            .Join(db.Users, s => s.UserId, u => u.Id, (s, u) => new { s.Ticket, s.UserId, u.LastSeenAt })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (found is null)
@@ -150,7 +150,15 @@ internal sealed class DbTicketStore(
         {
             // Keys lost or rotated away, or a damaged row: unusable. Drop it so it is not retried on every request.
             AuthLog.SessionUndecryptable(logger, ex);
-            await db.Sessions.Where(s => s.KeyHash == hash).ExecuteDeleteAsync(CancellationToken.None);
+            await TryDeleteAsync(db, hash);
+            return null;
+        }
+
+        // Defence in depth: the user in the ticket is the user the session row belongs to.
+        if (!Guid.TryParse(ticket?.Principal.FindFirstValue(ClaimTypes.NameIdentifier), CultureInfo.InvariantCulture, out Guid ticketUser)
+            || ticketUser != found.UserId)
+        {
+            await TryDeleteAsync(db, hash);
             return null;
         }
 
@@ -173,6 +181,20 @@ internal sealed class DbTicketStore(
         await using AsyncServiceScope scope = scopes.CreateAsyncScope();
         PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
         await db.Sessions.Where(s => s.KeyHash == hash).ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <summary>Best effort: a failure here must not turn "no session" into a server error.</summary>
+    private static async Task TryDeleteAsync(PolymniaDbContext db, string hash)
+    {
+        try
+        {
+            await db.Sessions.Where(s => s.KeyHash == hash).ExecuteDeleteAsync(CancellationToken.None);
+        }
+#pragma warning disable CA1031 // The row is also removed by the hourly cleanup.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
     }
 
     private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b) => a < b ? a : b;

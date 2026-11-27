@@ -240,6 +240,60 @@ public sealed class AuthWithoutDatabaseTests
         Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
     }
 
+    [Fact]
+    public async Task The_rate_limit_is_per_client_and_the_callback_redirects_instead_of_showing_an_error()
+    {
+        using var app = new TestApp(settings: new() { ["Auth:RateLimit:PermitLimit"] = "1" });
+        var browser = new TestBrowser(app);
+
+        using HttpResponseMessage first = await browser.SendAsync(HttpMethod.Get, "/api/auth/login", clientIp: "203.0.113.1");
+        using HttpResponseMessage secondSameClient = await browser.SendAsync(HttpMethod.Get, "/api/auth/login", clientIp: "203.0.113.1");
+        using HttpResponseMessage otherClient = await browser.SendAsync(HttpMethod.Get, "/api/auth/login", clientIp: "203.0.113.2");
+        using HttpResponseMessage callback = await browser.SendAsync(HttpMethod.Get, "/api/auth/callback?code=x", clientIp: "203.0.113.1");
+
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, secondSameClient.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, otherClient.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        Assert.Equal("/?signin=failed", callback.Headers.Location!.OriginalString);
+    }
+
+    [Theory]
+    [InlineData("203.0.113.7", "203.0.113.7")]
+    [InlineData("::ffff:203.0.113.7", "203.0.113.7")]
+    [InlineData("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64")]
+    [InlineData("2001:db8:1:2:1111:2222:3333:4444", "2001:db8:1:2::/64")]
+    public void Rate_limit_key_is_the_ipv4_address_or_the_ipv6_slash_64(string address, string expected) =>
+        Assert.Equal(expected, AuthExtensions.ClientKey(System.Net.IPAddress.Parse(address)));
+
+    [Fact]
+    public void Without_a_client_address_there_is_no_rate_limit_key() =>
+        Assert.Null(AuthExtensions.ClientKey(null));
+
+    [Theory]
+    [InlineData("[*]")]
+    [InlineData("*:443")]
+    [InlineData("polymnia.example;*:8080")]
+    public void Wildcard_hosts_with_ports_are_refused_too(string allowedHosts)
+    {
+        var options = new AuthOptions { PublicBaseUrl = "https://polymnia.example", Google = { ClientId = "id", ClientSecret = "secret" } };
+        var validator = new AuthOptionsValidator(new FakeEnvironment("Production"), Deployment(allowedHosts, TestCertificate.Path));
+
+        Assert.True(validator.Validate(null, options).Failed);
+    }
+
+    [Fact]
+    public void A_certificate_without_a_private_key_stops_the_host()
+    {
+        using var app = new TestApp(
+            environment: "Production",
+            settings: new() { ["DataProtection:CertificatePath"] = TestCertificate.CreatePublicOnly() });
+
+        Exception ex = Assert.ThrowsAny<Exception>(() => app.CreateClient());
+
+        Assert.Contains("private key", ex.ToString(), StringComparison.Ordinal);
+    }
+
     internal static Microsoft.Extensions.Configuration.IConfiguration Deployment(string? allowedHosts, string? certificatePath) =>
         new Microsoft.Extensions.Configuration.ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>

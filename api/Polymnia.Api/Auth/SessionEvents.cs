@@ -38,9 +38,6 @@ internal static class SessionEvents
             google.FindFirstValue("picture"),
             context.HttpContext.RequestAborted);
 
-        ILogger audit = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
-        AuthLog.SignedIn(audit, userId);
-
         var identity = new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, userId.ToString("D", CultureInfo.InvariantCulture))],
             AuthDefaults.CookieScheme);
@@ -55,6 +52,20 @@ internal static class SessionEvents
 
         // The return URL was validated at login and travels in protected state; validate again anyway.
         context.ReturnUri = ReturnUrl.Sanitize(context.ReturnUri);
+    }
+
+    /// <summary>Audit: the session now exists (the cookie is issued and the ticket stored). User id only.</summary>
+    public static Task OnSignedIn(CookieSignedInContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (Guid.TryParse(context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier), CultureInfo.InvariantCulture, out Guid userId))
+        {
+            ILogger audit = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
+            AuthLog.SignedIn(audit, userId);
+        }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>Runs on every request that carries a session: the user must still exist.</summary>

@@ -89,7 +89,6 @@ public sealed class AuthSessionTests(PostgresFixture postgres) : IClassFixture<P
         int commands = app.Logs.Entries.Count(e =>
             e.Category == "Microsoft.EntityFrameworkCore.Database.Command" && e.EventId.Id == 20101);
         Assert.Equal(HttpStatusCode.OK, me.StatusCode);
-        Console.WriteLine($"DB commands for an authenticated GET /api/me: {commands}");
         Assert.InRange(commands, 1, 2);
     }
 

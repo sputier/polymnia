@@ -108,7 +108,7 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IConfig
     {
         string? allowedHosts = configuration["AllowedHosts"];
         if (string.IsNullOrWhiteSpace(allowedHosts)
-            || allowedHosts.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Contains("*"))
+            || allowedHosts.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Any(IsWildcardHost))
         {
             failures.Add("AllowedHosts must list the real host names, not be empty or \"*\" (outside Development).");
         }
@@ -122,6 +122,14 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IConfig
         {
             failures.Add("DataProtection:CertificatePath does not point to an existing file.");
         }
+    }
+
+    /// <summary>"*", "[*]" and either of them with a port ("*:443") accept every host.</summary>
+    private static bool IsWildcardHost(string entry)
+    {
+        int colon = entry.LastIndexOf(':');
+        string host = colon > 0 && !entry.EndsWith(']') ? entry[..colon] : entry;
+        return host is "*" or "[*]";
     }
 
     private void ValidatePublicBaseUrl(AuthOptions options, List<string> failures)

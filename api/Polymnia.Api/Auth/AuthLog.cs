@@ -26,6 +26,6 @@ internal static partial class AuthLog
     [LoggerMessage(EventId = SignedOutEventId, EventName = "AuthSignedOut", Level = LogLevel.Information, Message = "User {UserId} signed out.")]
     public static partial void SignedOut(ILogger logger, Guid userId);
 
-    [LoggerMessage(EventId = 12, EventName = "AuthRateLimited", Level = LogLevel.Warning, Message = "Auth rate limit reached.")]
-    public static partial void RateLimited(ILogger logger);
+    [LoggerMessage(EventId = 12, EventName = "AuthRateLimited", Level = LogLevel.Warning, Message = "Auth rate limit reached ({Count} rejected requests, logged at most every 10 seconds).")]
+    public static partial void RateLimited(ILogger logger, int count);
 }

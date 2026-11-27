@@ -133,6 +133,21 @@ internal static class TestCertificate
         using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
         string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "polymnia-test-" + Guid.NewGuid().ToString("N") + ".pfx");
         File.WriteAllBytes(path, certificate.Export(X509ContentType.Pfx, Password));
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => File.Delete(path);
+        return path;
+    }
+
+    /// <summary>A PKCS#12 file with the certificate only: it loads, but cannot decrypt anything.</summary>
+    public static string CreatePublicOnly()
+    {
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest("CN=polymnia-public-only", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "polymnia-test-public-" + Guid.NewGuid().ToString("N") + ".pfx");
+        using X509Certificate2 publicOnly = X509CertificateLoader.LoadCertificate(certificate.RawData);
+        var collection = new X509Certificate2Collection(publicOnly);
+        File.WriteAllBytes(path, collection.Export(X509ContentType.Pfx, Password)!);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => File.Delete(path);
         return path;
     }
 }

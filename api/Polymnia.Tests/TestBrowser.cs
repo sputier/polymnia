@@ -35,9 +35,15 @@ internal sealed class TestBrowser
         HttpMethod method,
         string path,
         string? xsrfHeader = null,
-        string? host = null)
+        string? host = null,
+        string? clientIp = null)
     {
         using var request = new HttpRequestMessage(method, path);
+        if (clientIp is not null)
+        {
+            request.Headers.TryAddWithoutValidation(ClientIpStartupFilter.Header, clientIp);
+        }
+
         if (_cookies.Count > 0)
         {
             request.Headers.TryAddWithoutValidation("Cookie", string.Join("; ", _cookies.Select(c => $"{c.Key}={c.Value}")));

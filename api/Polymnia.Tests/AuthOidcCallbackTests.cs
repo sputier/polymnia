@@ -209,7 +209,7 @@ public sealed class AuthOidcCallbackTests(PostgresFixture postgres) : IClassFixt
         Assert.Equal(0, app.Oidc.TokenRequests);
         // Audited at Warning, with the failure type only.
         Assert.Contains(app.Logs.Entries, e => e.EventId.Name == "AuthSignInFailed" && e.Level == LogLevel.Warning);
-        Assert.DoesNotContain(app.Logs.Entries, e => e.Category == AuthLog.Category && e.Message.Contains("secret-details", StringComparison.Ordinal));
+        Assert.DoesNotContain(app.Logs.Entries, e => e.Message.Contains("secret-details", StringComparison.Ordinal));
     }
 
     [Fact]

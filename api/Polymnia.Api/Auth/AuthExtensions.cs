@@ -55,6 +55,11 @@ internal static class AuthExtensions
                 LoadKeyCertificate(keyCertificatePath, configuration["DataProtection:CertificatePassword"]));
         }
 
+        // The OpenID Connect handler logs Google's error_description verbatim (attacker-controlled through
+        // /api/auth/callback?error_description=...). Our own AuthSignInFailed event records the failure type instead.
+        services.AddLogging(logging => logging.AddFilter(
+            "Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectHandler", LogLevel.None));
+
         services.AddOptions<RateLimiterOptions>().Configure<IOptions<AuthOptions>, ILoggerFactory>(ConfigureRateLimiter);
         services.AddRateLimiter(static _ => { });
 
@@ -88,6 +93,7 @@ internal static class AuthExtensions
                 options.ExpireTimeSpan = auth.IdleTimeout;
                 options.SlidingExpiration = true;
                 options.Events.OnValidatePrincipal = SessionEvents.OnValidatePrincipal;
+                options.Events.OnSignedIn = SessionEvents.OnSignedIn;
                 options.Events.OnRedirectToLogin = SessionEvents.OnRedirectToLogin;
                 options.Events.OnRedirectToAccessDenied = SessionEvents.OnRedirectToAccessDenied;
             });
@@ -162,17 +168,29 @@ internal static class AuthExtensions
 
     private static X509Certificate2 LoadKeyCertificate(string path, string? password)
     {
+        X509Certificate2 certificate;
         try
         {
-            return X509CertificateLoader.LoadPkcs12FromFile(path, password);
+            certificate = X509CertificateLoader.LoadPkcs12FromFile(path, password);
         }
         catch (Exception ex) when (ex is CryptographicException or IOException)
         {
-            // No path or password in the message.
+            // The configured path and password are not in this message (the inner exception may name the file).
             throw new InvalidOperationException(
                 "The Data Protection certificate could not be loaded: check DataProtection:CertificatePath and DataProtection:CertificatePassword.",
                 ex);
         }
+
+        // A public-only file would encrypt the keys now and make them unreadable after a restart.
+        DateTime now = DateTime.UtcNow;
+        if (!certificate.HasPrivateKey || now < certificate.NotBefore.ToUniversalTime() || now > certificate.NotAfter.ToUniversalTime())
+        {
+            certificate.Dispose();
+            throw new InvalidOperationException(
+                "The Data Protection certificate must contain a private key and be within its validity period.");
+        }
+
+        return certificate;
     }
 
     /// <summary>
@@ -185,10 +203,12 @@ internal static class AuthExtensions
         ILogger logger = loggers.CreateLogger(AuthLog.Category);
 
         limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        var throttle = new LogThrottle(TimeSpan.FromSeconds(10));
         limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             context.Request.Path.StartsWithSegments("/api/auth", StringComparison.OrdinalIgnoreCase)
+            && ClientKey(context.Connection.RemoteIpAddress) is { } key
                 ? RateLimitPartition.GetFixedWindowLimiter(
-                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    key,
                     _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = settings.PermitLimit,
@@ -196,19 +216,83 @@ internal static class AuthExtensions
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     })
-                : RateLimitPartition.GetNoLimiter("not-auth"));
+                : RateLimitPartition.GetNoLimiter("not-limited"));
         limiter.OnRejected = async (context, cancellationToken) =>
         {
-            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+            if (throttle.ShouldLog(out int suppressed))
             {
-                context.HttpContext.Response.Headers.RetryAfter =
-                    Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+                AuthLog.RateLimited(logger, suppressed + 1);
             }
 
-            AuthLog.RateLimited(logger);
+            HttpContext http = context.HttpContext;
+            if (http.Request.Path.StartsWithSegments(AuthDefaults.CallbackPath, StringComparison.OrdinalIgnoreCase))
+            {
+                // A person coming back from Google gets the sign-in page, not a bare error.
+                http.Response.Redirect("/?signin=failed");
+                return;
+            }
+
+            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+            {
+                http.Response.Headers.RetryAfter = Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+            }
+
             await Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Too many requests.")
-                .ExecuteAsync(context.HttpContext);
+                .ExecuteAsync(http);
         };
+    }
+
+    /// <summary>
+    /// Rate limit partition of a client: the IPv4 address, or the /64 prefix for IPv6 (a single subscriber owns a whole
+    /// /64, so per-address keys would be free to rotate). <c>null</c> (no address, for example a Unix socket) means
+    /// "not limited here". Behind a reverse proxy, forwarded headers must be enabled or all clients share the proxy's key.
+    /// </summary>
+    internal static string? ClientKey(System.Net.IPAddress? address)
+    {
+        if (address is null)
+        {
+            return null;
+        }
+
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            return address.ToString();
+        }
+
+        byte[] bytes = address.GetAddressBytes();
+        Array.Clear(bytes, 8, 8);
+        return new System.Net.IPAddress(bytes) + "/64";
+    }
+
+    /// <summary>Lets a log line through at most once per interval, counting what was held back.</summary>
+    private sealed class LogThrottle(TimeSpan interval)
+    {
+        private readonly Lock _gate = new();
+        private DateTime _next = DateTime.MinValue;
+        private int _suppressed;
+
+        public bool ShouldLog(out int suppressed)
+        {
+            lock (_gate)
+            {
+                if (DateTime.UtcNow < _next)
+                {
+                    _suppressed++;
+                    suppressed = 0;
+                    return false;
+                }
+
+                _next = DateTime.UtcNow + interval;
+                suppressed = _suppressed;
+                _suppressed = 0;
+                return true;
+            }
+        }
     }
 
     /// <summary>Authentication, then antiforgery, then authorization (the token is bound to the signed-in user).</summary>

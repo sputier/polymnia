@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -10,6 +12,31 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Polymnia.Infrastructure;
 
 namespace Polymnia.Tests;
+
+/// <summary>
+/// TestServer has no client address. Gives every request one (loopback, or the one in <c>X-Test-Client-Ip</c>),
+/// as Kestrel or the forwarded-headers middleware would.
+/// </summary>
+internal sealed class ClientIpStartupFilter : Microsoft.AspNetCore.Hosting.IStartupFilter
+{
+    public const string Header = "X-Test-Client-Ip";
+
+    public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        return app =>
+        {
+            app.Use(async (context, nextMiddleware) =>
+            {
+                context.Connection.RemoteIpAddress = System.Net.IPAddress.TryParse(context.Request.Headers[Header], out System.Net.IPAddress? ip)
+                    ? ip
+                    : System.Net.IPAddress.Loopback;
+                await nextMiddleware();
+            });
+            next(app);
+        };
+    }
+}
 
 /// <summary>
 /// Test host. Uses a throw-away web root and, unless told otherwise, a connection string that points
@@ -105,6 +132,7 @@ internal sealed class TestApp : WebApplicationFactory<Program>
 
         builder.ConfigureTestServices(services =>
         {
+            services.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, ClientIpStartupFilter>();
             if (!_configureAuth)
             {
                 return;
