@@ -279,7 +279,7 @@ test.describe('note entry on macOS', () => {
 test.describe('performance', () => {
   test('a keystroke on a 100-measure score: one or two systems, under 16 ms', async ({ page }) => {
     await openEditor(page, '?new=100');
-    // Fill the score programmatically (800 eighth notes), then edit in the middle of it.
+    // Fill the score programmatically (800 eighth notes), then edit at the start of it, on screen (off-screen systems are drawn in idle time, not in the keystroke).
     await page.evaluate(() => {
       const store = window.__polymnia.store as unknown as {
         toggleInputMode(): void;
@@ -293,7 +293,7 @@ test.describe('performance', () => {
       const letters = ['C', 'G', 'E', 'A'];
       for (let i = 0; i < 800; i++) store.enterStep(letters[i % 4]!);
       const staffId = store.getState().staffId;
-      store.click({ systemIndex: 0, partId: '', staffId, measureIndex: 50, tick: 0 });
+      store.click({ systemIndex: 0, partId: '', staffId, measureIndex: 2, tick: 0 });
     });
     // The hook is refreshed once every system is drawn.
     await page.waitForFunction(
@@ -330,9 +330,13 @@ test.describe('performance', () => {
             cancelable: true,
           }),
         );
-        while (mark.at === 0 && performance.now() - t0 < 2000) await tick();
-        times.push(mark.at - t0);
-        drawn.push(engraver.stats.drawn);
+        // A key that changes nothing (same pitch, refused entry) does not render: it is not a
+        // sample, and it must not cost a long wait.
+        while (mark.at === 0 && performance.now() - t0 < 150) await tick();
+        if (mark.at > 0) {
+          times.push(mark.at - t0);
+          drawn.push(engraver.stats.drawn);
+        }
         // Let the idle-time drawing of the other systems finish before the next key.
         await new Promise((r) => setTimeout(r, 30));
       }
@@ -344,6 +348,10 @@ test.describe('performance', () => {
     console.log(
       `keystroke end-to-end (100 measures, filled): median ${median.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms, max ${sorted[sorted.length - 1]!.toFixed(1)} ms, systems drawn per edit max ${Math.max(...result.drawn)}`,
     );
+    // Most keys must have rendered, otherwise the measurement means nothing.
+    expect(result.times.length).toBeGreaterThanOrEqual(25);
+    // The edit is on screen: what is drawn in the keystroke is part of the measure.
+    expect(Math.max(...result.drawn)).toBeGreaterThan(0);
     expect(Math.max(...result.drawn)).toBeLessThanOrEqual(2);
     expect(median).toBeLessThan(16);
   });
