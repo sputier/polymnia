@@ -573,7 +573,6 @@ public sealed class ContactApiTests(ContactFixture fixture) : IClassFixture<Cont
     [InlineData("bell\\u0007")]
     [InlineData("escape\\u001b[2J")]
     [InlineData("lone \\ud800 surrogate")]
-    [InlineData("override \\u202e text")]
     [InlineData("separator \\u2028 text")]
     public async Task Control_characters_and_text_tricks_are_refused(string escapedJsonText)
     {
@@ -589,6 +588,82 @@ public sealed class ContactApiTests(ContactFixture fixture) : IClassFixture<Cont
         // A lone surrogate is refused by the JSON reader itself (body), the others by the text rules (message).
         Assert.True(errors.TryGetProperty("body", out _) || errors.GetProperty("message")[0].GetString() == "invalid-characters");
         Assert.Empty(await h.RowsAsync("lone"));
+    }
+
+    [Fact]
+    public async Task Invisible_format_characters_are_dropped_before_the_message_is_stored()
+    {
+        using ContactHarness h = Harness(null);
+        string marker = ContactHarness.Marker();
+        string hidden = marker + (char)0x200B + "visible" + (char)0x202E + "text" + char.ConvertFromUtf32(0xE0041);
+
+        using HttpResponseMessage response = await h.SubmitAsync(hidden);
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal(marker + "visibletext", Assert.Single(await h.RowsAsync(marker)).Message);
+    }
+
+    [Fact]
+    public async Task A_message_made_only_of_invisible_characters_is_empty_and_refused()
+    {
+        using ContactHarness h = Harness(null);
+
+        using HttpResponseMessage response = await h.SubmitAsync(((char)0x200B).ToString() + (char)0x2060);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("required", (await ErrorsAsync(response)).GetProperty("message")[0].GetString());
+    }
+
+    [Fact]
+    public async Task A_flood_of_refusals_writes_one_aggregated_log_line_per_kind()
+    {
+        using ContactHarness h = Harness(null, new() { ["Contact:AddressPerHour"] = "3" });
+        HttpClient client = h.ClientFor("10.6.6.6");
+
+        // Three robots, then thirty requests over the address budget.
+        for (int i = 0; i < 3; i++)
+        {
+            using HttpResponseMessage bot = await h.SubmitAsync("spam", website: "x", client: client);
+            Assert.Equal(HttpStatusCode.Accepted, bot.StatusCode);
+        }
+
+        for (int i = 0; i < 30; i++)
+        {
+            using HttpResponseMessage limited = await h.PostAsync(new { topic = "question", message = "x", token = "t" }, client);
+            Assert.Equal((HttpStatusCode)429, limited.StatusCode);
+        }
+
+        Assert.Single(h.App.Logs.Entries, e => e.EventId.Id == 31);
+        Assert.Single(h.App.Logs.Entries, e => e.EventId.Id == 38);
+    }
+
+    [Fact]
+    public async Task The_smtp_password_comes_from_the_file_first_and_never_reaches_a_response_or_a_log()
+    {
+        string file = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(file, FakeSmtpServer.Password + "\n", Ct);
+            // The variable holds a wrong password: the file must win for the login to succeed.
+            using ContactHarness h = Harness(settings: new()
+            {
+                ["Contact:SmtpPassword"] = "wrong-password-from-the-variable",
+                ["Contact:SmtpPasswordFile"] = file,
+            });
+            string marker = ContactHarness.Marker();
+
+            using HttpResponseMessage response = await h.SubmitAsync(marker);
+
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+            await h.WaitForRowAsync(marker, m => m.Status == ContactStatus.Sent);
+            string logs = string.Join('\n', h.App.Logs.Entries.Select(e => e.Message + e.Scopes));
+            Assert.DoesNotContain(FakeSmtpServer.Password, logs, StringComparison.Ordinal);
+            Assert.DoesNotContain("wrong-password-from-the-variable", logs, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
     }
 
     [Fact]

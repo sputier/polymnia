@@ -33,6 +33,39 @@ internal sealed class ContactOptions
 
     public string? SmtpPassword { get; set; }
 
+    /// <summary>
+    /// A file that holds the SMTP password (a Docker secret keeps it out of the environment, where <c>docker inspect</c>
+    /// shows it). When the file has content it wins over <see cref="SmtpPassword"/>; an empty file means "use the variable".
+    /// Trailing line breaks are not part of the password.
+    /// </summary>
+    public string? SmtpPasswordFile { get; set; }
+
+    internal static void ReadPasswordFile(ContactOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (string.IsNullOrWhiteSpace(options.SmtpPasswordFile))
+        {
+            return;
+        }
+
+        string content;
+        try
+        {
+            content = File.ReadAllText(options.SmtpPasswordFile.Trim()).TrimEnd('\r', '\n');
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Neither the path nor the content is in the message.
+            throw new InvalidOperationException("Contact:SmtpPasswordFile could not be read (missing file or permissions).", ex);
+        }
+
+        if (content.Length > 0)
+        {
+            options.SmtpPassword = content;
+        }
+    }
+
     /// <summary>The envelope and header <c>From</c> of the forwarded mails: an address the SMTP server lets you send as.</summary>
     public string? From { get; set; }
 

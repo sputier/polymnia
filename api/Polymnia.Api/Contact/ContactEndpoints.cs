@@ -36,11 +36,15 @@ internal static class ContactEndpoints
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.AddOptions<ContactOptions>().Bind(configuration.GetSection(ContactOptions.SectionName)).ValidateOnStart();
+        services.AddOptions<ContactOptions>()
+            .Bind(configuration.GetSection(ContactOptions.SectionName))
+            .PostConfigure(ContactOptions.ReadPasswordFile)
+            .ValidateOnStart();
         services.AddSingleton<IValidateOptions<ContactOptions>, ContactOptionsValidator>();
         services.AddSingleton<ContactFormTokens>();
         services.AddSingleton<ContactRateLimiters>();
         services.AddSingleton<ContactQueueSignal>();
+        services.AddSingleton<ContactLogThrottles>();
         services.AddSingleton<IContactMailTransport, SmtpContactMailTransport>();
         services.AddSingleton<ContactForwarder>();
         services.AddHostedService(static sp => sp.GetRequiredService<ContactForwarder>());
@@ -91,6 +95,7 @@ internal static class ContactEndpoints
         ContactRateLimiters limiters,
         ContactStore store,
         ContactQueueSignal signal,
+        ContactLogThrottles throttles,
         IOptions<ContactOptions> options,
         ILoggerFactory loggers,
         CancellationToken ct)
@@ -101,7 +106,11 @@ internal static class ContactEndpoints
         // The address budget first: every submission costs, whatever it holds (a bot that fills the honeypot included).
         if (await limiters.TryAddressAsync(ContactRateLimiters.Key(context), ct) is { } denied)
         {
-            ContactLog.RateLimited(logger, denied.Scope);
+            if (throttles.RateLimit.TryLog(out int refused))
+            {
+                ContactLog.RateLimited(logger, refused, denied.Scope);
+            }
+
             return TooMany(context, denied);
         }
 
@@ -145,13 +154,21 @@ internal static class ContactEndpoints
         // A hidden field no person sees or fills: a robot that does gets the same answer as everyone, and nothing is stored.
         if (!string.IsNullOrEmpty(request.Website))
         {
-            ContactLog.Honeypot(logger);
+            if (throttles.Honeypot.TryLog(out int dropped))
+            {
+                ContactLog.Honeypot(logger, dropped);
+            }
+
             return Results.Accepted();
         }
 
         if (await limiters.TryGlobalAsync(ct) is { } globalDenied)
         {
-            ContactLog.RateLimited(logger, globalDenied.Scope);
+            if (throttles.RateLimit.TryLog(out int refused))
+            {
+                ContactLog.RateLimited(logger, refused, globalDenied.Scope);
+            }
+
             return TooMany(context, globalDenied);
         }
 

@@ -35,7 +35,9 @@ x-polymnia: &polymnia
     Contact__SmtpPort: ${POLYMNIA_CONTACT_SMTP_PORT:-587}
     Contact__SmtpSecurity: ${POLYMNIA_CONTACT_SMTP_SECURITY:-StartTls}
     Contact__SmtpUser: ${POLYMNIA_CONTACT_SMTP_USER:-}
-    Contact__SmtpPassword: ${POLYMNIA_CONTACT_SMTP_PASSWORD:-}
+    # The SMTP password is read from a Docker secret file (not the environment, where `docker inspect` shows it). An empty
+    # file, the default (/dev/null), means no password. A Contact__SmtpPassword variable would only be the fallback.
+    Contact__SmtpPasswordFile: /run/secrets/polymnia_smtp_password
     Contact__RetentionDays: ${POLYMNIA_CONTACT_RETENTION_DAYS:-90}
     # The Data Protection keys (stored in the database) are encrypted with this certificate. Required: see
     # docs/authentication.md for the one-line openssl command that creates it.
@@ -51,6 +53,7 @@ x-polymnia: &polymnia
     # `sudo chown 1654:1654 secrets/polymnia-keys.* && sudo chmod 0400 secrets/polymnia-keys.*` (docs/authentication.md).
     - polymnia_keys
     - polymnia_keys_password
+    - polymnia_smtp_password
   read_only: true
   tmpfs:
     - /tmp
@@ -111,6 +114,11 @@ secrets:
   polymnia_keys_password:
     # Text file holding the password of the PKCS#12 file (a trailing newline is ignored).
     file: ${POLYMNIA_KEYS_CERT_PASSWORD_FILE:-./secrets/polymnia-keys.password}
+
+  polymnia_smtp_password:
+    # Optional, for the contact form (docs/contact.md): a text file holding the SMTP password (a trailing newline is
+    # ignored). The default is /dev/null: no password. Same ownership rules as the key files (UID 1654, mode 0400).
+    file: ${POLYMNIA_CONTACT_SMTP_PASSWORD_FILE:-/dev/null}
 
 networks:
   default:

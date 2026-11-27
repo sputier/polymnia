@@ -61,20 +61,110 @@ public sealed class ContactUnitTests
     [Theory]
     [InlineData(0xD800)] // high surrogate without its pair
     [InlineData(0xDC00)] // low surrogate without its pair
-    [InlineData(0x202A)] // bidirectional embedding
-    [InlineData(0x202E)] // right-to-left override
-    [InlineData(0x2066)] // isolate
-    [InlineData(0x2069)]
     [InlineData(0x2028)] // line separator
     [InlineData(0x2029)] // paragraph separator
     [InlineData(0xFFFE)] // non-characters
     [InlineData(0xFFFF)]
-    public void Text_with_a_bidirectional_override_or_a_separator_is_refused(int codePoint) =>
+    public void Text_with_a_surrogate_a_separator_or_a_non_character_is_refused(int codePoint) =>
         Assert.Null(ContactText.Clean("before " + (char)codePoint + " after"));
 
+    [Theory]
+    [InlineData(0x200B)] // zero-width space
+    [InlineData(0x200C)] // zero-width non-joiner
+    [InlineData(0x200D)] // zero-width joiner
+    [InlineData(0x200E)] // left-to-right mark
+    [InlineData(0x202A)] // bidirectional embedding
+    [InlineData(0x202E)] // right-to-left override
+    [InlineData(0x2060)] // word joiner
+    [InlineData(0x2066)] // isolate
+    [InlineData(0x2069)]
+    [InlineData(0x00AD)] // soft hyphen
+    [InlineData(0xFEFF)] // byte order mark
+    [InlineData(0x061C)] // Arabic letter mark
+    public void Format_characters_are_dropped_so_the_text_reads_as_it_is_stored(int codePoint) =>
+        Assert.Equal("beforeafter", ContactText.Clean("before" + (char)codePoint + "after"));
+
     [Fact]
-    public void Joiners_used_by_emoji_and_scripts_are_kept() =>
-        Assert.NotNull(ContactText.Clean("family " + (char)0x200D + " joiner"));
+    public void Tag_characters_outside_the_basic_plane_are_dropped_whole()
+    {
+        // U+E0041 is a surrogate pair (a tag letter, category Cf): it must vanish without leaving half of itself.
+        string tag = char.ConvertFromUtf32(0xE0041);
+        string flag = "\U0001F3F4"; // a black flag (not a format character) stays
+
+        Assert.Equal("a" + flag + "b", ContactText.Clean("a" + flag + tag + tag + "b"));
+    }
+
+    [Fact]
+    public void A_text_made_only_of_format_characters_becomes_empty()
+    {
+        Assert.Equal(string.Empty, ContactText.Clean(((char)0x200B).ToString() + (char)0x202E));
+    }
+
+    [Fact]
+    public void A_reply_address_with_an_invisible_character_is_not_an_address()
+    {
+        Assert.False(ContactAddress.IsValid("a" + (char)0x200B + "@example.com"));
+        Assert.False(ContactAddress.IsValid("a@example" + (char)0x202E + ".com"));
+        Assert.False(ContactAddress.IsValid("a@example.com" + (char)0x200D));
+    }
+
+    [Fact]
+    public void The_log_throttle_lets_one_line_through_per_window_with_the_count_of_events()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2026, 11, 27, 10, 0, 0, TimeSpan.Zero));
+        var throttle = new ContactLogThrottle(TimeSpan.FromMinutes(1), clock);
+
+        Assert.True(throttle.TryLog(out int first));
+        for (int i = 0; i < 1000; i++)
+        {
+            Assert.False(throttle.TryLog(out _));
+        }
+
+        clock.Advance(TimeSpan.FromSeconds(61));
+        Assert.True(throttle.TryLog(out int second));
+        Assert.False(throttle.TryLog(out _));
+
+        Assert.Equal(1, first);
+        Assert.Equal(1001, second);
+    }
+
+    [Fact]
+    public void The_smtp_password_file_wins_over_the_variable_and_an_empty_file_does_not()
+    {
+        string file = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(file, "from-the-file\r\n");
+            var options = new ContactOptions { SmtpPassword = "from-the-variable", SmtpPasswordFile = file };
+            ContactOptions.ReadPasswordFile(options);
+            Assert.Equal("from-the-file", options.SmtpPassword);
+
+            File.WriteAllText(file, string.Empty);
+            var empty = new ContactOptions { SmtpPassword = "from-the-variable", SmtpPasswordFile = file };
+            ContactOptions.ReadPasswordFile(empty);
+            Assert.Equal("from-the-variable", empty.SmtpPassword);
+
+            var none = new ContactOptions { SmtpPassword = "from-the-variable" };
+            ContactOptions.ReadPasswordFile(none);
+            Assert.Equal("from-the-variable", none.SmtpPassword);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void A_missing_smtp_password_file_stops_the_start_without_naming_the_path()
+    {
+        string missing = Path.Combine(Path.GetTempPath(), "no-such-dir-" + Guid.NewGuid().ToString("N"), "secret");
+        var options = new ContactOptions { SmtpPasswordFile = missing };
+
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => ContactOptions.ReadPasswordFile(options));
+
+        Assert.Contains("Contact:SmtpPasswordFile", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(missing, ex.Message, StringComparison.Ordinal);
+    }
 
     [Theory]
     [InlineData("personal-data", ContactTopic.PersonalData)]

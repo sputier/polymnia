@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Polymnia.Core.Contact;
 
 namespace Polymnia.Api.Contact;
@@ -86,15 +88,15 @@ internal static class ContactAddress
 internal static class ContactText
 {
     /// <summary>
-    /// Normalizes line breaks to <c>\n</c> and trims. Returns <c>null</c> when the text holds a character that has no
-    /// business in a message: a control character other than newline and tab, an unpaired surrogate, a non-character,
-    /// a line or paragraph separator, or a bidirectional override (it could make the operator read something else).
+    /// Normalizes line breaks to <c>\n</c>, drops every Unicode format character (category Cf) and trims. Returns
+    /// <c>null</c> when the text holds a character that has no business in a message: a control character other than
+    /// newline and tab (category Cc), an unpaired surrogate, a non-character, or a line or paragraph separator.
     /// </summary>
     public static string? Clean(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        string text = value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
+        string text = value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         for (int i = 0; i < text.Length; i++)
         {
             char c = text[i];
@@ -109,16 +111,27 @@ internal static class ContactText
                 continue;
             }
 
-            if (char.IsLowSurrogate(c) || (char.IsControl(c) && c is not ('\n' or '\t')) || IsForbiddenFormat(c))
+            if (IsForbidden(c))
             {
                 return null;
             }
         }
 
-        return text;
+        // Every format character (Unicode category Cf: zero-width characters and joiners, bidirectional controls and
+        // isolates, the soft hyphen, the byte order mark, the tag characters) is dropped: invisible in the text, they
+        // could hide or reorder what the operator reads. Whole code points (the tag characters are surrogate pairs).
+        StringBuilder clean = new(text.Length);
+        foreach (Rune rune in text.EnumerateRunes())
+        {
+            if (Rune.GetUnicodeCategory(rune) != UnicodeCategory.Format)
+            {
+                clean.Append(rune.ToString());
+            }
+        }
+
+        return clean.ToString().Trim();
     }
 
-    /// <summary>U+FFFE and U+FFFF, the line and paragraph separators (U+2028, U+2029) and the bidirectional embeddings, overrides and isolates (U+202A to U+202E, U+2066 to U+2069).</summary>
-    private static bool IsForbiddenFormat(char c) =>
-        (int)c is 0xFFFE or 0xFFFF or 0x2028 or 0x2029 || (int)c is >= 0x202A and <= 0x202E || (int)c is >= 0x2066 and <= 0x2069;
+    private static bool IsForbidden(char c) =>
+        char.IsLowSurrogate(c) || (char.IsControl(c) && c is not ('\n' or '\t')) || (int)c is 0xFFFE or 0xFFFF or 0x2028 or 0x2029;
 }

@@ -11,8 +11,8 @@ internal static partial class ContactLog
     [LoggerMessage(EventId = 30, EventName = "ContactStored", Level = LogLevel.Information, Message = "Contact message {MessageId} stored.")]
     public static partial void Stored(ILogger logger, Guid messageId);
 
-    [LoggerMessage(EventId = 31, EventName = "ContactHoneypot", Level = LogLevel.Information, Message = "Contact form: a submission filled the honeypot field and was dropped.")]
-    public static partial void Honeypot(ILogger logger);
+    [LoggerMessage(EventId = 31, EventName = "ContactHoneypot", Level = LogLevel.Information, Message = "Contact form: {Count} submissions filled the honeypot field and were dropped (logged at most once a minute).")]
+    public static partial void Honeypot(ILogger logger, int count);
 
     [LoggerMessage(EventId = 32, EventName = "ContactSmtpNotConfigured", Level = LogLevel.Warning,
         Message = "Contact form: no SMTP server is configured (Contact:SmtpHost, Contact:ForwardTo and Contact:From). Messages are stored in the database but not forwarded by e-mail.")]
@@ -34,6 +34,6 @@ internal static partial class ContactLog
     [LoggerMessage(EventId = 37, EventName = "ContactPurgeFailed", Level = LogLevel.Warning, Message = "The contact message purge failed ({ErrorType}). It will try again.")]
     public static partial void PurgeFailed(ILogger logger, string errorType);
 
-    [LoggerMessage(EventId = 38, EventName = "ContactRateLimited", Level = LogLevel.Information, Message = "Contact form: a submission was refused by a rate limit ({Scope}).")]
-    public static partial void RateLimited(ILogger logger, string scope);
+    [LoggerMessage(EventId = 38, EventName = "ContactRateLimited", Level = LogLevel.Information, Message = "Contact form: {Count} submissions were refused by a rate limit, the last one by the {Scope} budget (logged at most once a minute).")]
+    public static partial void RateLimited(ILogger logger, int count, string scope);
 }
