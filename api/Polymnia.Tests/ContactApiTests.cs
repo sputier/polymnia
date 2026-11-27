@@ -402,7 +402,7 @@ public sealed class ContactApiTests(ContactFixture fixture) : IClassFixture<Cont
         string marker = ContactHarness.Marker();
 
         using HttpResponseMessage response = await h.SubmitAsync(marker);
-        await h.WaitForRowAsync(marker, m => m.Attempts == 1);
+        await h.WaitForRowAsync(marker, m => m.LastError is not null);
         await h.SqlAsync(
             "UPDATE contact_messages SET attempts = {0}, next_attempt_at = now() - interval '1 minute' WHERE message LIKE {1}",
             ContactStore.MaxAttempts - 1,
