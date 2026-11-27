@@ -215,7 +215,12 @@ test.describe('dark theme', () => {
   });
 });
 
-/** Exports `warmup + samples` times and returns the User Timing duration of each sample. */
+/**
+ * Exports `warmup + samples` times and returns the User Timing duration of each sample. The
+ * browser download is stubbed (the anchor click does nothing, it is counted): Chromium on Linux
+ * stops delivering downloads after a burst of automatic ones, and the download itself is not what
+ * is measured. The functional tests above check the real files.
+ */
 async function exportDurations(
   page: Page,
   item: string,
@@ -225,7 +230,13 @@ async function exportDurations(
 ): Promise<number[]> {
   const out: number[] = [];
   for (let i = 0; i < warmup + samples; i++) {
-    await exportAs(page, item);
+    await page.getByRole('button', { name: 'Export' }).click();
+    await page.getByRole('menuitem', { name: item }).click();
+    await page.waitForFunction(
+      (n) => (window as unknown as { __downloads: number }).__downloads > n,
+      i,
+    );
+    await expect(page.getByRole('menuitem', { name: item })).toBeHidden();
     if (i >= warmup) out.push(await measureMs(page, measure));
   }
   return out;
@@ -234,6 +245,13 @@ async function exportDurations(
 test.describe('export performance (100 measures)', { tag: '@perf' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockSignedIn(page);
+    await page.addInitScript(() => {
+      const w = window as unknown as { __downloads: number };
+      w.__downloads = 0;
+      HTMLAnchorElement.prototype.click = function () {
+        if (this.hasAttribute('download')) w.__downloads++;
+      };
+    });
     await page.goto('/#/editor');
     await importLong(page, 100);
     // The engraver must be idle: it would compete with the export.
