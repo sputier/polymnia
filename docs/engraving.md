@@ -137,9 +137,9 @@ Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 
 | Full render, first ever (JIT cold), all systems | n/a | 230 to 320 ms (the drawing work is unchanged; it now runs in idle chunks) |
 | Full render, warm (median of 7) | < 200 ms | about 120 ms |
 | One edit, median / max of 25 | < 16 ms | about 6 ms / 10 ms |
-| Keystroke, filled score, median / p95 / max of 40 | p95 < 16 ms | 5.1 / 7.2 / 7.3 ms (before: 5.8 / 7.5 / 7.6 ms) |
-| Keystroke with a re-flow at the top of a filled score, median / p95 / max of 40 | p95 < 16 ms | 8.7 / 11.5 / 11.9 ms, 3 systems at most (before: 9.5 / 16.2 / 16.5 ms) |
-| Keystroke while filling an empty score, median / p95 / max of 400 | p95 < 16 ms | 3.2 / 7.0 / 12.6 ms (before: 3.3 / 6.6 / 24.5 ms) |
+| Keystroke, filled score, median / p95 / max of 40 | p95 < 16 ms | 8.6 / 11.8 / 12.1 ms (edit on screen) |
+| Keystroke with a re-flow at the top of a filled score, median / p95 / max of 40 | p95 < 16 ms | 7.1 / 11.2 / 11.6 ms, 2 systems at most (before: 9.5 / 16.2 / 16.5 ms) |
+| Keystroke while filling an empty score, median / p95 / max of 400 | p95 < 16 ms | 3.8 / 7.2 / 11.3 ms (before: 3.3 / 6.6 / 24.5 ms) |
 | Highlight (selection + playing) | class toggle | < 1 ms |
 | Layout alone (jsdom) | n/a | a few ms |
 | Initial JS | <= 150 KB gzip | 72.7 KB |

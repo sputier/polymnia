@@ -137,9 +137,9 @@ Mesurés dans Chromium (portable Windows 11, build de production), `benchmark100
 | Rendu complet, tout premier (JIT froid), tous les systèmes | n/a | 230 à 320 ms (le travail de dessin est inchangé ; il s'exécute désormais par tranches en temps libre) |
 | Rendu complet, à chaud (médiane de 7) | < 200 ms | environ 120 ms |
 | Une édition, médiane / max de 25 | < 16 ms | environ 6 ms / 10 ms |
-| Frappe, partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 5,1 / 7,2 / 7,3 ms (avant : 5,8 / 7,5 / 7,6 ms) |
-| Frappe avec re-flow en haut d'une partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 8,7 / 11,5 / 11,9 ms, 3 systèmes au plus (avant : 9,5 / 16,2 / 16,5 ms) |
-| Frappe en remplissant une partition vide, médiane / p95 / max de 400 | p95 < 16 ms | 3,2 / 7,0 / 12,6 ms (avant : 3,3 / 6,6 / 24,5 ms) |
+| Frappe, partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 8,6 / 11,8 / 12,1 ms (édition à l'écran) |
+| Frappe avec re-flow en haut d'une partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 7,1 / 11,2 / 11,6 ms, 2 systèmes au plus (avant : 9,5 / 16,2 / 16,5 ms) |
+| Frappe en remplissant une partition vide, médiane / p95 / max de 400 | p95 < 16 ms | 3,8 / 7,2 / 11,3 ms (avant : 3,3 / 6,6 / 24,5 ms) |
 | Surbrillance (sélection + lecture) | bascule de classe | < 1 ms |
 | Layout seul (jsdom) | n/a | quelques ms |
 | JS initial | <= 150 Ko gzip | 72,7 Ko |
