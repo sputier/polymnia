@@ -49,7 +49,7 @@ internal sealed class DbTicketStore(
             UserId = userId,
             Ticket = Protect(ticket),
             CreatedAt = now,
-            ExpiresAt = ticket.Properties.ExpiresUtc ?? now + options.Value.IdleTimeout,
+            ExpiresAt = Min(ticket.Properties.ExpiresUtc ?? now + options.Value.IdleTimeout, now + options.Value.AbsoluteTimeout),
             AbsoluteExpiresAt = now + options.Value.AbsoluteTimeout,
         });
         await db.SaveChangesAsync();
@@ -103,7 +103,7 @@ internal sealed class DbTicketStore(
         {
             return TicketSerializer.Default.Deserialize(_protector.Unprotect(stored));
         }
-        catch (CryptographicException ex)
+        catch (Exception ex) when (ex is CryptographicException or IOException or FormatException or InvalidOperationException)
         {
             // Keys lost or rotated away: the session is unusable, the user signs in again.
             AuthLog.SessionUndecryptable(logger, ex);
@@ -123,6 +123,8 @@ internal sealed class DbTicketStore(
         PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
         await db.Sessions.Where(s => s.KeyHash == hash).ExecuteDeleteAsync();
     }
+
+    private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b) => a < b ? a : b;
 
     private byte[] Protect(AuthenticationTicket ticket) => _protector.Protect(TicketSerializer.Default.Serialize(ticket));
 
@@ -148,12 +150,12 @@ internal sealed class SessionCleanupService(
                 PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
                 DateTimeOffset now = time.GetUtcNow();
                 int removed = await db.Sessions
-                    .Where(s => s.ExpiresAt <= now || s.AbsoluteExpiresAt <= now)
+                    .Where(s => s.ExpiresAt <= now)
                     .ExecuteDeleteAsync(stoppingToken);
                 AuthLog.SessionsRemoved(logger, removed);
             }
 #pragma warning disable CA1031 // A failed cleanup must never stop the host; it is retried at the next tick.
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
 #pragma warning restore CA1031
             {
                 AuthLog.CleanupFailed(logger, ex);

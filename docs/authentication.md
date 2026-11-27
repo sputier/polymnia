@@ -48,7 +48,7 @@ The cookie holds only a random key. The ticket (the internal user id) is encrypt
 
 ### Data Protection keys
 
-Keys are stored in PostgreSQL (`data_protection_keys`) and the application name is `Polymnia`: restarts and several containers share the same keys, so cookies and tokens stay valid. The keys are in the same database as the sessions, which hold only hashed session keys and a user id; reading the database does not give a usable session.
+Keys are stored in PostgreSQL (`data_protection_keys`) and the application name is `Polymnia`: restarts and several containers share the same keys, so cookies and tokens stay valid. Session keys are random and stored hashed, so they do not depend on these keys. By default the keys are stored unencrypted in the same database; to encrypt them at rest, set `DataProtection:CertificatePath` (a PKCS#12 `.pfx` file, for example mounted as a secret) and `DataProtection:CertificatePassword`. Recommended for any deployment whose database backups leave the server.
 
 ## CSRF protection (antiforgery)
 
@@ -69,7 +69,7 @@ An API call without a valid session is a `401`, never a redirect to Google.
 | `Auth:IdleTimeout` | `Auth__IdleTimeout` | Sliding expiration, default `7.00:00:00` |
 | `Auth:AbsoluteTimeout` | `Auth__AbsoluteTimeout` | Absolute lifetime, default `30.00:00:00` |
 
-- **Production fails to start** if the client id, the client secret or a valid `Auth:PublicBaseUrl` is missing (the message names the key, never its value).
+- **Any environment except Development fails to start** if the client id, the client secret or a valid `Auth:PublicBaseUrl` is missing (the message names the key, never its value).
 - In Development and tests the application starts without them: authentication is disabled, a sign-in attempt returns `503` and `/api/me` returns `401`.
 - Set `AllowedHosts` to the real host name in production. The redirect URI does not depend on it, but unexpected `Host` headers should be refused anyway.
 - Behind a reverse proxy, forward the original scheme (see "Behind a reverse proxy" in the [development guide](development.md)): cookies are `Secure` and HTTPS redirection must see HTTPS.

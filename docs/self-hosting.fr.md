@@ -106,7 +106,7 @@ Pour vérifier qu'une image provient du workflow de release de ce dépôt : `gh 
 ```
 git clone https://github.com/sputier/polymnia.git && cd polymnia
 docker build -t polymnia .
-printf 'POSTGRES_PASSWORD=%s\nPOLYMNIA_ALLOWED_HOSTS=localhost\nPOLYMNIA_IMAGE=polymnia\nPOLYMNIA_VERSION=latest\n' "$(openssl rand -hex 16)" > .env
+printf 'POSTGRES_PASSWORD=%s\nPOLYMNIA_ALLOWED_HOSTS=localhost\nPOLYMNIA_PUBLIC_BASE_URL=https://localhost\nPOLYMNIA_GOOGLE_CLIENT_ID=dummy.apps.googleusercontent.com\nPOLYMNIA_GOOGLE_CLIENT_SECRET=dummy\nPOLYMNIA_IMAGE=polymnia\nPOLYMNIA_VERSION=latest\n' "$(openssl rand -hex 16)" > .env
 docker compose up -d --wait
 curl -i http://localhost:8080/api/health     # 200 Healthy
 curl -i http://localhost:8080/                # l'application web, avec les en-têtes de sécurité

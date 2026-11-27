@@ -44,6 +44,15 @@ internal static class AuthExtensions
             .SetApplicationName(AuthDefaults.DataProtectionApplicationName)
             .PersistKeysToDbContext<PolymniaDbContext>();
 
+        // Optional encryption of the stored keys with a certificate (see docs/authentication.md).
+        string? keyCertificatePath = configuration["DataProtection:CertificatePath"];
+        if (!string.IsNullOrWhiteSpace(keyCertificatePath))
+        {
+            services.AddDataProtection().ProtectKeysWithCertificate(
+                System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12FromFile(
+                    keyCertificatePath, configuration["DataProtection:CertificatePassword"]));
+        }
+
         services.AddAntiforgery(options =>
         {
             options.HeaderName = AuthDefaults.RequestTokenHeaderName;
@@ -156,7 +165,7 @@ internal static class AuthExtensions
 
         HttpMethodMetadata get = new(["GET", "HEAD"]);
 
-        endpoints.MapGet("/api/auth/login", Login).WithMetadata(get);
+        endpoints.MapGet("/api/auth/login", (Delegate)Login).WithMetadata(get);
 
         endpoints.MapGet("/api/auth/antiforgery", IssueAntiforgeryToken)
             .WithMetadata(get)
@@ -170,9 +179,9 @@ internal static class AuthExtensions
         return endpoints;
     }
 
-    private static IResult Login(HttpContext context, IOptions<AuthOptions> options, string? returnUrl)
+    private static async Task<IResult> Login(HttpContext context, IAuthenticationSchemeProvider schemes, string? returnUrl)
     {
-        if (!options.Value.GoogleConfigured)
+        if (await schemes.GetSchemeAsync(AuthDefaults.GoogleScheme) is null)
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status503ServiceUnavailable,

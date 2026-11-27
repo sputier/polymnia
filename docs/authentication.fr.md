@@ -48,7 +48,7 @@ Le cookie ne contient qu'une clé aléatoire. Le ticket (l'identifiant interne d
 
 ### Clés Data Protection
 
-Les clés sont stockées dans PostgreSQL (`data_protection_keys`) et le nom d'application est `Polymnia` : les redémarrages et plusieurs conteneurs partagent les mêmes clés, donc cookies et jetons restent valides. Les clés sont dans la même base que les sessions, qui ne contiennent que des clés de session hachées et un identifiant utilisateur ; lire la base ne donne pas de session utilisable.
+Les clés sont stockées dans PostgreSQL (`data_protection_keys`) et le nom d'application est `Polymnia` : les redémarrages et plusieurs conteneurs partagent les mêmes clés, donc cookies et jetons restent valides. Les clés de session sont aléatoires et stockées hachées : elles ne dépendent pas de ces clés. Par défaut les clés sont stockées en clair dans la même base ; pour les chiffrer au repos, renseignez `DataProtection:CertificatePath` (un fichier PKCS#12 `.pfx`, par exemple monté comme secret) et `DataProtection:CertificatePassword`. Recommandé pour tout déploiement dont les sauvegardes de base quittent le serveur.
 
 ## Protection CSRF (antiforgery)
 
@@ -69,7 +69,7 @@ Un appel d'API sans session valide renvoie `401`, jamais une redirection vers Go
 | `Auth:IdleTimeout` | `Auth__IdleTimeout` | Expiration glissante, `7.00:00:00` par défaut |
 | `Auth:AbsoluteTimeout` | `Auth__AbsoluteTimeout` | Durée de vie absolue, `30.00:00:00` par défaut |
 
-- **La production refuse de démarrer** s'il manque l'identifiant client, le secret ou une `Auth:PublicBaseUrl` valide (le message nomme la clé, jamais sa valeur).
+- **Tout environnement autre que Development refuse de démarrer** s'il manque l'identifiant client, le secret ou une `Auth:PublicBaseUrl` valide (le message nomme la clé, jamais sa valeur).
 - En Development et dans les tests l'application démarre sans ces valeurs : l'authentification est désactivée, une tentative de connexion renvoie `503` et `/api/me` renvoie `401`.
 - Renseignez `AllowedHosts` avec le vrai nom d'hôte en production. L'URI de redirection n'en dépend pas, mais les en-têtes `Host` inattendus doivent être refusés quand même.
 - Derrière un reverse proxy, transmettez le schéma d'origine (voir « Derrière un reverse proxy » dans le [guide de développement](development.fr.md)) : les cookies sont `Secure` et la redirection HTTPS doit voir du HTTPS.

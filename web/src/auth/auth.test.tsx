@@ -58,7 +58,7 @@ describe('session gate', () => {
     const signIn = await screen.findByRole('link', { name: 'Sign in with Google' });
     expect(signIn).toHaveAttribute('href', '/api/auth/login');
     expect(screen.getByRole('heading', { level: 1, name: 'Write. Hear. Share.' })).toBeVisible();
-    expect(signIn).toHaveFocus();
+    await waitFor(() => expect(signIn).toHaveFocus());
   });
 
   it('shows the app and the user name once signed in, then signs out', async () => {

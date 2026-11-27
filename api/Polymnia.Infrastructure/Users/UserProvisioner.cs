@@ -22,7 +22,7 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
             throw new ArgumentException("Google subject is too long.", nameof(googleSubject));
         }
 
-        string name = Truncate(string.IsNullOrWhiteSpace(displayName) ? "User" : displayName.Trim(), User.MaxDisplayNameLength);
+        string name = Truncate(CleanName(displayName), User.MaxDisplayNameLength);
         string? avatar = SanitizeAvatarUrl(avatarUrl);
         DateTimeOffset now = time.GetUtcNow();
 
@@ -84,6 +84,14 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
         }
 
         return uri.AbsoluteUri;
+    }
+
+    // No control or bidi-format characters (U+202E and friends) in a name shown to other people.
+    private static string CleanName(string? value)
+    {
+        string cleaned = string.Concat((value ?? string.Empty).Where(static c =>
+            !char.IsControl(c) && System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.Format)).Trim();
+        return cleaned.Length == 0 ? "User" : cleaned;
     }
 
     private static string Truncate(string value, int max)

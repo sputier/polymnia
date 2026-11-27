@@ -49,16 +49,16 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment) : IVali
         bool hasId = !string.IsNullOrWhiteSpace(options.Google.ClientId);
         bool hasSecret = !string.IsNullOrWhiteSpace(options.Google.ClientSecret);
 
-        if (environment.IsProduction())
+        if (!environment.IsDevelopment())
         {
             if (!hasId)
             {
-                failures.Add("Auth:Google:ClientId is required in Production.");
+                failures.Add("Auth:Google:ClientId is required outside Development.");
             }
 
             if (!hasSecret)
             {
-                failures.Add("Auth:Google:ClientSecret is required in Production.");
+                failures.Add("Auth:Google:ClientSecret is required outside Development.");
             }
         }
         else if (hasId != hasSecret)
@@ -66,7 +66,7 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment) : IVali
             failures.Add("Auth:Google:ClientId and Auth:Google:ClientSecret must be set together.");
         }
 
-        if (hasId && hasSecret || environment.IsProduction())
+        if (hasId && hasSecret || !environment.IsDevelopment())
         {
             ValidatePublicBaseUrl(options, failures);
         }
