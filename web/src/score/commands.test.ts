@@ -484,7 +484,7 @@ describe('setFretting', () => {
     cycle(guitarArpeggio, setFretting({ eventId: 'e1', string: 4, fret: 7 }), (a) => {
       expect(pitchesOf(a, 'e1')[0]).toStrictEqual({
         ...P('A', 4),
-        fretting: { string: 4, fret: 7 },
+        fretting: { string: 4, fret: 7, manual: true },
       });
     });
   });

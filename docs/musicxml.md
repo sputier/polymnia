@@ -44,6 +44,8 @@ const { score, report } = importMusicXml(bytes); // .musicxml, .xml or .mxl, thr
 | `fretting`                           | `<technical><string><fret>`                                                                                                                                            |
 | instrument                           | `<instrument-sound>` and a `polymnia-instrument-Pn` miscellaneous field (exact catalog id, for round trips); on import the sound id, then the part name, then `custom` |
 
+A fretting the user chose (`manual`) is written with an extra `<other-technical>polymnia-manual-fingering</other-technical>` inside `<technical>` (the standard extension element, ignored by other programs); on import it restores the flag, so user frettings survive a round trip and derived ones stay derived. Frettings from other programs import as derived-but-valid (they are kept while the notes around are edited).
+
 Round trip: every fixture exports and imports back to the same score (ids are regenerated), with an empty report. Exported tab staves lose their (unused) clef: it comes back as the instrument default.
 
 ## What is not imported

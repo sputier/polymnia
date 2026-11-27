@@ -5,9 +5,9 @@
 import { idGen, newId, type IdGen } from '../ids';
 import { getInstrument, type InstrumentDef } from '../instruments';
 import { LIMITS } from '../limits';
-import { comparePitch, midiToPitch, pitchToMidi, shiftOctaves } from '../pitch';
+import { comparePitch, midiToPitch, pitchEquals, pitchToMidi, shiftOctaves } from '../pitch';
 import { findStaff, keyFifthsAt, measureLength } from '../query';
-import { assignFretting } from '../tuning';
+import { isFrettedPart, refretStaffNotes, type KeepMode } from '../fretting';
 import type {
   Clef,
   NotePitch,
@@ -98,17 +98,25 @@ function withFretting(p: NotePitch, f: NotePitch['fretting']): NotePitch {
   return copy;
 }
 
-/** Recomputes the fretting of a staff: every note on a tab staff, the already fretted ones elsewhere. */
-function refretStaff(part: Part, staff: Staff, fretted: boolean): Staff {
-  return mapStaffPitches(staff, (q) => {
-    if (!fretted) return q.fretting ? withFretting(q, undefined) : q;
-    if (staff.type !== 'tab' && !q.fretting) return q;
-    return withFretting(q, assignFretting(part, q, q.fretting?.string));
-  });
+/**
+ * Recomputes the frettings of a staff (see `refretStaffNotes`): every note of a tab staff, only the
+ * already fretted ones elsewhere; a part without strings loses them. User-chosen (manual) frettings
+ * stay while they are valid for the pitch.
+ */
+function refretStaff(part: Part, staff: Staff, fretted: boolean, keep: KeepMode = 'manual'): Staff {
+  if (!fretted) return mapStaffPitches(staff, (q) => (q.fretting ? withFretting(q, undefined) : q));
+  if (staff.type !== 'tab' && !staff.measures.some(hasFretting)) return staff;
+  return refretStaffNotes(part, staff, keep);
+}
+
+function hasFretting(sm: StaffMeasure): boolean {
+  return sm.voices.some((v) =>
+    v.events.some((e) => e.kind === 'note' && e.pitches.some((q) => q.fretting)),
+  );
 }
 
 function refretPart(part: Part): Part {
-  const fretted = !!getInstrument(part.instrument)?.strings || !!part.tuning;
+  const fretted = isFrettedPart(part);
   return { ...part, staves: part.staves.map((s) => refretStaff(part, s, fretted)) };
 }
 
@@ -400,9 +408,21 @@ function cloneStaff(
             id: gen(),
             events: v.events.map((e, i): ScoreEvent => {
               const copy = { ...e, id: idOf(e.id, oldEvents?.[i]?.id) } as ScoreEvent;
-              return type === 'standard' && copy.kind === 'note'
-                ? { ...copy, pitches: copy.pitches.map((q) => withFretting(q, undefined)) }
-                : copy;
+              if (copy.kind !== 'note') return copy;
+              if (type === 'standard') {
+                return { ...copy, pitches: copy.pitches.map((q) => withFretting(q, undefined)) };
+              }
+              // Tab copy: a note that did not change keeps the fretting it had on the old tab staff
+              // (user choices and earlier derivations stay put while the notes around are edited).
+              const was = oldEvents?.[i];
+              if (was?.kind !== 'note') return copy;
+              return {
+                ...copy,
+                pitches: copy.pitches.map((q) => {
+                  const old = was.pitches.find((r) => r.fretting && pitchEquals(r, q));
+                  return old ? withFretting(q, old.fretting) : q;
+                }),
+              };
             }),
             tuplets: v.tuplets.map((t) => ({
               ...t,
@@ -414,7 +434,7 @@ function cloneStaff(
       };
     }),
   };
-  return type === 'tab' ? refretStaff(part, clone, true) : clone;
+  return type === 'tab' ? refretStaff(part, clone, true, 'valid') : clone;
 }
 
 /** Same notes (kind, duration, pitches, ties, tuplets), ignoring ids and frets. */
@@ -521,7 +541,8 @@ export function setStaffLayout(p: { partId: string; layout: StaffLayout }): Comm
     const master = standard ?? toStandard(tab!, defaultClef);
     let staves: Staff[];
     if (p.layout === 'standard') staves = [master];
-    else if (p.layout === 'tab') staves = [refretStaff(part, { ...master, type: 'tab' }, true)];
+    else if (p.layout === 'tab')
+      staves = [refretStaff(part, { ...master, type: 'tab' }, true, 'valid')];
     else staves = [master, cloneStaff(part, master, 'tab', gen, tab)];
     const removed = new Set(
       part.staves.filter((s) => !staves.some((k) => k.id === s.id)).flatMap(eventIdsOf),

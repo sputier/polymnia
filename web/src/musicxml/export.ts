@@ -40,6 +40,8 @@ export const INSTRUMENT_SOUND: Readonly<Record<string, string>> = {
 
 /** Name of the `<miscellaneous-field>` that keeps the exact catalog id of a part. */
 export const INSTRUMENT_FIELD = 'polymnia-instrument-';
+/** Text of the `other-technical` element that marks a fingering the user chose (see docs/musicxml.md). */
+export const MANUAL_FRETTING = 'polymnia-manual-fingering';
 
 const CLEF_XML: Record<Clef, string> = {
   treble: '<sign>G</sign><line>2</line>',
@@ -207,7 +209,11 @@ function noteXml(
     if (tiedFrom) notations += '<tied type="stop"/>';
     if (p.tieToNext) notations += '<tied type="start"/>';
     if (p.fretting) {
-      notations += `<technical><string>${p.fretting.string}</string><fret>${p.fretting.fret}</fret></technical>`;
+      // `other-technical` is the standard extension point: other programs ignore it.
+      const manual = p.fretting.manual
+        ? `<other-technical>${MANUAL_FRETTING}</other-technical>`
+        : '';
+      notations += `<technical><string>${p.fretting.string}</string><fret>${p.fretting.fret}</fret>${manual}</technical>`;
     }
     xml +=
       '<note>' +

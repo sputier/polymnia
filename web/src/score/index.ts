@@ -4,6 +4,8 @@ export * from './ticks';
 export * from './pitch';
 export * from './instruments';
 export * from './tuning';
+export * from './fingering';
+export * from './fretting';
 export { newId, idGen, type IdGen } from './ids';
 export {
   voiceEventTicks,
@@ -27,3 +29,4 @@ export { CommandError, type Command, type CommandErrorCode } from './commands/co
 export * from './commands/notes';
 export * from './commands/structure';
 export * from './commands/parts';
+export * from './commands/tab';

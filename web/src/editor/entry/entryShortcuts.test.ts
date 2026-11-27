@@ -49,6 +49,7 @@ describe('entry key map', () => {
     const list = entryShortcuts(new EditorStore(newEditorScore(1)));
     const seen = new Map<string, string>();
     for (const s of list) {
+      if (!s.keys) continue; // palette-only commands have no key
       expect(seen.get(s.keys), `${s.id} duplicates ${seen.get(s.keys)}`).toBeUndefined();
       seen.set(s.keys, s.id);
     }

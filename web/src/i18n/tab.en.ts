@@ -1,0 +1,21 @@
+/** Strings of tablature entry (merged into the English catalog). */
+export const tabEn = {
+  'notice.tabString': 'String {string}.',
+  'notice.fretRange': 'That fret does not exist on this instrument.',
+  'notice.tabOnly': 'Select a TAB staff first.',
+  'notice.noOtherString': 'No other string can play this note.',
+  'notice.autoFingered': 'Automatic fingering restored.',
+  'notice.tabRestsShown': 'Rests shown on this TAB staff.',
+  'notice.tabRestsHidden': 'Rests hidden on this TAB staff.',
+  'shortcut.tabDuration': 'Set the duration on a TAB staff (digits are frets there)',
+  'shortcut.tabRest': 'Enter a rest on a TAB staff (0 is the open string there)',
+  'shortcut.refretUp': 'Move the note to the string above',
+  'shortcut.refretDown': 'Move the note to the string below',
+  'command.stringUp': 'TAB: input string up',
+  'command.stringDown': 'TAB: input string down',
+  'command.autoFinger': 'TAB: automatic fingering for the selection',
+  'command.tabRests': 'TAB: show or hide rests on this staff',
+  'instruments.tabRests': 'Show rests on the TAB staff',
+  'score.noFingering': 'No string can play this note on {instrument}',
+  'inspector.warnFret': 'Measure {measure}:',
+} as const;

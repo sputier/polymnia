@@ -33,6 +33,13 @@ import {
   setTimeSignature,
   setTuning,
   staffLayoutOf,
+  autoFinger,
+  ensureFretting,
+  fretboardOf,
+  moveToString,
+  pitchOfFretting,
+  setFretting,
+  setTabRests,
   syncCompanionStaff,
   measureLength,
   type Clef,
@@ -104,8 +111,13 @@ export interface EditorState {
   readonly pendingAlter: Alter | null;
   readonly pendingTie: string | null;
   readonly pendingSlur: string | null;
+  /** TAB staves, note input: string (1 = highest) the next fret typed goes on. */
+  readonly tabString: number;
   readonly announcement: Announcement | null;
 }
+
+/** Two digits typed within this time make one fret (1 then 2 = fret 12). */
+export const FRET_CHORD_MS = 500;
 
 interface UiSnapshot {
   readonly cursor: Cursor;
@@ -174,6 +186,8 @@ export class EditorStore {
   private uiUndo: UiSnapshot[] = [];
   private uiRedo: UiSnapshot[] = [];
   private clipboard: ClipItem[] = [];
+  /** Last fret typed on a tab: a second digit within `FRET_CHORD_MS` completes it. */
+  private fretBuffer: { eventId: string; string: number; fret: number; at: number } | null = null;
   private seq = 0;
 
   constructor(score: Score = newEditorScore()) {
@@ -199,6 +213,7 @@ export class EditorStore {
       pendingAlter: null,
       pendingTie: null,
       pendingSlur: null,
+      tabString: 1,
       announcement: null,
     };
   }
@@ -288,8 +303,15 @@ export class EditorStore {
    * edited part is rebuilt from the one being edited, in the same undo step.
    */
   private withCompanionSync(before: Score, cmd: Command): Command {
-    if (!before.parts.some((p) => staffLayoutOf(p) === 'standard+tab')) return cmd;
-    return composite(cmd.name, [cmd], [syncCompanionStaff({ staffId: this.state.staffId })]);
+    if (!before.parts.some((p) => p.staves.some((s) => s.type === 'tab'))) return cmd;
+    const staffId = this.state.staffId;
+    const follow: Command[] = [];
+    if (before.parts.some((p) => staffLayoutOf(p) === 'standard+tab')) {
+      follow.push(syncCompanionStaff({ staffId }));
+    }
+    // Every note of a tab staff stays fretted (notes entered, transposed or re-spelled).
+    follow.push(ensureFretting({ staffId }));
+    return composite(cmd.name, [cmd], follow);
   }
 
   private seqOfCurrent(): SeqItem[] {
@@ -380,6 +402,13 @@ export class EditorStore {
 
   /** Digit key 3 to 7. Other digits are reserved: a polite notice, nothing else. */
   durationKey(digit: string): void {
+    // On a TAB staff the digits are frets; the durations move to Shift+3..7 (`tabDurationKey`).
+    if (this.onTab() && this.fretKey(digit)) return;
+    this.tabDurationKey(digit);
+  }
+
+  /** Shift+digit (works everywhere, the way to pick a duration on a TAB staff). */
+  tabDurationKey(digit: string): void {
     const base = DURATION_OF_KEY[digit];
     if (!base) {
       this.set(this.say({ key: 'notice.durationUnavailable' }));
@@ -539,6 +568,12 @@ export class EditorStore {
 
   /** `0`: a rest of the current duration at the cursor (select mode: turns the selection into rests). */
   enterRest(): void {
+    // `0` is the open string on a TAB staff; the rest is Shift+0 there (`enterTabRest`).
+    if (this.onTab() && this.fretKey('0')) return;
+    this.enterTabRest();
+  }
+
+  enterTabRest(): void {
     const s = this.state;
     if (s.mode === 'select') {
       this.deleteSelection();
@@ -547,7 +582,11 @@ export class EditorStore {
     this.place(null, { staffId: s.staffId, ...s.cursor });
   }
 
-  private place(pitch: Pitch | null, at: { staffId: string; measure: number; tick: number }): void {
+  private place(
+    pitch: Pitch | null,
+    at: { staffId: string; measure: number; tick: number },
+    fretting?: { string: number; fret: number },
+  ): boolean {
     const s = this.state;
     const score = s.score;
     const seq = sequenceOf(score, at.staffId, s.voice);
@@ -579,6 +618,8 @@ export class EditorStore {
             : { kind: 'rest', duration: pc.duration },
         }),
       );
+      // Typed on a TAB staff: the string and fret are the user's choice.
+      if (pitch && fretting) required.push(setFretting({ eventId: ids[i]!, ...fretting }));
     });
     if (pitch) {
       for (let i = 0; i < ids.length - 1; i++) required.push(toggleTie({ eventId: ids[i]! }));
@@ -611,6 +652,199 @@ export class EditorStore {
       }),
     );
     if (ok && pitch) this.onNoteEntered?.(pitch);
+    return ok;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Tablature (see docs/editor.md, "Tablature entry")
+  // ---------------------------------------------------------------------------------------------
+
+  /** Is the staff being edited a TAB staff? */
+  onTab(): boolean {
+    const loc = findStaff(this.state.score, this.state.staffId);
+    return !!loc && this.state.score.parts[loc.partIndex]!.staves[loc.staffIndex]!.type === 'tab';
+  }
+
+  private tabBoard() {
+    const loc = findStaff(this.state.score, this.state.staffId);
+    return loc ? fretboardOf(this.state.score.parts[loc.partIndex]!) : undefined;
+  }
+
+  /** `↑`/`↓` on a TAB staff in note input: the string the next fret goes on (`up` = first, highest string). */
+  moveString(direction: 'up' | 'down'): boolean {
+    const board = this.tabBoard();
+    if (!board) return false;
+    const next = Math.min(
+      board.open.length,
+      Math.max(1, this.state.tabString + (direction === 'up' ? -1 : 1)),
+    );
+    this.set({
+      tabString: next,
+      ...this.say({ key: 'notice.tabString', params: { string: next } }),
+    });
+    return true;
+  }
+
+  /** Mouse: the string under a click on a TAB staff becomes the input string. */
+  setTabString(string: number): void {
+    const board = this.tabBoard();
+    if (!board || string < 1 || string > board.open.length) return;
+    this.set({ tabString: string });
+  }
+
+  /**
+   * A digit on a TAB staff is a fret. Note input: writes a note on the current string (a second digit
+   * within 500 ms makes it a two-digit fret: 1 then 2 = 12). Select mode: sets the fret of the
+   * selected note on its string. Returns false when the digit cannot be used (not on a TAB staff).
+   */
+  fretKey(digit: string, now: number = Date.now()): boolean {
+    if (!this.onTab()) return false;
+    const board = this.tabBoard();
+    if (!board) return false;
+    const d = Number(digit);
+    if (!Number.isInteger(d) || d < 0 || d > 9) return false;
+    const s = this.state;
+
+    if (s.mode === 'select') {
+      const id = s.focus;
+      const loc = id ? findEvent(s.score, id) : undefined;
+      if (!id || loc?.event.kind !== 'note') {
+        this.set(this.say({ key: 'notice.nothingSelected' }));
+        return true;
+      }
+      const pitchIndex = Math.max(
+        0,
+        loc.event.pitches.findIndex((p) => p.fretting?.string === s.tabString),
+      );
+      const string = loc.event.pitches[pitchIndex]!.fretting?.string ?? s.tabString;
+      const prev = this.fretBuffer;
+      const combined =
+        prev &&
+        prev.eventId === id &&
+        now - prev.at <= FRET_CHORD_MS &&
+        prev.fret * 10 + d <= board.frets
+          ? prev.fret * 10 + d
+          : d;
+      this.applyFret(id, pitchIndex, string, combined, now);
+      return true;
+    }
+
+    // Note input.
+    const prev = this.fretBuffer;
+    if (
+      prev &&
+      s.lastEntered === prev.eventId &&
+      now - prev.at <= FRET_CHORD_MS &&
+      prev.fret >= 1 &&
+      prev.fret * 10 + d <= board.frets
+    ) {
+      this.applyFret(prev.eventId, 0, prev.string, prev.fret * 10 + d, now);
+      return true;
+    }
+    const at = { staffId: s.staffId, ...s.cursor };
+    const pitch = pitchOfFretting(s.score, at.staffId, at.measure, s.tabString, d);
+    if (!pitch) {
+      this.set(this.say({ key: 'notice.fretRange' }));
+      return true;
+    }
+    const piecesBefore = this.state.score;
+    const ok = this.place(pitch, at, { string: s.tabString, fret: d });
+    if (ok && this.state.lastEntered && this.state.score !== piecesBefore) {
+      const id = this.state.lastEntered;
+      // A note split over a barline is several tied events: only a lone one can take a second digit.
+      const single = !id.includes('.');
+      this.fretBuffer = single ? { eventId: id, string: s.tabString, fret: d, at: now } : null;
+    }
+    return true;
+  }
+
+  private applyFret(
+    eventId: string,
+    pitchIndex: number,
+    string: number,
+    fret: number,
+    now: number,
+  ): void {
+    const s = this.state;
+    const ok = this.commit(setFretting({ eventId, pitchIndex, string, fret }), (after) => {
+      const loc = findEvent(after, eventId);
+      const p = loc?.event.kind === 'note' ? loc.event.pitches[pitchIndex] : undefined;
+      return {
+        ...(p ? { lastPitch: { step: p.step, alter: p.alter, octave: p.octave } } : {}),
+        ...this.sayEvent(eventId),
+      };
+    });
+    if (!ok) {
+      if (this.state.announcement === s.announcement)
+        this.set(this.say({ key: 'notice.fretRange' }));
+      return;
+    }
+    this.fretBuffer = { eventId, string, fret, at: now };
+    const loc = findEvent(this.state.score, eventId);
+    const p = loc?.event.kind === 'note' ? loc.event.pitches[pitchIndex] : undefined;
+    if (p) this.onNoteEntered?.({ step: p.step, alter: p.alter, octave: p.octave });
+  }
+
+  /** `Alt+↑`/`Alt+↓`: moves the selected (or last entered) note to the adjacent string, same pitch. */
+  refret(direction: 'up' | 'down'): boolean {
+    const s = this.state;
+    if (!this.onTab()) {
+      this.set(this.say({ key: 'notice.tabOnly' }));
+      return false;
+    }
+    const ids = this.targets();
+    if (!ids.length) {
+      this.set(this.say({ key: 'notice.nothingSelected' }));
+      return false;
+    }
+    const cmds: Command[] = [];
+    for (const id of ids) {
+      const loc = findEvent(s.score, id);
+      if (loc?.event.kind !== 'note') continue;
+      const k = loc.event.pitches.findIndex((p) => p.fretting?.string === s.tabString);
+      cmds.push(moveToString({ eventId: id, pitchIndex: Math.max(0, k), direction }));
+    }
+    if (!cmds.length) return false;
+    try {
+      for (const cmd of cmds) cmd.apply(s.score);
+    } catch (e) {
+      if (!(e instanceof CommandError)) throw e;
+      this.set(this.say({ key: 'notice.noOtherString' }));
+      return false;
+    }
+    return this.commit(composite('moveToString', cmds), () => ({
+      ...(ids[0] ? this.sayEvent(ids[0]) : {}),
+    }));
+  }
+
+  /** Hands the selected notes (or the last entered one) back to automatic fingering. */
+  autoFinger(): boolean {
+    const ids = this.targets();
+    if (!ids.length) {
+      this.set(this.say({ key: 'notice.nothingSelected' }));
+      return false;
+    }
+    return this.commit(autoFinger({ eventIds: ids }), () => ({
+      ...this.say({ key: 'notice.autoFingered' }),
+    }));
+  }
+
+  /** Shows or hides the rests of the TAB staff being edited. */
+  toggleTabRests(): boolean {
+    const loc = findStaff(this.state.score, this.state.staffId);
+    if (!loc || !this.onTab()) {
+      this.set(this.say({ key: 'notice.tabOnly' }));
+      return false;
+    }
+    const staff = this.state.score.parts[loc.partIndex]!.staves[loc.staffIndex]!;
+    return this.setTabRests(staff.id, !staff.showRests);
+  }
+
+  /** Shows or hides the rests of a TAB staff (hidden by default). */
+  setTabRests(staffId: string, show: boolean): boolean {
+    return this.commit(setTabRests({ staffId, show }), () =>
+      this.say({ key: show ? 'notice.tabRestsShown' : 'notice.tabRestsHidden' }),
+    );
   }
 
   /** Select mode, letter key: moves each selected note to that letter's nearest pitch. */
@@ -739,11 +973,13 @@ export class EditorStore {
           staffId: at.staffId,
           cursor: { measure: at.measure, tick: at.tick },
           lastEntered: null,
+          ...(hit.string ? { tabString: hit.string } : {}),
         });
       return;
     }
     if (hit.eventId) {
       this.clickEvent(hit.eventId, extend);
+      if (hit.string) this.setTabString(hit.string);
       return;
     }
     this.set({
@@ -752,6 +988,7 @@ export class EditorStore {
       focus: null,
       staffId: hit.staffId,
       cursor: { measure: hit.measureIndex, tick: hit.tick ?? 0 },
+      ...(hit.string ? { tabString: hit.string } : {}),
     });
   }
 
@@ -765,6 +1002,12 @@ export class EditorStore {
     if (s.mode === 'note')
       return s.lastEntered && findEvent(s.score, s.lastEntered) ? [s.lastEntered] : [];
     return [...s.selection];
+  }
+
+  /** Arrow up/down: the string cursor on a TAB staff in note input, a semitone otherwise. */
+  arrow(direction: 'up' | 'down'): boolean {
+    if (this.state.mode === 'note' && this.onTab()) return this.moveString(direction);
+    return this.shiftPitch(direction === 'up' ? 1 : -1);
   }
 
   /** Arrows up/down (1 or 12 semitones). */

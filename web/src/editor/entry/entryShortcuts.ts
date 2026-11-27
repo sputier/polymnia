@@ -28,6 +28,8 @@ const STEPS: readonly StepName[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 const hasTarget = (s: EditorStore) =>
   s.getState().mode === 'note' || s.getState().selection.length > 0;
 const hasSelection = (s: EditorStore) => s.getState().selection.length > 0;
+const onTabInput = (s: EditorStore) => s.getState().mode === 'note' && s.onTab();
+const onTabWithTarget = (s: EditorStore) => s.onTab() && hasTarget(s);
 
 const DURATION_LABEL: Record<string, MessageKey> = {
   '3': 'command.duration16th',
@@ -115,7 +117,8 @@ const specs: Spec[] = [
     labelKey: 'shortcut.pitchUp',
     group: 'edit',
     enabled: hasTarget,
-    run: (s) => s.shiftPitch(1),
+    // On a TAB staff in note input the arrows move the string cursor instead.
+    run: (s) => s.arrow('up'),
   },
   {
     id: 'entry.pitchDown',
@@ -123,7 +126,72 @@ const specs: Spec[] = [
     labelKey: 'shortcut.pitchDown',
     group: 'edit',
     enabled: hasTarget,
-    run: (s) => s.shiftPitch(-1),
+    run: (s) => s.arrow('down'),
+  },
+  // Tablature. Digits are frets on a TAB staff (see `EditorStore.fretKey`): the duration keys 3 to
+  // 7 and the rest key 0 keep their meaning elsewhere and move to Shift+digit there.
+  ...(['3', '4', '5', '6', '7'] as const).map((digit): Spec => ({
+    id: `entry.tabDuration.${digit}`,
+    keys: `Shift+${digit}`,
+    labelKey: 'shortcut.tabDuration',
+    group: 'input',
+    palette: false,
+    run: (s) => s.tabDurationKey(digit),
+  })),
+  {
+    id: 'entry.tabRest',
+    keys: 'Shift+0',
+    labelKey: 'shortcut.tabRest',
+    group: 'input',
+    run: (s) => s.enterTabRest(),
+  },
+  {
+    id: 'entry.refretUp',
+    keys: 'Alt+ArrowUp',
+    labelKey: 'shortcut.refretUp',
+    group: 'edit',
+    enabled: onTabWithTarget,
+    run: (s) => s.refret('up'),
+  },
+  {
+    id: 'entry.refretDown',
+    keys: 'Alt+ArrowDown',
+    labelKey: 'shortcut.refretDown',
+    group: 'edit',
+    enabled: onTabWithTarget,
+    run: (s) => s.refret('down'),
+  },
+  {
+    id: 'entry.stringUp',
+    keys: '',
+    labelKey: 'command.stringUp',
+    group: 'input',
+    enabled: onTabInput,
+    run: (s) => s.moveString('up'),
+  },
+  {
+    id: 'entry.stringDown',
+    keys: '',
+    labelKey: 'command.stringDown',
+    group: 'input',
+    enabled: onTabInput,
+    run: (s) => s.moveString('down'),
+  },
+  {
+    id: 'entry.autoFinger',
+    keys: '',
+    labelKey: 'command.autoFinger',
+    group: 'edit',
+    enabled: hasTarget,
+    run: (s) => s.autoFinger(),
+  },
+  {
+    id: 'entry.tabRests',
+    keys: '',
+    labelKey: 'command.tabRests',
+    group: 'edit',
+    enabled: (s) => s.onTab(),
+    run: (s) => s.toggleTabRests(),
   },
   {
     id: 'entry.octaveUp',

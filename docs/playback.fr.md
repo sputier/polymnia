@@ -44,6 +44,8 @@ partition ──buildTimeline──▶ Timeline (notes, spans, tempo, temps)    
 
 L'instrument d'une partie vient de `Part.instrument` : le changer dans le panneau des instruments (#15) change donc le son immédiatement. Une tablature qui répète une portée standard de la même partie (« portée + tablature ») est ignorée par la timeline et la table de mixage : la partie n'est entendue qu'une fois.
 
+Une partie en tablature seule est jouée depuis sa tablature, la hauteur écrite étant déduite de corde + case + capodastre + transposition à la saisie de la case (le capodastre n est donc jamais ajouté deux fois) ; des tests couvrent un capodastre, une partie en tablature seule et une partie « portée + tablature » saisie sur la tablature.
+
 Les échantillons sont de courts extraits Ogg Opus, quelques hauteurs par instrument ; le `Sampler` de Tone transpose le plus proche. Seuls les jeux utilisés par les portées de la partition sont téléchargés, et seulement quand on joue ou qu'on saisit une note.
 
 | Instrument                  | Jeu                             | Téléchargement | Source (tout en CC0 1.0)                                               |

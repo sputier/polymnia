@@ -152,4 +152,20 @@ describe('hit testing', () => {
     expect(hit.eventId).toBe(event.id);
     expect(hit.pitch).toBeUndefined();
   });
+
+  it('reports the string under the point on a tab staff, 1 = highest', () => {
+    const l = layoutScore(guitarArpeggio, { width: 900 });
+    const tab = guitarArpeggio.parts[0]!.staves[1]!;
+    const system = l.systems[0]!;
+    const slot = system.staves.find((s) => s.staffId === tab.id)!;
+    const event = tab.measures[0]!.voices[0]!.events[0]!;
+    const x = eventBox(l, event.id)!.x + 5;
+    for (let string = 1; string <= slot.lines; string++) {
+      const y = system.y + slot.top + (string - 1) * slot.space;
+      expect(hitTest(l, x, y)!.string, `string ${string}`).toBe(string);
+    }
+    // Standard staves report no string.
+    const std = system.staves.find((s) => s.type === 'standard')!;
+    expect(hitTest(l, x, system.y + std.top + 10)!.string).toBeUndefined();
+  });
 });

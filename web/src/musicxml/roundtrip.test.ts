@@ -57,6 +57,56 @@ describe('round trip: model -> MusicXML -> model', () => {
     expect(exportMusicXml(base, 'musicxml').dropped).toEqual({});
   });
 
+  it('keeps the frettings the user chose, and only those, through .musicxml and .mxl', () => {
+    const base = FIXTURES.guitarArpeggio as Score;
+    const tab = base.parts[0]!.staves[1]!;
+    const voice = tab.measures[0]!.voices[0]!;
+    // The second note of the tab: fretting chosen by the user (string 3 fret 7 is E4... another string, same pitch).
+    const events = voice.events.map((e, i) =>
+      i === 1 && e.kind === 'note'
+        ? {
+            ...e,
+            pitches: [
+              { ...e.pitches[0]!, fretting: { string: 4, fret: 2, manual: true as const } },
+            ],
+          }
+        : e,
+    );
+    const changed: Score = {
+      ...base,
+      parts: [
+        {
+          ...base.parts[0]!,
+          staves: [
+            base.parts[0]!.staves[0]!,
+            {
+              ...tab,
+              measures: [
+                { ...tab.measures[0]!, voices: [{ ...voice, events }] },
+                ...tab.measures.slice(1),
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(validateScore(changed)).toEqual([]);
+    for (const back of [
+      parseMusicXml(scoreToMusicXml(changed)).score,
+      importMusicXml(exportMusicXml(changed, 'mxl').bytes).score,
+    ]) {
+      expect(normalizeScore(back)).toStrictEqual(normalizeScore(changed));
+      const e = back.parts[0]!.staves[1]!.measures[0]!.voices[0]!.events;
+      const frets = e.map((x) => (x.kind === 'note' ? x.pitches[0]!.fretting : undefined));
+      expect(frets[1]).toEqual({ string: 4, fret: 2, manual: true });
+      expect(frets[0]).toEqual({ string: 5, fret: 0 });
+    }
+    // The marker is an `other-technical` element that other programs ignore.
+    expect(scoreToMusicXml(changed)).toContain(
+      '<other-technical>polymnia-manual-fingering</other-technical>',
+    );
+  });
+
   it('keeps a pickup length, tempo changes and time/key changes', () => {
     const base = FIXTURES.pickup as Score;
     const changed: Score = {

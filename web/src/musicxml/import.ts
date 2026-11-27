@@ -23,7 +23,7 @@ import {
   type StepName,
   type TimeSignature,
 } from '../score';
-import { INSTRUMENT_FIELD } from './export';
+import { INSTRUMENT_FIELD, MANUAL_FRETTING } from './export';
 import { MUSICXML_LIMITS } from './limits';
 import { looksLikeZip, unpackMxl } from './mxl';
 import { MusicXmlError, type ImportResult } from './types';
@@ -513,9 +513,17 @@ function parseNote(
           if (type === 'start') item.tupletStart = true;
           else if (type === 'stop') item.tupletStop = true;
           break;
-        case 'technical':
+        case 'technical': {
+          let manual = false;
           for (const t of kids(c)) {
             if (t.localName === 'string' || t.localName === 'fret') continue;
+            if (
+              t.localName === 'other-technical' &&
+              cleanText(t.textContent, 64) === MANUAL_FRETTING
+            ) {
+              manual = true;
+              continue;
+            }
             ctx.dropped.add(t.localName);
           }
           if (rawPitch) {
@@ -529,10 +537,11 @@ function parseNote(
               fret >= 0 &&
               fret <= LIMITS.maxFret
             ) {
-              rawPitch.fretting = { string, fret };
+              rawPitch.fretting = manual ? { string, fret, manual: true } : { string, fret };
             }
           }
           break;
+        }
         default:
           if (SILENT_NOTATIONS.has(c.localName)) break;
           if (NAMED_CONTAINERS.has(c.localName)) {

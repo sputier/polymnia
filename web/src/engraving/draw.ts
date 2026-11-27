@@ -19,6 +19,7 @@ import {
   StaveTie,
   Stem,
   TabNote,
+  TabTie,
   TabStave,
   Tuplet,
   Voice as VfVoice,
@@ -165,15 +166,38 @@ function autoStem(pitches: readonly NotePitch[], clef: Clef): number {
       : Stem.UP;
 }
 
-function buildTabNote(event: ScoreEvent): { note: Note; pitches: NotePitch[] } {
+/** The fretted pitches of a note, from the first (highest) string down: the order of the TabNote positions. */
+function tabPitches(event: NoteEvent): NotePitch[] {
+  return event.pitches
+    .filter((p) => p.fretting)
+    .sort((a, b) => a.fretting!.string - b.fretting!.string);
+}
+
+function buildTabNote(
+  event: ScoreEvent,
+  lines: number,
+  showRests: boolean,
+): { note: Note; pitches: NotePitch[] } {
   const base = DURATION[event.duration.base];
   if (event.kind === 'rest') {
+    if (showRests) {
+      // A rest in the middle of the staff, drawn as on a standard staff.
+      const note = new StaveNote({ keys: ['b/4'], duration: `${base}r`, clef: 'treble' });
+      for (let i = 0; i < event.duration.dots; i++) Dot.buildAndAttach([note], { all: true });
+      return { note, pitches: [] };
+    }
     const note = new GhostNote({ duration: base, dots: event.duration.dots });
     return { note, pitches: [] };
   }
-  const fretted = event.pitches.filter((p) => p.fretting);
+  const fretted = tabPitches(event);
   if (!fretted.length) {
-    return { note: new GhostNote({ duration: base, dots: event.duration.dots }), pitches: [] };
+    // No string can play this note: a "?" in the middle of the staff, not a silent gap.
+    const note = new TabNote({
+      positions: [{ str: Math.ceil(lines / 2), fret: '?' }],
+      duration: base,
+    });
+    for (let i = 0; i < event.duration.dots; i++) Dot.buildAndAttach([note], { all: true });
+    return { note, pitches: [] };
   }
   const note = new TabNote({
     positions: fretted.map((p) => ({ str: p.fretting!.string, fret: p.fretting!.fret })),
@@ -181,6 +205,23 @@ function buildTabNote(event: ScoreEvent): { note: Note; pitches: NotePitch[] } {
   });
   for (let i = 0; i < event.duration.dots; i++) Dot.buildAndAttach([note], { all: true });
   return { note, pitches: fretted };
+}
+
+/** An arc between two notes of a TAB staff (ties and slurs; either end may be on another system). */
+function drawTabArc(
+  ctx: RenderContext,
+  first: Note | null,
+  last: Note | null,
+  firstIndexes: number[],
+  lastIndexes: number[],
+): void {
+  try {
+    new TabTie({ firstNote: first, lastNote: last, firstIndexes, lastIndexes }, '')
+      .setContext(ctx)
+      .draw();
+  } catch {
+    /* an arc that cannot be drawn must never break the system */
+  }
 }
 
 export function drawSystem(
@@ -207,6 +248,8 @@ export function drawSystem(
   }
   const draws: StaffDraw[] = [];
   const noteOf = new Map<string, { note: Note; slotIndex: number; stave: Stave }>();
+  /** Event id on the standard staff -> id of the same event on the TAB staff of its part. */
+  const tabTwin = new Map<string, string>();
 
   for (const m of system.measures) {
     const staves: Stave[] = [];
@@ -272,10 +315,18 @@ export function drawSystem(
       sm.voices.forEach((voice, vi) => {
         const stem = multi ? (vi % 2 === 0 ? Stem.UP : Stem.DOWN) : undefined;
         const notes: Note[] = [];
+        if (tab) {
+          const twin = part.staves.find((s) => s.type === 'standard')?.measures[m.index]?.voices[
+            vi
+          ];
+          if (twin?.events.length === voice.events.length) {
+            twin.events.forEach((e, i) => tabTwin.set(e.id, voice.events[i]!.id));
+          }
+        }
         const byEvent = new Map<string, { note: Note; event: ScoreEvent; pitches: NotePitch[] }>();
         voice.events.forEach((event) => {
           const { note, pitches } = tab
-            ? buildTabNote(event)
+            ? buildTabNote(event, slot.lines, !!staff.showRests)
             : buildStaveNote(event, clef, acc, stem);
           note.setStave(stave);
           notes.push(note);
@@ -360,8 +411,23 @@ export function drawSystem(
 
   // ---- Ties -------------------------------------------------------------------------------
   for (const d of draws) {
-    if (d.slot.type === 'tab') continue;
+    const tab = d.slot.type === 'tab';
     const staff = score.parts[d.slot.partIndex]!.staves[d.slot.staffIndex]!;
+    const tie = (
+      first: Note | null,
+      last: Note | null,
+      firstIndexes: number[],
+      lastIndexes: number[],
+    ): void => {
+      if (tab) return drawTabArc(ctx, first, last, firstIndexes, lastIndexes);
+      try {
+        new StaveTie({ firstNote: first, lastNote: last, firstIndexes, lastIndexes })
+          .setContext(ctx)
+          .draw();
+      } catch {
+        /* a tie that cannot be drawn must never break the system */
+      }
+    };
     for (const b of d.voices) {
       const events = d.sm.voices[b.index]!.events;
       events.forEach((event, i) => {
@@ -376,23 +442,21 @@ export function drawSystem(
         }
         const target = nextEvent ? noteOf.get(nextEvent.id) : undefined;
         const targetPitches =
-          nextEvent?.kind === 'note' ? sortedByStaffPosition(nextEvent.pitches) : [];
+          nextEvent?.kind === 'note'
+            ? tab
+              ? tabPitches(nextEvent)
+              : sortedByStaffPosition(nextEvent.pitches)
+            : [];
         const last = target && target.slotIndex === d.slotIndex ? target : undefined;
         const lastIndexes = tied.map((k) =>
           targetPitches.findIndex((q) => tiedInKey(q) === tiedInKey(info.pitches[k]!)),
         );
-        try {
-          new StaveTie({
-            firstNote: info.note,
-            lastNote: last?.note ?? null,
-            firstIndexes: tied,
-            lastIndexes: last ? lastIndexes.map((k) => Math.max(0, k)) : tied,
-          })
-            .setContext(ctx)
-            .draw();
-        } catch {
-          /* a tie that cannot be drawn must never break the system */
-        }
+        tie(
+          info.note,
+          last?.note ?? null,
+          tied,
+          last ? lastIndexes.map((k) => Math.max(0, k)) : tied,
+        );
       });
       // Tie arriving from the previous system: draw its end.
       const first = events[0];
@@ -405,34 +469,28 @@ export function drawSystem(
           const idx = info.pitches
             .map((p, k) => (keys.has(tiedInKey(p)) ? k : -1))
             .filter((k) => k >= 0);
-          if (idx.length) {
-            try {
-              new StaveTie({
-                firstNote: null,
-                lastNote: info.note,
-                firstIndexes: idx,
-                lastIndexes: idx,
-              })
-                .setContext(ctx)
-                .draw();
-            } catch {
-              /* ignore */
-            }
-          }
+          if (idx.length) tie(null, info.note, idx, idx);
         }
       }
     }
   }
 
   // ---- Slurs ------------------------------------------------------------------------------
-  for (const s of slurs) {
-    const a = noteOf.get(s.startEventId);
-    const b = noteOf.get(s.endEventId);
-    const startHere = inSystem(s.startEventId) && a;
-    const endHere = inSystem(s.endEventId) && b;
-    if (!startHere && !endHere) continue;
+  // On a standard staff a curve; on a TAB staff an arc between the frets (the usual h/p notation
+  // without the letter). A slur of a "standard + TAB" part is drawn on both staves.
+  const drawSlur = (startId: string | undefined, endId: string | undefined): void => {
+    const a = startId ? noteOf.get(startId) : undefined;
+    const b = endId ? noteOf.get(endId) : undefined;
+    const startHere = startId && inSystem(startId) && a;
+    const endHere = endId && inSystem(endId) && b;
+    if (!startHere && !endHere) return;
     const from = startHere ? a.note : undefined;
     const to = endHere ? b.note : undefined;
+    const slot = system.staves[(startHere ? a : b)!.slotIndex]!;
+    if (slot.type === 'tab') {
+      drawTabArc(ctx, from ?? null, to ?? null, [0], [0]);
+      return;
+    }
     const ref = (from ?? to) as StaveNote;
     const stemUp = (() => {
       try {
@@ -456,6 +514,12 @@ export function drawSystem(
     } catch {
       /* ignore */
     }
+  };
+  for (const s of slurs) {
+    drawSlur(s.startEventId, s.endEventId);
+    const ta = tabTwin.get(s.startEventId);
+    const tb = tabTwin.get(s.endEventId);
+    if (ta || tb) drawSlur(ta, tb);
   }
 
   // ---- Connectors, names ------------------------------------------------------------------

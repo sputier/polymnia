@@ -1,7 +1,7 @@
 import { fretToMidi, partFrets, partTuning } from '../instruments';
 import { idGen, newId } from '../ids';
 import { LIMITS } from '../limits';
-import { assignFretting } from '../tuning';
+import { fingerPitches } from '../fretting';
 import { comparePitch, midiToPitch, pitchEquals, pitchToMidi, shiftOctaves } from '../pitch';
 import { findStaff, keyFifthsAt, measureLength, voiceEventTicks } from '../query';
 import type {
@@ -72,6 +72,31 @@ function assertNoDuplicate(e: NoteEvent, p: Pitch, except = -1): void {
   if (e.pitches.some((q, k) => k !== except && pitchEquals(q, p))) {
     throw new CommandError('duplicate-pitch', 'The chord already contains this pitch');
   }
+}
+
+/** Pitches of the last note of the voice before `tick` (in the previous measure if need be). */
+function previousNotePitches(
+  voice: Voice,
+  score: Score,
+  addr: VoiceAddress,
+  tick: number,
+): readonly NotePitch[] | undefined {
+  const ticks = voiceEventTicks(voice);
+  let pos = 0;
+  let last: NoteEvent | undefined;
+  for (let i = 0; i < voice.events.length && pos < tick - 1e-6; i++) {
+    const e = voice.events[i]!;
+    if (e.kind === 'note') last = e;
+    pos += ticks[i]!;
+  }
+  if (last) return last.pitches;
+  const staff = score.parts[addr.partIndex]!.staves[addr.staffIndex]!;
+  const prev = staff.measures[addr.measure - 1]?.voices[addr.voiceIndex];
+  for (let i = (prev?.events.length ?? 0) - 1; i >= 0; i--) {
+    const e = prev!.events[i]!;
+    if (e.kind === 'note') return e.pitches;
+  }
+  return undefined;
 }
 
 /** Replace the pitch at `pitchIndex` (default 0). Tie and fretting of that pitch are dropped. */
@@ -231,13 +256,16 @@ export function putEvent(p: {
         duration: p.event.duration,
         pitches: sorted(p.event.pitches.map(plain)),
       };
-      // On a tab staff the frets are derived (lowest fret): the tab editor refines them.
+      // On a tab staff the frets are derived by the fingering algorithm, staying near the previous
+      // note; the tab editor (setFretting) refines them.
       const part = score.parts[sl.partIndex]!;
       if (part.staves[sl.staffIndex]!.type === 'tab') {
+        const before = previousNotePitches(voice, score, addr, p.tick);
+        const frets = fingerPitches(part, ev.pitches, before);
         ev = {
           ...ev,
-          pitches: ev.pitches.map((q) => {
-            const fretting = assignFretting(part, q);
+          pitches: ev.pitches.map((q, k) => {
+            const fretting = frets[k];
             return fretting ? { ...q, fretting } : q;
           }),
         };
@@ -430,7 +458,17 @@ export function setFretting(p: {
     );
     assertPitch(written);
     assertNoDuplicate(loc.event, written, idx);
-    const entry: NotePitch = { ...written, fretting: { string: p.string, fret: p.fret } };
+    if (loc.event.pitches.some((q, k) => k !== idx && q.fretting?.string === p.string)) {
+      throw new CommandError('invalid-argument', 'Another note of the chord is on this string');
+    }
+    // The user chose this position: automatic fingering will never move it.
+    const entry: NotePitch = {
+      ...written,
+      ...(loc.event.pitches[idx]!.tieToNext && pitchEquals(loc.event.pitches[idx]!, written)
+        ? { tieToNext: true }
+        : {}),
+      fretting: { string: p.string, fret: p.fret, manual: true },
+    };
     return replaceEvent(score, p.eventId, (e) =>
       withNotePitches(
         e as NoteEvent,

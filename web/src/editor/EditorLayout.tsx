@@ -379,10 +379,13 @@ export function EditorLayout({
     () =>
       describeWarnings(state.score).map((w) => ({
         id: w.eventId,
-        text: t('score.outOfRange')
-          .replace('{instrument}', instrumentName(w.instrument, language))
-          .replace('{low}', w.low)
-          .replace('{high}', w.high),
+        text:
+          w.kind === 'fretting'
+            ? t('score.noFingering').replace('{instrument}', instrumentName(w.instrument, language))
+            : t('score.outOfRange')
+                .replace('{instrument}', instrumentName(w.instrument, language))
+                .replace('{low}', w.low)
+                .replace('{high}', w.high),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` changes identity on every render; the language is what matters.
     [state.score, language],

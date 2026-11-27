@@ -39,6 +39,7 @@ export const FIXTURE_NAMES = [
   'pickup',
   'guitarArpeggio',
   'guitarDropDCapo',
+  'guitarTabFeatures',
   'ukuleleMelody',
   'celloClefChanges',
   'accidentals',

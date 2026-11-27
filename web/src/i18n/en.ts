@@ -1,5 +1,6 @@
 import { libraryEn } from './library';
 import { partsEn } from './parts.en';
+import { tabEn } from './tab.en';
 
 import { sharingEn } from './sharing';
 export const en = {
@@ -271,6 +272,7 @@ export const en = {
   'io.error.invalid-score': 'The score cannot be represented in Polymnia.',
   'io.error.read': 'The file could not be read.',
   ...libraryEn,
+  ...tabEn,
   ...partsEn,
   ...sharingEn,
 } as const;

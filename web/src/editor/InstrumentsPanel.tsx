@@ -364,6 +364,19 @@ function PartSettings({
             </label>
           ))}
           {layout === 'standard+tab' && <p className="side-hint">{t('instruments.layoutHint')}</p>}
+          {layout !== 'standard' && (
+            <label className="radio">
+              <input
+                type="checkbox"
+                checked={part.staves.some((s) => s.type === 'tab' && s.showRests)}
+                onChange={(e) => {
+                  const tab = part.staves.find((s) => s.type === 'tab');
+                  if (tab) store.setTabRests(tab.id, e.target.checked);
+                }}
+              />
+              <span>{t('instruments.tabRests')}</span>
+            </label>
+          )}
         </fieldset>
       )}
       {fretted && (

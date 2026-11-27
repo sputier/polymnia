@@ -2,6 +2,7 @@ import type { Messages } from './en';
 import { libraryFr } from './library';
 import { partsFr } from './parts.fr';
 import { sharingFr } from './sharing';
+import { tabFr } from './tab.fr';
 
 export const fr: Messages = {
   'app.name': 'Polymnia',
@@ -273,6 +274,7 @@ export const fr: Messages = {
   'io.error.invalid-score': 'La partition ne peut pas être représentée dans Polymnia.',
   'io.error.read': 'Le fichier n’a pas pu être lu.',
   ...libraryFr,
+  ...tabFr,
   ...partsFr,
   ...sharingFr,
 };
