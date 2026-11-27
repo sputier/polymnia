@@ -239,7 +239,7 @@ describe('capo', () => {
   it('shows the shape that is played, counted from the capo', () => {
     // D sounds with a C shape under a capo at the second fret.
     expect(text(shapeFor('D', GUITAR, 2))).toBe('x32010');
-    expect(text(shapeFor('Em', GUITAR, 2))).toBe('xx0231'.replace('xx0231', 'xx0231'));
+    expect(text(shapeFor('Em', GUITAR, 2))).toBe('xx0231');
   });
   it('sounds the requested chord', () => {
     for (const [name, capo] of [
