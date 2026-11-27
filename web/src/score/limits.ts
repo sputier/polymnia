@@ -15,6 +15,8 @@ export const LIMITS = {
   maxNameLength: 100,
   maxInstrumentLength: 64,
   maxFret: 36,
+  maxChordsPerMeasure: 32,
+  maxQualityLength: 24,
   maxJsonLength: 16_000_000,
 } as const;
 

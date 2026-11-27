@@ -8,6 +8,7 @@ import {
   defineCommand,
   fitVoice,
   mapStaff,
+  mapStaffMeasure,
   mapVoice,
   pruneSlurs,
   pruneTies,
@@ -33,6 +34,24 @@ function forEachVoice(score: Score, measure: number, fn: (a: VoiceAddress) => vo
   );
 }
 
+/** Drops the chord symbols that no longer fit in a measure that got shorter. */
+function trimChords(score: Score, measure: number, length: number): Score {
+  let out = score;
+  score.parts.forEach((part, partIndex) =>
+    part.staves.forEach((staff, staffIndex) => {
+      const chords = staff.measures[measure]?.chords;
+      if (!chords || chords.every((c) => c.tick < length)) return;
+      out = mapStaffMeasure(out, { partIndex, staffIndex, measure }, (sm) => {
+        const kept = chords.filter((c) => c.tick < length);
+        const { chords: _old, ...rest } = sm;
+        void _old;
+        return kept.length > 0 ? { ...rest, chords: kept } : rest;
+      });
+    }),
+  );
+  return out;
+}
+
 /** After measure attributes changed, fits every voice of every measure whose length changed. */
 function refit(prev: Score, next: Score, gen: IdGen): Score {
   let out = next;
@@ -42,6 +61,7 @@ function refit(prev: Score, next: Score, gen: IdGen): Score {
     const oldLen = measureLength(prev, m);
     const newLen = measureLength(next, m);
     if (oldLen === newLen) continue;
+    if (newLen < oldLen) out = trimChords(out, m, newLen);
     forEachVoice(out, m, (a) => {
       const voice =
         out.parts[a.partIndex]!.staves[a.staffIndex]!.measures[m]!.voices[a.voiceIndex]!;

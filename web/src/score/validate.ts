@@ -1,10 +1,11 @@
 import { fretToMidi, getInstrument, partFrets, partTuning } from './instruments';
 import { isPartInRange } from './tuning';
+import { parseQuality } from './chords';
 import { LIMITS } from './limits';
 import { pitchEquals, pitchToMidi, soundingMidi } from './pitch';
 import { canTie } from './query';
 import { durationTicks, MIN_TICKS, timeSignatureTicks } from './ticks';
-import type { Issue, Part, Score, TimeSignature, Voice } from './types';
+import type { Issue, Part, Score, StaffMeasure, TimeSignature, Voice } from './types';
 
 /**
  * Semantic validation of a structurally well-typed score (the decoder checks shapes and ranges).
@@ -76,6 +77,7 @@ export function validateScore(score: Score): Issue[] {
         const mpath = `${spath}/measures/${m}`;
         if (sm.voices.length === 0)
           add('voice-missing', `${mpath}/voices`, 'A measure needs at least one voice');
+        checkChords(sm, mpath, lengths[m] ?? 0, part);
         sm.voices.forEach((voice, vi) => {
           const vpath = `${mpath}/voices/${vi}`;
           claim(voice.id, `${vpath}/id`);
@@ -88,6 +90,37 @@ export function validateScore(score: Score): Issue[] {
       });
     });
   });
+
+  function checkChords(sm: StaffMeasure, mpath: string, length: number, part: Part): void {
+    let last = -1;
+    sm.chords?.forEach((c, ci) => {
+      const cpath = `${mpath}/chords/${ci}`;
+      claim(c.id, `${cpath}/id`);
+      if (c.tick >= length)
+        add(
+          'chord-position',
+          `${cpath}/tick`,
+          `Tick ${c.tick} is outside the measure (${length} ticks)`,
+        );
+      if (c.tick <= last)
+        add('chord-order', `${cpath}/tick`, 'Chord symbols must be sorted by tick, one per tick');
+      last = c.tick;
+      if (parseQuality(c.quality) === null)
+        add('chord-quality', `${cpath}/quality`, `Unknown chord quality "${c.quality}"`);
+      if (c.frame) {
+        const strings = partTuning(part)?.length;
+        if (strings !== undefined && c.frame.frets.length !== strings)
+          add(
+            'chord-frame',
+            `${cpath}/frame/frets`,
+            `The frame has ${c.frame.frets.length} strings, the part has ${strings}`,
+          );
+        const b = c.frame.barre;
+        if (b && (b.from > b.to || b.to > c.frame.frets.length))
+          add('chord-frame', `${cpath}/frame/barre`, 'The barre must span existing strings');
+      }
+    });
+  }
 
   function checkVoice(
     voice: Voice,
