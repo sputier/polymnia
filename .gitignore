@@ -33,3 +33,7 @@ appsettings.*.local.json
 
 # Local tooling (never committed)
 .claude/
+
+# Built front end copied next to the API (see docs/development.md)
+api/Polymnia.Api/wwwroot/*
+!api/Polymnia.Api/wwwroot/.gitkeep

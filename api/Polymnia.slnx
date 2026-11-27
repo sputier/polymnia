@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Polymnia.Api/Polymnia.Api.csproj" />
+  <Project Path="Polymnia.Core/Polymnia.Core.csproj" />
+  <Project Path="Polymnia.Infrastructure/Polymnia.Infrastructure.csproj" />
+  <Project Path="Polymnia.Tests/Polymnia.Tests.csproj" />
+</Solution>
