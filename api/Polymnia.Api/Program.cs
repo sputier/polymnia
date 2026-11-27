@@ -1,5 +1,6 @@
 using Polymnia.Api.Auth;
 using Polymnia.Api.Hosting;
+using Polymnia.Api.Scores;
 using Polymnia.Api.Spa;
 using Polymnia.Infrastructure;
 
@@ -23,6 +24,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddPolymniaHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPolymniaAuth(builder.Configuration, builder.Environment);
+builder.Services.AddScoreApi(builder.Configuration, builder.Environment);
 
 WebApplication app = builder.Build();
 
@@ -34,8 +36,10 @@ if (migrateOnly)
 
 app.UsePolymniaPipeline();
 app.UsePolymniaAuth();
+app.UseScoreApi();
 app.MapPolymniaEndpoints();
 app.MapAuthEndpoints();
+app.MapScoreApi();
 app.MapSpaFallback();
 
 await app.RunAsync();

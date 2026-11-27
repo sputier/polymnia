@@ -31,6 +31,8 @@ COPY api/Polymnia.Infrastructure/Polymnia.Infrastructure.csproj api/Polymnia.Inf
 COPY api/Polymnia.Api/Polymnia.Api.csproj api/Polymnia.Api/
 RUN dotnet restore api/Polymnia.Api/Polymnia.Api.csproj -r "linux-$(case "$TARGETARCH" in amd64) echo x64;; arm64) echo arm64;; *) echo "$TARGETARCH";; esac)"
 COPY api/ api/
+# The score JSON Schema (repo root) is embedded into Polymnia.Infrastructure.
+COPY schema/ schema/
 RUN dotnet publish api/Polymnia.Api/Polymnia.Api.csproj -c Release --no-restore --no-self-contained \
       -r "linux-$(case "$TARGETARCH" in amd64) echo x64;; arm64) echo arm64;; *) echo "$TARGETARCH";; esac)" \
       -p:UseAppHost=false -p:DebugType=none -p:DebugSymbols=false -o /app
