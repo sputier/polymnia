@@ -24,7 +24,10 @@ internal sealed class SecurityHeadersMiddleware(RequestDelegate next, IOptions<S
                 IHeaderDictionary headers = ctx.Response.Headers;
                 headers.ContentSecurityPolicy = self._contentSecurityPolicy;
                 headers.XContentTypeOptions = "nosniff";
-                headers["Referrer-Policy"] ="strict-origin-when-cross-origin";
+                // The public share endpoint has a credential in its path: nothing about it may ever be sent along.
+                headers["Referrer-Policy"] = ctx.Request.Path.StartsWithSegments("/api/shared", StringComparison.OrdinalIgnoreCase)
+                    ? "no-referrer"
+                    : "strict-origin-when-cross-origin";
                 headers["Permissions-Policy"] = PermissionsPolicy;
                 headers["Cross-Origin-Opener-Policy"] = "same-origin";
 
