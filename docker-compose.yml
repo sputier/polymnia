@@ -1,0 +1,80 @@
+# Production-style deployment: Polymnia + PostgreSQL 17.
+# Usage: cp .env.example .env, edit it (POSTGRES_PASSWORD and POLYMNIA_ALLOWED_HOSTS are required),
+# then `docker compose up -d --wait`. See docs/self-hosting.md.
+#
+# Start-up order: db (healthy) -> migrate (one-shot, applies the EF Core migrations, exits 0) -> app.
+# Migrations are an explicit service, never run inside the app: a failed migration stops the
+# deployment before the new version serves traffic. Run them alone with `docker compose run --rm migrate`.
+
+x-polymnia: &polymnia
+  image: ${POLYMNIA_IMAGE:-ghcr.io/sputier/polymnia}:${POLYMNIA_VERSION:-latest}
+  environment: &polymnia-env
+    # Not "Development": stack traces, HTTPS redirection and HSTS behave as in production.
+    ASPNETCORE_ENVIRONMENT: Production
+    # Host names the app answers to, separated by ";". Required: there is no permissive default.
+    AllowedHosts: ${POLYMNIA_ALLOWED_HOSTS:?Set POLYMNIA_ALLOWED_HOSTS in .env (see .env.example)}
+    ConnectionStrings__Polymnia: Host=db;Database=${POSTGRES_DB:-polymnia};Username=${POSTGRES_USER:-polymnia};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    # Behind a reverse proxy only. Only the compose network is trusted as a proxy source.
+    ForwardedHeaders__Enabled: ${POLYMNIA_FORWARDED_HEADERS:-false}
+    ForwardedHeaders__KnownNetworks__0: ${POLYMNIA_SUBNET:-172.31.250.0/24}
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  db:
+    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73 # postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-polymnia}
+      POSTGRES_DB: ${POSTGRES_DB:-polymnia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    volumes:
+      - polymnia-db:/var/lib/postgresql/data
+    # No published port: only the app reaches the database, over the private compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    <<: *polymnia
+    restart: "no"
+    command: ["--migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *polymnia
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      # Loopback by default: put a TLS reverse proxy in front (docs/self-hosting.md).
+      - "${POLYMNIA_BIND:-127.0.0.1}:${POLYMNIA_PORT:-8080}:8080"
+    # The chiseled image has no shell or curl: the app binary probes itself (GET /api/health).
+    healthcheck:
+      test: ["CMD", "dotnet", "Polymnia.Api.dll", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${POLYMNIA_SUBNET:-172.31.250.0/24}
+
+volumes:
+  polymnia-db:

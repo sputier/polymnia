@@ -37,6 +37,10 @@ Polymnia est une application web libre et gratuite pour composer de la musique e
 | Base de données | PostgreSQL |
 | Déploiement | Docker / Docker Compose (auto-hébergeable) |
 
+## Auto-hébergement
+
+Faites tourner votre propre instance avec Docker Compose (l'application et PostgreSQL) à partir de l'image `ghcr.io/sputier/polymnia`. Voir le [guide d'auto-hébergement](docs/self-hosting.fr.md). Pour les mainteneurs : [publier une release](docs/releasing.fr.md).
+
 ## Contribuer
 
 Les contributions sont bienvenues. Lisez d'abord [CONTRIBUTING.fr.md](CONTRIBUTING.fr.md) et le [code de conduite](CODE_OF_CONDUCT.md). Pour signaler une faille de sécurité, suivez [SECURITY.md](SECURITY.md) ; n'ouvrez pas d'issue publique.

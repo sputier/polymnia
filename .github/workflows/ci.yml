@@ -107,3 +107,68 @@ jobs:
             echo "::error::High or Critical vulnerable NuGet package found."
             exit 1
           fi
+
+  # Builds the production image (amd64, nothing is pushed), starts the whole docker-compose.yml stack
+  # on it, probes the app and scans the image. Not a required check (see docs/releasing.md).
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: polymnia:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Same file a self-hoster uses: db -> migrate (one-shot) -> app, each with its health check.
+      - name: Start the stack and probe it
+        run: |
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "POLYMNIA_ALLOWED_HOSTS=localhost"
+            echo "POLYMNIA_IMAGE=polymnia"
+            echo "POLYMNIA_VERSION=ci"
+          } > .env
+          docker compose up -d --wait --wait-timeout 120
+          docker compose ps -a
+          # AllowedHosts=localhost: the Host header must match it.
+          curl --fail --silent --show-error --max-time 10 -H 'Host: localhost' http://127.0.0.1:8080/api/health; echo
+          curl --fail --silent --show-error --max-time 10 -H 'Host: localhost' http://127.0.0.1:8080/api/health/ready; echo
+          curl --fail --silent --show-error --max-time 10 -H 'Host: localhost' --dump-header - --output /dev/null http://127.0.0.1:8080/ | tee "$RUNNER_TEMP/headers.txt"
+          grep -qi '^content-security-policy:' "$RUNNER_TEMP/headers.txt"
+          grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/headers.txt"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Host: evil.example' http://127.0.0.1:8080/)" = 400
+
+      - name: Compose logs on failure
+        if: failure()
+        run: if [ -f .env ]; then docker compose logs --no-color --tail 80; fi
+
+      - name: Stop the stack
+        if: always()
+        run: if [ -f .env ]; then docker compose down -v; fi
+
+      # Trivy runs from its container image, pinned by digest (aquasec/trivy:latest when this was written),
+      # instead of a third-party action. The first pass prints every finding (informational) and writes it
+      # to the job summary; the second one fails on CRITICAL or HIGH vulnerabilities that have a fix.
+      - name: Scan the image (report)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
+            image --quiet --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL polymnia:ci | tee "$RUNNER_TEMP/trivy.txt"
+          { echo '### Trivy report'; echo '```'; cat "$RUNNER_TEMP/trivy.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Scan the image (gate)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
+            image --quiet --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 polymnia:ci
