@@ -27,17 +27,11 @@ x-polymnia: &polymnia
     ForwardedHeaders__Enabled: ${POLYMNIA_FORWARDED_HEADERS:-false}
     ForwardedHeaders__KnownNetworks__0: ${POLYMNIA_SUBNET:-172.31.250.0/24}
   secrets:
-    # Long syntax: owned by the container user (UID 1654), readable by it only. Compose applies uid/gid/mode
-    # to file secrets since v2.23; on older versions they are ignored and the host file mode applies
-    # (then make both files readable, chmod 644: see docs/authentication.md).
-    - source: polymnia_keys
-      uid: "1654"
-      gid: "1654"
-      mode: 0400
-    - source: polymnia_keys_password
-      uid: "1654"
-      gid: "1654"
-      mode: 0400
+    # Plain `docker compose` bind-mounts file secrets and ignores uid/gid/mode (tested: the container user could not
+    # read the files). The host files must therefore belong to the container user (UID 1654) with mode 0400:
+    # `sudo chown 1654:1654 secrets/polymnia-keys.* && sudo chmod 0400 secrets/polymnia-keys.*` (docs/authentication.md).
+    - polymnia_keys
+    - polymnia_keys_password
   read_only: true
   tmpfs:
     - /tmp

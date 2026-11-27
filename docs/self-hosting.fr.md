@@ -34,7 +34,7 @@ Tout passe par des variables d'environnement, renseignées dans `.env` pour le f
 | `POSTGRES_USER`, `POSTGRES_DB` | `polymnia` | Utilisateur et nom de la base |
 | `POLYMNIA_ALLOWED_HOSTS` | aucun, obligatoire | Noms d'hôte acceptés par l'application, séparés par `;` (correspond à `AllowedHosts`) |
 | `POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET` | aucun, obligatoire | Connexion Google : origine publique `https` de l'application et client OAuth, voir [Authentification](authentication.fr.md). L'application refuse de démarrer sans eux |
-| `POLYMNIA_KEYS_CERT_FILE`, `POLYMNIA_KEYS_CERT_PASSWORD_FILE` | `./secrets/polymnia-keys.pfx`, `./secrets/polymnia-keys.password` | Certificat (PKCS#12) qui chiffre les clés Data Protection stockées en base, et fichier texte contenant son mot de passe ; tous deux montés comme secrets Docker (mode 0400, propriété de l'utilisateur du conteneur). Créez-les avec les commandes de [Authentification](authentication.fr.md) (« Chiffrer les clés Data Protection »). Conservez-les : sans eux, les utilisateurs doivent se reconnecter |
+| `POLYMNIA_KEYS_CERT_FILE`, `POLYMNIA_KEYS_CERT_PASSWORD_FILE` | `./secrets/polymnia-keys.pfx`, `./secrets/polymnia-keys.password` | Certificat (PKCS#12) qui chiffre les clés Data Protection stockées en base, et fichier texte contenant son mot de passe ; tous deux montés comme secrets Docker (fichiers de l'hôte à l'UID 1654, mode 0400 : voir Authentification). Créez-les avec les commandes de [Authentification](authentication.fr.md) (« Chiffrer les clés Data Protection »). Conservez-les : sans eux, les utilisateurs doivent se reconnecter |
 | `POLYMNIA_IMAGE`, `POLYMNIA_VERSION` | `ghcr.io/sputier/polymnia`, `latest` | Image à exécuter |
 | `POLYMNIA_BIND`, `POLYMNIA_PORT` | `127.0.0.1`, `8080` | Adresse d'écoute de l'application sur l'hôte |
 | `POLYMNIA_FORWARDED_HEADERS` | `false` | Faire confiance à `X-Forwarded-For` et `X-Forwarded-Proto` du reverse proxy |
@@ -107,7 +107,7 @@ Pour vérifier qu'une image provient du workflow de release de ce dépôt : `gh 
 ```
 git clone https://github.com/sputier/polymnia.git && cd polymnia
 docker build -t polymnia .
-mkdir -p secrets && openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -subj /CN=local -days 2 && openssl pkcs12 -export -inkey k.pem -in c.pem -out secrets/polymnia-keys.pfx -passout pass:dummy && printf dummy > secrets/polymnia-keys.password && chmod 600 secrets/*
+mkdir -p secrets && openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -subj /CN=local -days 2 && openssl pkcs12 -export -inkey k.pem -in c.pem -out secrets/polymnia-keys.pfx -passout pass:dummy && printf dummy > secrets/polymnia-keys.password && sudo chown 1654:1654 secrets/polymnia-keys.* && sudo chmod 0400 secrets/polymnia-keys.*
 printf 'POSTGRES_PASSWORD=%s\nPOLYMNIA_ALLOWED_HOSTS=localhost\nPOLYMNIA_PUBLIC_BASE_URL=https://localhost\nPOLYMNIA_GOOGLE_CLIENT_ID=dummy.apps.googleusercontent.com\nPOLYMNIA_GOOGLE_CLIENT_SECRET=dummy\nPOLYMNIA_IMAGE=polymnia\nPOLYMNIA_VERSION=latest\n' "$(openssl rand -hex 16)" > .env
 docker compose up -d --wait
 curl -i http://localhost:8080/api/health     # 200 Healthy

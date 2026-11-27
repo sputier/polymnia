@@ -140,8 +140,9 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" -subj "/CN=polymnia-ci" -days 2
           printf 'ci-throwaway\n' > secrets/polymnia-keys.password
           openssl pkcs12 -export -inkey "$RUNNER_TEMP/key.pem" -in "$RUNNER_TEMP/cert.pem" -out secrets/polymnia-keys.pfx -passout file:secrets/polymnia-keys.password
-          # Owner-only on the host: compose chowns the secrets to the container user (uid/gid/mode in docker-compose.yml).
-          chmod 600 secrets/polymnia-keys.pfx secrets/polymnia-keys.password
+          # Owned by the container user (UID 1654), read-only for it, nobody else (compose bind-mounts the files as they are).
+          sudo chown 1654:1654 secrets/polymnia-keys.pfx secrets/polymnia-keys.password
+          sudo chmod 0400 secrets/polymnia-keys.pfx secrets/polymnia-keys.password
           {
             echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
             echo "POLYMNIA_ALLOWED_HOSTS=localhost"

@@ -34,7 +34,7 @@ Everything is an environment variable, set in `.env` for the compose file.
 | `POSTGRES_USER`, `POSTGRES_DB` | `polymnia` | Database user and name |
 | `POLYMNIA_ALLOWED_HOSTS` | none, required | Host names the app answers to, separated by `;` (maps to `AllowedHosts`) |
 | `POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET` | none, required | Google sign-in: public `https` origin of the app and the OAuth client, see [Authentication](authentication.md). The app refuses to start without them |
-| `POLYMNIA_KEYS_CERT_FILE`, `POLYMNIA_KEYS_CERT_PASSWORD_FILE` | `./secrets/polymnia-keys.pfx`, `./secrets/polymnia-keys.password` | Certificate (PKCS#12) that encrypts the Data Protection keys stored in the database, and the text file holding its password; both are mounted as Docker secrets (mode 0400, owned by the container user). Create them with the commands in [Authentication](authentication.md) ("Encrypt the Data Protection keys"). Keep them: without them users must sign in again |
+| `POLYMNIA_KEYS_CERT_FILE`, `POLYMNIA_KEYS_CERT_PASSWORD_FILE` | `./secrets/polymnia-keys.pfx`, `./secrets/polymnia-keys.password` | Certificate (PKCS#12) that encrypts the Data Protection keys stored in the database, and the text file holding its password; both are mounted as Docker secrets (give the host files to UID 1654, mode 0400: see Authentication). Create them with the commands in [Authentication](authentication.md) ("Encrypt the Data Protection keys"). Keep them: without them users must sign in again |
 | `POLYMNIA_IMAGE`, `POLYMNIA_VERSION` | `ghcr.io/sputier/polymnia`, `latest` | Image to run |
 | `POLYMNIA_BIND`, `POLYMNIA_PORT` | `127.0.0.1`, `8080` | Where the app listens on the host |
 | `POLYMNIA_FORWARDED_HEADERS` | `false` | Trust `X-Forwarded-For` and `X-Forwarded-Proto` from the reverse proxy |
@@ -107,7 +107,7 @@ To verify an image came from this repository's release workflow: `gh attestation
 ```
 git clone https://github.com/sputier/polymnia.git && cd polymnia
 docker build -t polymnia .
-mkdir -p secrets && openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -subj /CN=local -days 2 && openssl pkcs12 -export -inkey k.pem -in c.pem -out secrets/polymnia-keys.pfx -passout pass:dummy && printf dummy > secrets/polymnia-keys.password && chmod 600 secrets/*
+mkdir -p secrets && openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -subj /CN=local -days 2 && openssl pkcs12 -export -inkey k.pem -in c.pem -out secrets/polymnia-keys.pfx -passout pass:dummy && printf dummy > secrets/polymnia-keys.password && sudo chown 1654:1654 secrets/polymnia-keys.* && sudo chmod 0400 secrets/polymnia-keys.*
 printf 'POSTGRES_PASSWORD=%s\nPOLYMNIA_ALLOWED_HOSTS=localhost\nPOLYMNIA_PUBLIC_BASE_URL=https://localhost\nPOLYMNIA_GOOGLE_CLIENT_ID=dummy.apps.googleusercontent.com\nPOLYMNIA_GOOGLE_CLIENT_SECRET=dummy\nPOLYMNIA_IMAGE=polymnia\nPOLYMNIA_VERSION=latest\n' "$(openssl rand -hex 16)" > .env
 docker compose up -d --wait
 curl -i http://localhost:8080/api/health     # 200 Healthy

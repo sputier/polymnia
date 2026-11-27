@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openFixture, type EngravingStats } from './engraving-helpers';
+import { mockSignedIn, openFixture, type EngravingStats } from './engraving-helpers';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 700 } });
 
@@ -35,6 +35,7 @@ test.describe('engraving fonts', () => {
       await new Promise((resolve) => setTimeout(resolve, 3500)); // longer than the 2.5 s wait
       await route.continue();
     });
+    await mockSignedIn(page);
     await page.goto('/#/editor?fixture=auClairDeLaLune&width=700');
     // Staves, layout and hit testing exist before the font does.
     await page.waitForSelector('svg.pm-score .vf-pm-system', { state: 'attached', timeout: 3300 });
@@ -50,6 +51,7 @@ test.describe('progressive render', () => {
   test('first systems fast, the rest in idle time, nothing to redo afterwards', async ({
     page,
   }) => {
+    await mockSignedIn(page);
     await page.goto('/#/editor?fixture=benchmark100&width=1100');
     await page.waitForSelector('svg.pm-score .vf-pm-system', { state: 'attached' });
     await page.waitForFunction(() => (window as unknown as { __polymnia?: unknown }).__polymnia);
