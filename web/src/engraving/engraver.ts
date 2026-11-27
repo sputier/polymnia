@@ -52,7 +52,7 @@ const CHUNK_MS = 20;
  * always engraved (it holds the edit); the other visible ones follow on the next tasks, before
  * idle time.
  */
-const SYNC_BUDGET_MS = 7;
+const SYNC_BUDGET_MS = 6;
 /** Starting estimate of the cost of engraving one system, ms (then follows the measures). */
 const SYSTEM_COST_MS = 4;
 

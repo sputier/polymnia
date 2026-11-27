@@ -100,7 +100,7 @@ The SVG has `role="img"` and an `aria-label` summary (title, number of instrumen
 An edit that moves line breaks (a measure gets wider, a note is added to a full measure) changes every following system, and several of them are on screen. A keystroke must stay under a 60 fps frame, so the synchronous part is time-boxed:
 
 1. The layout is computed in full (about 1 ms with the shape cache) and the SVG size is final: hit testing, event boxes and the selection background are correct at once, even for systems not engraved yet.
-2. The systems to engrave are the ones on screen, the one holding the selection first. They are engraved while the call has spent less than 7 ms (layout included) and the next one is not expected to overrun it (the cost of a system is a moving average of the measures, about 3 to 5 ms for a grand staff). The first one is always engraved: it holds the edit.
+2. The systems to engrave are the ones on screen, the one holding the selection first. They are engraved while the call has spent less than 6 ms (layout included) and the next one is not expected to overrun it (the cost of a system is a moving average of the measures, about 3 to 5 ms for a grand staff). The first one is always engraved: it holds the edit.
 3. The visible systems left over are engraved one per task right after the call (`setTimeout`, not idle time), so a key pressed meanwhile is not kept waiting; the others follow in idle chunks. For a few milliseconds a system waiting for its turn is blank.
 4. Highlights are not re-applied to the whole score on every render any more (it cost about 4 ms on 100 measures): only the systems engraved by the call, and `setSelection` toggles the difference between the old and the new selection.
 
