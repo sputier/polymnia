@@ -14,6 +14,8 @@ interface SessionContextValue {
   state: SessionState;
   retry: () => void;
   signOut: () => Promise<void>;
+  /** The server answered 401: the session ended. Shows the sign-in screen. */
+  expire: () => void;
 }
 
 // Without a provider (isolated component tests) the visitor is simply anonymous.
@@ -21,6 +23,7 @@ const SessionContext = createContext<SessionContextValue>({
   state: { status: 'anonymous' },
   retry: () => {},
   signOut: () => Promise.resolve(),
+  expire: () => {},
 });
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -54,7 +57,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setState({ status: 'anonymous' });
   }, []);
 
-  const value = useMemo(() => ({ state, retry, signOut }), [state, retry, signOut]);
+  const expire = useCallback(() => setState({ status: 'anonymous' }), []);
+
+  const value = useMemo(() => ({ state, retry, signOut, expire }), [state, retry, signOut, expire]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

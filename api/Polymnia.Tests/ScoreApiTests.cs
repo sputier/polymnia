@@ -453,6 +453,19 @@ public sealed class ScoreApiTests(ScoreApiFixture fixture) : IClassFixture<Score
     }
 
     [Fact]
+    public async Task List_returns_a_cheap_preview_with_the_measure_count_and_the_instruments()
+    {
+        using HttpClient client = await SignedInAsync();
+        await CreateAsync(client, WithTitle("Preview me"));
+
+        JsonElement page = await Body(await client.GetAsync("/api/scores", Ct));
+        JsonElement item = page.GetProperty("items").EnumerateArray().Single(i => i.GetProperty("title").GetString() == "Preview me");
+        Assert.Equal(4, item.GetProperty("measureCount").GetInt32());
+        Assert.Equal(["piano", "violin", "cello"], item.GetProperty("instruments").EnumerateArray().Select(e => e.GetString()).ToArray());
+        Assert.False(item.TryGetProperty("content", out _));
+    }
+
+    [Fact]
     public async Task List_searches_titles_case_insensitively_and_treats_wildcards_literally()
     {
         using HttpClient client = await SignedInAsync();

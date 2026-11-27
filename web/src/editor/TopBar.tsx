@@ -25,6 +25,7 @@ interface TopBarProps {
   onToggleFocus: () => void;
   onExport: (format: ExportFormat) => void;
   onImportFile: (file: File) => void;
+  onBeforeLeave?: () => boolean;
 }
 
 export function TopBar(props: TopBarProps) {
@@ -33,7 +34,14 @@ export function TopBar(props: TopBarProps) {
 
   return (
     <header className="etop">
-      <a className="btn ghost icon" href={ROUTE_HREF.home} aria-label={t('editor.back')}>
+      <a
+        className="btn ghost icon"
+        href={ROUTE_HREF.home}
+        aria-label={t('editor.back')}
+        onClick={(event) => {
+          if (props.onBeforeLeave && !props.onBeforeLeave()) event.preventDefault();
+        }}
+      >
         <Icon name="back" />
       </a>
       <button
@@ -53,6 +61,7 @@ export function TopBar(props: TopBarProps) {
         placeholder={t('editor.untitled')}
         aria-label={t('editor.titleLabel')}
         spellCheck={false}
+        maxLength={200}
         onChange={(event) => props.onTitleChange(event.target.value)}
       />
       <SaveStatus state={props.saveState} />

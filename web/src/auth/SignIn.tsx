@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useI18n } from '../i18n/i18n';
+import { rememberReturn } from './returnTo';
 
 /** Where to come back to after signing in. Always a local path: the server checks it again. */
 function returnUrl(): string {
@@ -63,7 +64,12 @@ export function SignIn() {
         )}
         <div>
           {/* A link, not a button: signing in is a full-page navigation to the server (redirect flow). */}
-          <a ref={button} className="btn-google" href={`/api/auth/login${returnUrl()}`}>
+          <a
+            ref={button}
+            className="btn-google"
+            href={`/api/auth/login${returnUrl()}`}
+            onClick={rememberReturn}
+          >
             <GoogleMark />
             <span>{t('auth.signInWithGoogle')}</span>
           </a>

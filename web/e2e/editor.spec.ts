@@ -15,10 +15,8 @@ test.beforeEach(async ({ page }) => {
 test.describe('editor shell (desktop)', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test('opens from the home page with landmarks and a status bar', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('link', { name: 'Open the editor' }).click();
-    await expect(page).toHaveURL(/#\/editor$/);
+  test('opens with landmarks and a status bar', async ({ page }) => {
+    await page.goto('/#/editor');
     await expect(page.getByRole('banner')).toBeVisible();
     await expect(page.getByRole('main')).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Instruments' })).toBeVisible();

@@ -1,6 +1,6 @@
 import { useI18n } from '../i18n/i18n';
 
-export type SaveState = 'saved' | 'saving' | 'offline';
+export type SaveState = 'saved' | 'saving' | 'offline' | 'conflict' | 'error' | 'unauthorized';
 
 /** Dot and label. Wrap it in a `role="status"` region where announcements are wanted. */
 export function SaveStatus({ state }: { state: SaveState }) {

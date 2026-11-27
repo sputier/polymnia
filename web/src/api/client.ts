@@ -11,12 +11,36 @@ const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export class ApiError extends Error {
   readonly status: number;
+  /** Seconds to wait before retrying, from the `Retry-After` header (429). */
+  readonly retryAfter: number | undefined;
+  /** The `type` of the problem document (RFC 9457), for example `urn:polymnia:problem:score-limit`. */
+  readonly problemType: string | undefined;
 
-  constructor(status: number) {
+  constructor(status: number, details: { retryAfter?: number; problemType?: string } = {}) {
     super(`Request failed with status ${status}`);
     this.name = 'ApiError';
     this.status = status;
+    this.retryAfter = details.retryAfter;
+    this.problemType = details.problemType;
   }
+}
+
+/** An ApiError for a failed response, with the Retry-After delay and the problem type when present. */
+export async function toApiError(response: Response): Promise<ApiError> {
+  const header = Number(response.headers.get('Retry-After'));
+  const retryAfter = Number.isFinite(header) && header > 0 ? header : undefined;
+  let problemType: string | undefined;
+  try {
+    const problem: unknown = await response.clone().json();
+    const type = (problem as { type?: unknown } | null)?.type;
+    if (typeof type === 'string') problemType = type;
+  } catch {
+    // Not a problem document.
+  }
+  return new ApiError(response.status, {
+    ...(retryAfter === undefined ? {} : { retryAfter }),
+    ...(problemType === undefined ? {} : { problemType }),
+  });
 }
 
 export function readCookie(name: string): string | undefined {
@@ -80,6 +104,6 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
 export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await apiFetch(path, init);
-  if (!response.ok) throw new ApiError(response.status);
+  if (!response.ok) throw await toApiError(response);
   return (await response.json()) as T;
 }

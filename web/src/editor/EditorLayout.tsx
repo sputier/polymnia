@@ -34,6 +34,13 @@ interface EditorLayoutProps {
   saveState?: SaveState;
   /** The editor state. Defaults to a new empty score (tests pass their own). */
   store?: EditorStore;
+  /** Controlled title (a stored score); without it the title is local to the editor. */
+  title?: string;
+  onTitleChange?: (title: string) => void;
+  /** Ctrl+S: save now (a stored score). */
+  onSaveNow?: () => void;
+  /** Called before leaving for the library; return false to stay (unsaved work the user keeps). */
+  onBeforeLeave?: () => boolean;
 }
 
 /** Preview and test parameters of the hash: `#/editor?new=<measures>` and `?fixture=<name>`. */
@@ -53,7 +60,14 @@ function bindNotePreview(store: EditorStore): () => void {
   };
 }
 
-export function EditorLayout({ saveState = 'saved', store: given }: EditorLayoutProps) {
+export function EditorLayout({
+  saveState = 'saved',
+  store: given,
+  title: givenTitle,
+  onTitleChange,
+  onSaveNow,
+  onBeforeLeave,
+}: EditorLayoutProps) {
   const { t } = useI18n();
   const [store] = useState(() => {
     if (given) return given;
@@ -98,7 +112,9 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
   const { mode, setMode, toggle: toggleMode } = useUiMode();
   const overlay = useMediaQuery(OVERLAY_QUERY);
   const advanced = mode === 'advanced';
-  const [title, setTitle] = useState('');
+  const [localTitle, setLocalTitle] = useState('');
+  const title = givenTitle ?? localTitle;
+  const setTitle = onTitleChange ?? setLocalTitle;
   const io = useMusicXmlIO(store, title, setTitle);
   // null = "not chosen yet": open on wide screens, closed as an overlay.
   const [leftChoice, setLeftChoice] = useState<boolean | null>(null);
@@ -258,6 +274,32 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
       group: 'playback',
       handler: () => playback.home(),
     },
+    ...(onSaveNow
+      ? [
+          {
+            id: 'file.save',
+            keys: 'Mod+S',
+            labelKey: 'shortcut.saveNow',
+            group: 'file',
+            allowInInput: true,
+            handler: onSaveNow,
+          } satisfies Shortcut,
+        ]
+      : []),
+    ...(onBeforeLeave
+      ? [
+          {
+            id: 'file.library',
+            keys: 'Alt+L',
+            labelKey: 'shortcut.backToLibrary',
+            group: 'file',
+            allowInInput: true,
+            handler: () => {
+              if (onBeforeLeave()) window.location.hash = '#/';
+            },
+          } satisfies Shortcut,
+        ]
+      : []),
     ...entryShortcuts(store),
   ];
   useShortcuts(shortcutList);
@@ -298,6 +340,7 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
         onToggleFocus={() => setFocus(true)}
         title={title}
         onTitleChange={setTitle}
+        {...(onBeforeLeave ? { onBeforeLeave } : {})}
         saveState={saveState}
         mode={mode}
         onModeChange={setMode}
