@@ -40,7 +40,7 @@ File names come from the score title (`Long-piece.pdf`, `score.mid` without a ti
 
 So (a) does not satisfy "embed Bravura correctly" without extra machinery, and (b) cannot produce a file or be tested. (c) gives exact output for the SVG subset VexFlow uses.
 
-- **Page content.** The score is engraved **once** at the page width (`printGeometry`: a staff space of 10 px becomes 6 pt, about 2.1 mm; if one system is taller than a page the scale shrinks until it fits) by the same `Engraver` and layout as on screen, in an off-screen container. `planPages` fills pages greedily with whole systems (a system never splits; the first page keeps room for the title block). Each page is then read back from the SVG.
+- **Page content.** The score is engraved **once** at the page width (`printGeometry`: a staff space of 10 px becomes 1.75 mm, about 4.96 pt, `DEFAULT_STAFF_SPACE_MM`, the usual size of printed scores on A4; `exportPdf` and `exportPng` take an optional `staffSpaceMm`; if one system is taller than a page the scale shrinks until it fits) by the same `Engraver` and layout as on screen, in an off-screen container. `planPages` fills pages greedily with whole systems (a system never splits; the first page keeps room for the title block). A page that is not the last one then spreads its leftover height evenly between its systems (`systemSpread`, at most 24 pt per gap), so full pages look filled with the same distance between systems; the last page keeps the natural distance. Part names are abbreviated after the first system (see [engraving.md](engraving.md)). A 100-measure 4/4 piano score (quarter notes over half notes) takes 4 to 5 measures per system and 3 pages on A4 (it took 7 before #46). Each page is then read back from the SVG.
 - **SVG to drawing items** (`svgItems.ts`, `paths.ts`). `path`, `rect`, `line`, `g` (with `translate`/`scale`/`matrix`) and `text` are converted to a flat list of items: filled/stroked paths (absolute move, line, cubic, close; quadratics and arcs become cubics) and text. Fill and stroke are kept as flags only: ink is black whatever the theme, CSS classes (`pm-selected`, `pm-playing`) are ignored, hit rectangles (`opacity="0"`) and overlays are skipped.
 - **Bravura glyphs as vector outlines.** `text` made of Private Use Area characters (SMuFL) becomes the glyph outline, scaled and positioned like the text would have been. The outlines (164 glyphs: brace and brackets, clefs, time signature digits, noteheads, dots, flags, accidentals, rests, tuplet digits) are in `web/src/export/bravura-outlines.json` (124 KB, 41 KB gzip), generated from the Bravura `.otf` by `node scripts/export/build-glyphs.mjs` (dev dependency `opentype.js`, MIT). A glyph outside the table is **reported** (`glyph-U+XXXX`), never silently drawn as a box; a unit test engraves every fixture and fails if one is missing. When the engraver learns new symbols (articulations, dynamics), add their range in the script and rerun it.
 - **Other text** (part names, tab fret numbers, title, composer, page number) is Helvetica, one of the 14 standard PDF fonts (nothing to embed), WinAnsi encoded. Characters Helvetica cannot show (CJK, Cyrillic, Greek) print as `?`. Centering and truncation use the Helvetica width table. This is the main limit of the approach: a title in another script would need an embedded font.
@@ -58,13 +58,13 @@ Nothing is loaded from a third party and no worker is created: the export runs i
 
 ## Performance
 
-Chromium, production build, Windows 11 laptop, a 100-measure piano score (grand staff, 11 pages A4), measured with User Timing in `e2e/export.spec.ts` (best-of-three after the lazy chunk is loaded):
+Chromium, production build, Windows 11 laptop, a 100-measure piano score (grand staff, 3 pages A4), measured with User Timing in `e2e/export.spec.ts` (best-of-three after the lazy chunk is loaded):
 
 | What | Budget | Measured |
 | --- | --- | --- |
 | MIDI | < 50 ms | 0.4 to 1.6 ms |
-| PDF (engrave, pages, write) | < 3 s | 300 to 340 ms |
-| PNG (11 pages at 2x, zipped) | < 2 s | 380 to 510 ms |
+| PDF (engrave, pages, write) | < 3 s | 100 to 120 ms |
+| PNG (3 pages at 2x, zipped) | < 2 s | 155 to 175 ms |
 | Export chunk | gzip budget 70 KB (`npm run size`) | 48.6 KB (41 KB of it are the glyph outlines) |
 | Initial JS | <= 150 KB gzip | unchanged by the export code (the menu items and the paper preference are a few hundred bytes) |
 
@@ -78,5 +78,5 @@ Chromium, production build, Windows 11 laptop, a 100-measure piano score (grand 
 
 - Titles and part names in non-Latin scripts print as `?` in the PDF (the PNG uses the browser's fallback fonts).
 - Notation the engraver does not draw yet (dynamics, articulations) will need its glyphs added to the outline table.
-- Repeats, lyrics and page-level options (margins, scale, system spacing) are not exported yet; the page scale is fixed at 6 pt per staff space.
+- Repeats, lyrics and page-level options (margins, system spacing) are not exported yet; the staff space is 1.75 mm unless the `staffSpaceMm` argument says otherwise (no menu entry yet).
 - MIDI has no dynamics, pedal or articulation (the model has none yet).

@@ -6,7 +6,7 @@
  * Per-measure work (columns, minimum width) is cached: an edit only recomputes the measures whose
  * staff measures changed (the score model shares unchanged objects by reference).
  */
-import { getInstrument } from '../score/instruments';
+import { getInstrument, shortPartName } from '../score/instruments';
 import { clefAt, keyFifthsAt, measureLength, timeSignatureAt } from '../score/query';
 import type {
   Clef,
@@ -34,33 +34,35 @@ import {
 export const METRICS = {
   marginX: 10,
   bracket: 16,
-  nameGap: 10,
+  nameGap: 8,
   nameChar: 6.6,
   nameMax: 150,
-  clef: 40,
+  clef: 38,
   clefSmall: 28,
   keyBase: 8,
   keyPer: 10,
-  time: 30,
+  time: 26,
   timeWide: 42,
-  padLeft: 12,
-  padRight: 10,
+  padLeft: 8,
+  padRight: 6,
   minNoteArea: 40,
-  stretchBase: 4,
-  stretchPer: 12,
-  head: 14,
-  dot: 7,
+  /** Spacing curve: stretchBase + stretchPer * log2(gap / 120 + 1), gap in ticks. */
+  stretchBase: 1,
+  stretchPer: 8,
+  /** Notehead (Bravura, 1.18 staff space) plus a minimum gap to the next column. */
+  head: 13,
+  dot: 6,
   second: 10,
   flag: 4,
-  accidentalBase: 4,
-  accidentalPer: 11,
-  topPad: 44,
-  bottomPad: 44,
-  staffGap: 56,
-  partGap: 72,
+  accidentalBase: 3,
+  accidentalPer: 10,
+  topPad: 36,
+  bottomPad: 32,
+  staffGap: 48,
+  partGap: 56,
   systemGap: 6,
-  /** Last system is not stretched beyond this ratio of its natural width. */
-  lastSystemStretch: 1.35,
+  /** A last system fuller than this ratio of the line is justified; a shorter one is left alone. */
+  lastSystemFull: 0.6,
 } as const;
 
 export interface StaffSlot {
@@ -160,7 +162,9 @@ export interface SystemLayout {
   readonly lastMeasure: number;
   readonly measures: readonly PlacedMeasure[];
   readonly staves: readonly StaffSlot[];
+  /** Part names are drawn at the left: full on the first system, abbreviated on the others. */
   readonly names: boolean;
+  readonly shortNames: boolean;
 }
 
 export interface Layout {
@@ -412,10 +416,12 @@ function shapeMinNoteArea(shape: MeasureShape): number {
   );
 }
 
-function nameBlock(score: Score): number {
+function nameBlock(score: Score, short = false): number {
   let max = 0;
-  for (const p of score.parts)
-    max = Math.max(max, Math.min(p.name.length * METRICS.nameChar, METRICS.nameMax));
+  for (const p of score.parts) {
+    const text = short ? shortPartName(p) : p.name;
+    max = Math.max(max, Math.min(text.length * METRICS.nameChar, METRICS.nameMax));
+  }
   return max;
 }
 
@@ -504,9 +510,10 @@ export function layoutScore(
   const sysHeight = systemHeight(slots);
   const count = score.measures.length;
   const names = nameBlock(score);
+  const shortNames = nameBlock(score, true);
   const bracket = hasBracket(score) ? METRICS.bracket : 0;
   const firstX = METRICS.marginX + (names > 0 ? names + METRICS.nameGap : 0) + bracket;
-  const otherX = METRICS.marginX + bracket;
+  const otherX = METRICS.marginX + (shortNames > 0 ? shortNames + METRICS.nameGap : 0) + bracket;
   const right = Math.max(options.width - METRICS.marginX, firstX + METRICS.minNoteArea);
 
   const shapes: MeasureShape[] = [];
@@ -552,7 +559,7 @@ export function layoutScore(
     );
     const areaTotal = noteAreas.reduce((a, b) => a + b, 0);
     let scale = free > 0 ? 1 + free / areaTotal : 1;
-    if (isLast) scale = Math.min(scale, METRICS.lastSystemStretch);
+    if (isLast && (used + endWidth) / avail < METRICS.lastSystemFull) scale = 1;
     // A single measure wider than the page: squeeze the proportional space, keep the glyph room.
     let squeeze = 1;
     if (free < 0) {
@@ -606,7 +613,8 @@ export function layoutScore(
       lastMeasure: last,
       measures: placed,
       staves: slots,
-      names: first,
+      names: first ? names > 0 : shortNames > 0,
+      shortNames: !first,
     });
     y += sysHeight + METRICS.systemGap;
     m = last + 1;

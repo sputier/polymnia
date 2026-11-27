@@ -26,6 +26,7 @@ import {
   type RenderContext,
   type StemmableNote,
 } from 'vexflow/core';
+import { shortPartName } from '../score/instruments';
 import type {
   Clef,
   Duration,
@@ -521,7 +522,7 @@ function drawNames(ctx: RenderContext, score: Score, system: SystemLayout): void
     const y = (first.top + last.top + last.height) / 2 + 4;
     ctx.save();
     ctx.setFont('Inter, system-ui, sans-serif', 12, 'normal');
-    ctx.fillText(truncate(part.name), METRICS.marginX, y);
+    ctx.fillText(truncate(system.shortNames ? shortPartName(part) : part.name), METRICS.marginX, y);
     ctx.restore();
   }
 }

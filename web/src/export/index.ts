@@ -57,7 +57,7 @@ interface Engraved {
 }
 
 /** Engraves the score at page width in an off-screen container. */
-async function engrave(score: Score, paper: Paper): Promise<Engraved> {
+async function engrave(score: Score, paper: Paper, staffSpaceMm?: number): Promise<Engraved> {
   const { Engraver } = await import('../engraving/engraver');
   const container = document.createElement('div');
   container.setAttribute('aria-hidden', 'true');
@@ -66,10 +66,10 @@ async function engrave(score: Score, paper: Paper): Promise<Engraved> {
   document.body.appendChild(container);
   const engraver = new Engraver(container);
   try {
-    let geometry = printGeometry(paper, 0);
+    let geometry = printGeometry(paper, 0, staffSpaceMm);
     engraver.render(score, geometry.width);
     const tallest = Math.max(0, ...engraver.layout.systems.map((s) => s.height));
-    const fitted = printGeometry(paper, tallest);
+    const fitted = printGeometry(paper, tallest, staffSpaceMm);
     if (fitted.scale < geometry.scale) {
       // A system taller than a page (many parts): print smaller, which also widens the lines.
       geometry = fitted;
@@ -103,8 +103,9 @@ async function eachPage(
   paper: Paper,
   onProgress: ((p: Progress) => void) | undefined,
   consume: (page: Page, index: number) => Promise<void> | void,
+  staffSpaceMm?: number,
 ): Promise<{ pages: number; dropped: Record<string, number> }> {
-  const engraved = await engrave(score, paper);
+  const engraved = await engrave(score, paper, staffSpaceMm);
   const dropped: Record<string, number> = {};
   const total = engraved.plan.pages.length;
   try {
@@ -126,12 +127,20 @@ export function exportPdf(
   title: string,
   paper: Paper,
   onProgress?: (p: Progress) => void,
+  staffSpaceMm?: number,
 ): Promise<ExportFile> {
   return timed('export:pdf', async () => {
     const pages: Page[] = [];
-    const { dropped } = await eachPage(score, title, paper, onProgress, (page) => {
-      pages.push(page);
-    });
+    const { dropped } = await eachPage(
+      score,
+      title,
+      paper,
+      onProgress,
+      (page) => {
+        pages.push(page);
+      },
+      staffSpaceMm,
+    );
     const bytes = buildPdf(pages, {
       title: title || score.meta.title,
       author: score.meta.composer,
@@ -147,12 +156,20 @@ export function exportPng(
   title: string,
   paper: Paper,
   onProgress?: (p: Progress) => void,
+  staffSpaceMm?: number,
 ): Promise<ExportFile> {
   return timed('export:png', async () => {
     const files: Uint8Array<ArrayBuffer>[] = [];
-    const { pages, dropped } = await eachPage(score, title, paper, onProgress, async (page) => {
-      files.push(await renderPng(page));
-    });
+    const { pages, dropped } = await eachPage(
+      score,
+      title,
+      paper,
+      onProgress,
+      async (page) => {
+        files.push(await renderPng(page));
+      },
+      staffSpaceMm,
+    );
     if (files.length === 1) {
       return { bytes: files[0]!, mime: 'image/png', extension: 'png', dropped, pages };
     }

@@ -4,6 +4,8 @@ import type { Alter, Clef, Part, Pitch, StepName } from './types';
 export interface InstrumentDef {
   readonly id: string;
   readonly names: { readonly en: string; readonly fr: string };
+  /** Abbreviated name, drawn on every system after the first. */
+  readonly short: { readonly en: string; readonly fr: string };
   /** Default clef first; the others are common alternatives. */
   readonly clefs: readonly Clef[];
   /** Written to sounding transposition in semitones (classical guitar: -12). */
@@ -25,6 +27,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'piano',
     names: { en: 'Piano', fr: 'Piano' },
+    short: { en: 'Pno.', fr: 'Pno.' },
     clefs: ['treble', 'bass'],
     transposition: 0,
     range: { low: p('A', 0), high: p('C', 8) },
@@ -34,6 +37,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'voice',
     names: { en: 'Voice', fr: 'Voix' },
+    short: { en: 'Vo.', fr: 'Voix' },
     clefs: ['treble', 'bass'],
     transposition: 0,
     range: { low: p('C', 3), high: p('A', 5) },
@@ -43,6 +47,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'flute',
     names: { en: 'Flute', fr: 'Flûte' },
+    short: { en: 'Fl.', fr: 'Fl.' },
     clefs: ['treble'],
     transposition: 0,
     range: { low: p('C', 4), high: p('C', 7) },
@@ -52,6 +57,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'clarinet',
     names: { en: 'Clarinet in B♭', fr: 'Clarinette en si♭' },
+    short: { en: 'Cl.', fr: 'Cl.' },
     clefs: ['treble'],
     transposition: -2,
     range: { low: p('D', 3), high: p('B', 6, -1) },
@@ -61,6 +67,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'double-bass',
     names: { en: 'Double bass', fr: 'Contrebasse' },
+    short: { en: 'D.B.', fr: 'Cb.' },
     clefs: ['bass', 'tenor'],
     transposition: -12,
     range: { low: p('E', 1), high: p('G', 4) },
@@ -70,6 +77,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'violin',
     names: { en: 'Violin', fr: 'Violon' },
+    short: { en: 'Vln.', fr: 'Vln.' },
     clefs: ['treble'],
     transposition: 0,
     range: { low: p('G', 3), high: p('E', 7) },
@@ -79,6 +87,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'cello',
     names: { en: 'Cello', fr: 'Violoncelle' },
+    short: { en: 'Vc.', fr: 'Vc.' },
     clefs: ['bass', 'tenor', 'treble'],
     transposition: 0,
     range: { low: p('C', 2), high: p('A', 5) },
@@ -88,6 +97,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'guitar-classical',
     names: { en: 'Classical guitar', fr: 'Guitare classique' },
+    short: { en: 'Gtr.', fr: 'Guit.' },
     clefs: ['treble-8vb'],
     transposition: -12,
     range: { low: p('E', 2), high: p('B', 5) },
@@ -99,6 +109,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'guitar-steel',
     names: { en: 'Steel-string guitar', fr: 'Guitare folk' },
+    short: { en: 'Gtr.', fr: 'Guit.' },
     clefs: ['treble-8vb'],
     transposition: -12,
     range: { low: p('E', 2), high: p('C', 6) },
@@ -110,6 +121,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'ukulele-soprano',
     names: { en: 'Soprano ukulele', fr: 'Ukulélé soprano' },
+    short: { en: 'Uke', fr: 'Uk.' },
     clefs: ['treble'],
     transposition: 0,
     range: { low: p('C', 4), high: p('C', 6) },
@@ -121,6 +133,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'ukulele-concert',
     names: { en: 'Concert ukulele', fr: 'Ukulélé concert' },
+    short: { en: 'Uke', fr: 'Uk.' },
     clefs: ['treble'],
     transposition: 0,
     range: { low: p('C', 4), high: p('D', 6) },
@@ -132,6 +145,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'ukulele-tenor',
     names: { en: 'Tenor ukulele', fr: 'Ukulélé ténor' },
+    short: { en: 'Uke', fr: 'Uk.' },
     clefs: ['treble'],
     transposition: 0,
     range: { low: p('C', 4), high: p('D', 6, 1) },
@@ -143,6 +157,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'ukulele-tenor-low-g',
     names: { en: 'Tenor ukulele (low G)', fr: 'Ukulélé ténor (sol grave)' },
+    short: { en: 'Uke', fr: 'Uk.' },
     clefs: ['treble'],
     transposition: 0,
     range: { low: p('G', 3), high: p('D', 6, 1) },
@@ -154,6 +169,7 @@ export const INSTRUMENTS: readonly InstrumentDef[] = [
   {
     id: 'ukulele-baritone',
     names: { en: 'Baritone ukulele', fr: 'Ukulélé baryton' },
+    short: { en: 'Uke', fr: 'Uk.' },
     clefs: ['treble'],
     transposition: 0,
     range: { low: p('D', 3), high: p('G', 5) },
@@ -168,6 +184,23 @@ const BY_ID = new Map(INSTRUMENTS.map((i) => [i.id, i]));
 
 export function getInstrument(id: string): InstrumentDef | undefined {
   return BY_ID.get(id);
+}
+
+/**
+ * Name drawn on the systems after the first: the catalog short name when the part still carries the
+ * catalog name (English or French), else the given name, shortened to 8 characters with a dot.
+ */
+export function shortPartName(part: {
+  readonly name: string;
+  readonly instrument: string;
+}): string {
+  const def = BY_ID.get(part.instrument);
+  if (def) {
+    if (part.name === def.names.en) return def.short.en;
+    if (part.name === def.names.fr) return def.short.fr;
+  }
+  const name = part.name.trim();
+  return name.length > 8 ? `${name.slice(0, 7)}.` : name;
 }
 
 /** Effective open-string tuning of a part: its override, else the catalog tuning. */

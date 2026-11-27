@@ -40,7 +40,7 @@ Les noms de fichier viennent du titre de la partition (`Long-piece.pdf`, `score.
 
 (a) ne satisfait donc pas « embarquer Bravura correctement » sans mécanique supplémentaire, et (b) ne produit pas de fichier et ne se teste pas. (c) donne un rendu exact pour le sous-ensemble de SVG que VexFlow utilise.
 
-- **Contenu des pages.** La partition est gravée **une fois** à la largeur de la page (`printGeometry` : un interligne de 10 px devient 6 pt, soit environ 2,1 mm ; si un système est plus haut qu'une page, l'échelle diminue jusqu'à ce qu'il tienne) par le même `Engraver` et la même mise en page qu'à l'écran, dans un conteneur hors écran. `planPages` remplit les pages avec des systèmes entiers (un système ne se coupe jamais ; la première page garde la place du bloc titre). Chaque page est ensuite relue depuis le SVG.
+- **Contenu des pages.** La partition est gravée **une fois** à la largeur de la page (`printGeometry` : un interligne de 10 px devient 1,75 mm, soit environ 4,96 pt, `DEFAULT_STAFF_SPACE_MM`, la taille usuelle des partitions imprimées en A4 ; `exportPdf` et `exportPng` acceptent un argument optionnel `staffSpaceMm` ; si un système est plus haut qu'une page, l'échelle diminue jusqu'à ce qu'il tienne) par le même `Engraver` et la même mise en page qu'à l'écran, dans un conteneur hors écran. `planPages` remplit les pages avec des systèmes entiers (un système ne se coupe jamais ; la première page garde la place du bloc titre). Une page qui n'est pas la dernière répartit ensuite sa hauteur restante à parts égales entre ses systèmes (`systemSpread`, 24 pt au plus par intervalle) : les pages pleines paraissent remplies, avec la même distance entre systèmes ; la dernière page garde la distance naturelle. Les noms de parties sont abrégés après le premier système (voir [engraving.fr.md](engraving.fr.md)). Une partition de piano de 100 mesures à 4/4 (noires sur blanches) tient en 4 à 5 mesures par système et 3 pages A4 (7 avant #46). Chaque page est ensuite relue depuis le SVG.
 - **SVG vers éléments de dessin** (`svgItems.ts`, `paths.ts`). `path`, `rect`, `line`, `g` (avec `translate`/`scale`/`matrix`) et `text` deviennent une liste plate d'éléments : chemins remplis/tracés (déplacement, ligne, cubique, fermeture absolus ; quadratiques et arcs deviennent des cubiques) et texte. Remplissage et trait ne sont conservés que comme indicateurs : l'encre est noire quel que soit le thème, les classes CSS (`pm-selected`, `pm-playing`) sont ignorées, les rectangles de détection (`opacity="0"`) et les calques sont ignorés.
 - **Glyphes Bravura en contours vectoriels.** Un `text` fait de caractères de la zone d'usage privé (SMuFL) devient le contour du glyphe, mis à l'échelle et positionné comme l'aurait été le texte. Les contours (164 glyphes : accolade et crochets, clés, chiffres de métrique, têtes de notes, points, crochets, altérations, silences, chiffres de n-olets) sont dans `web/src/export/bravura-outlines.json` (124 Ko, 41 Ko gzip), générés depuis le `.otf` de Bravura par `node scripts/export/build-glyphs.mjs` (dépendance de développement `opentype.js`, MIT). Un glyphe absent de la table est **signalé** (`glyph-U+XXXX`), jamais dessiné comme un carré en silence ; un test unitaire grave toutes les fixtures et échoue s'il en manque un. Quand le moteur saura dessiner de nouveaux symboles (articulations, nuances), ajoutez leur plage dans le script et relancez-le.
 - **Autres textes** (noms de parties, numéros de case de tablature, titre, compositeur, numéro de page) en Helvetica, l'une des 14 polices standard du PDF (rien à embarquer), encodée WinAnsi. Les caractères que l'Helvetica ne sait pas afficher (CJK, cyrillique, grec) s'impriment `?`. Le centrage et la troncature utilisent la table des largeurs Helvetica. C'est la principale limite de l'approche : un titre dans une autre écriture demanderait une police embarquée.
@@ -58,13 +58,13 @@ Rien n'est chargé depuis un tiers et aucun worker n'est créé : l'export tourn
 
 ## Performances
 
-Chromium, build de production, portable Windows 11, partition de piano de 100 mesures (système de piano, 11 pages A4), mesurées avec User Timing dans `e2e/export.spec.ts` (meilleur de trois après chargement du chunk paresseux) :
+Chromium, build de production, portable Windows 11, partition de piano de 100 mesures (système de piano, 3 pages A4), mesurées avec User Timing dans `e2e/export.spec.ts` (meilleur de trois après chargement du chunk paresseux) :
 
 | Quoi                              | Budget                              | Mesuré                                          |
 | --------------------------------- | ----------------------------------- | ----------------------------------------------- |
 | MIDI                              | < 50 ms                             | 0,4 à 1,6 ms                                    |
-| PDF (gravure, pages, écriture)    | < 3 s                               | 300 à 340 ms                                    |
-| PNG (11 pages en 2x, zippées)     | < 2 s                               | 380 à 510 ms                                    |
+| PDF (gravure, pages, écriture)    | < 3 s                               | 100 à 120 ms                                    |
+| PNG (3 pages en 2x, zippées)      | < 2 s                               | 155 à 175 ms                                    |
 | Chunk d'export                    | budget gzip 70 Ko (`npm run size`)  | 48,6 Ko (dont 41 Ko de contours de glyphes)     |
 | JS initial                        | <= 150 Ko gzip                      | non modifié par le code d'export (les entrées de menu et la préférence de papier pèsent quelques centaines d'octets) |
 
@@ -78,5 +78,5 @@ Chromium, build de production, portable Windows 11, partition de piano de 100 me
 
 - Les titres et noms de parties dans une écriture non latine s'impriment `?` dans le PDF (le PNG utilise les polices de repli du navigateur).
 - La notation que le moteur ne dessine pas encore (nuances, articulations) demandera l'ajout de ses glyphes à la table des contours.
-- Reprises, paroles et options de page (marges, échelle, espacement des systèmes) ne sont pas encore exportées ; l'échelle de page est fixée à 6 pt par interligne.
+- Reprises, paroles et options de page (marges, espacement des systèmes) ne sont pas encore exportées ; l'interligne imprimé est de 1,75 mm sauf si l'argument `staffSpaceMm` dit autrement (pas encore d'entrée de menu).
 - Le MIDI n'a ni nuances, ni pédale, ni articulations (le modèle n'en a pas encore).

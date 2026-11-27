@@ -218,12 +218,12 @@ test.describe('playback', () => {
   });
 
   test('the page scrolls to follow the cursor', async ({ page }) => {
-    await openEditor(page, 40);
+    await openEditor(page, 100);
     const area = page.locator('.score-area');
     expect(await area.evaluate((el) => el.scrollTop)).toBeGreaterThanOrEqual(0);
     await area.evaluate((el) => (el.scrollTop = 0));
     // Start far down the score: the view has to jump to the cursor.
-    await page.evaluate(() => (window as unknown as W).__polymnia?.playback.seekTick(3840 * 30));
+    await page.evaluate(() => (window as unknown as W).__polymnia?.playback.seekTick(3840 * 90));
     await page.getByRole('button', { name: 'Play', exact: true }).click();
     await expect
       .poll(() => area.evaluate((el) => el.scrollTop), { timeout: 5000 })

@@ -33,17 +33,17 @@ Everything that does not need VexFlow is pure TypeScript and unit-tested in jsdo
 All sizes are px; one staff space is 10 px (13 px on tab staves).
 
 1. **Measure shape** (cached per measure). All staves of a measure are analysed together so that notes of different staves line up. The events are grouped in _columns_, one per distinct onset (tick). Each column gets:
-   - `lead`: room before the notehead for accidentals (4 + 11 px per stacked accidental, up to 3),
-   - `glyph`: notehead, dots (7 px each), displaced second in a chord, flag,
-   - `stretch`: proportional space after the column, `4 + 12 x log2(gap / 120 + 1)` where `gap` is the time (ticks) to the next column or to the end of the measure. A quarter gets about 43 px, a half about 54 px, a 16th about 23 px: widths grow with duration but sub-linearly.
+   - `lead`: room before the notehead for accidentals (3 + 10 px per stacked accidental, up to 3),
+   - `glyph`: notehead, dots (6 px each), displaced second in a chord, flag,
+   - `stretch`: proportional space after the column, `1 + 8 x log2(gap / 120 + 1)` where `gap` is the time (ticks) to the next column or to the end of the measure. A quarter gets about 26 px (plus its 13 px notehead), a half about 34 px, a 16th about 14 px: widths grow with duration but sub-linearly (a Gourlay-like logarithmic curve, so doubling a duration never doubles its space). The notehead width (13 px = the 1.18 staff space of Bravura plus a small gap) is the minimum distance between two columns; accidentals, dots, flags and displaced seconds add their own glyph widths, and a test checks that an accidental never runs into the previous note. The curve has a fixed reference rather than the shortest duration of the system, which keeps measure shapes cacheable per measure.
      The minimum note area of a measure is `padLeft + sum(lead + glyph + stretch) + padRight`. Accidentals follow the key signature and the measure-local state (any voice, in time order; a pitch tied from the previous measure does not repeat its accidental).
-2. **Start modifiers.** The first measure of a system gets a full clef, the key signature (if not C major) and, at the start of the score or when it changes, the time signature. A mid-system measure only shows what changes: a small clef, a key signature with naturals cancelling the old one, a time signature.
+2. **Start modifiers.** (Widths are the room VexFlow really needs: clef 38 px, time signature 26 px, small clef 28 px; a test fails if VexFlow draws wider than reserved.) The first measure of a system gets a full clef, the key signature (if not C major) and, at the start of the score or when it changes, the time signature. A mid-system measure only shows what changes: a small clef, a key signature with naturals cancelling the old one, a time signature.
 3. **Packing.** Systems are filled greedily: a measure joins the system while the sum of widths (start modifiers included) fits the available width. If the next measure announces a key, time or clef change, the end of the system needs room for the **courtesy** signs; measures are removed from the system until they fit.
-4. **Justification.** The free space of a system is spread over its measures in proportion to their note area, then inside each measure over the `stretch` of every column: spacing stays proportional. The last system is stretched by at most 1.35. A single measure wider than the page keeps its glyph room and gives up proportional space.
+4. **Justification.** The free space of a system is spread over its measures in proportion to their note area, then inside each measure over the `stretch` of every column: spacing stays proportional. Justification only stretches. A **last system shorter than 60 % of the line is left at its natural width**; a fuller one is justified like the others. A single measure wider than the page keeps its glyph room and gives up proportional space.
 5. **Positions.** Every column gets an x. After VexFlow has prepared the notes (accidentals, stems, dots), each tick context is moved to that x. A measure that only holds a rest is centered. The same x values feed the hit test, so no DOM measurement is needed.
-6. **Vertical stacking.** Staves of one part are 56 px apart, parts 72 px, with 44 px above and below each system. Tab staves have as many lines as the instrument has strings (`Part.tuning` or the catalog).
+6. **Vertical stacking.** Staves of one part are 48 px apart, parts 56 px, with 36 px above and 32 px below each system. Tab staves have as many lines as the instrument has strings (`Part.tuning` or the catalog).
 
-Other rules: a pickup measure uses its own `length` (it gets less width); braces join the staves of a part with two standard staves (a bracket for standard + tab), a bracket joins the parts; part names are drawn on the first system only; the last measure gets the final barline; `treble-8vb` is a treble clef with a small 8 below (the written position is the treble one); beaming follows the beat (a dotted quarter in compound meters), never across rests or beats; tuplet members are beamed by their real duration; the second voice of a staff has stems down; slurs and ties may cross systems.
+Other rules: a pickup measure uses its own `length` (it gets less width); braces join the staves of a part with two standard staves (a bracket for standard + tab), a bracket joins the parts; the first system shows the full part names and the following ones the **short names** (`InstrumentDef.short`, English and French, in the catalog: `Pno.`, `Vln.`, `Vc.`...; a part renamed by the user keeps its own name, cut to 8 characters with a dot when longer) in a narrower indent; the last measure gets the final barline; `treble-8vb` is a treble clef with a small 8 below (the written position is the treble one); beaming follows the beat (a dotted quarter in compound meters), never across rests or beats; tuplet members are beamed by their real duration; the second voice of a staff has stems down; slurs and ties may cross systems.
 
 ## Hit testing and boxes
 
@@ -109,7 +109,7 @@ Line-break hysteresis during note input was not needed to meet the budget and is
 
 ## Tests
 
-- Unit (Vitest): `notation.test.ts`, `layout.test.ts` (system breaking, widths, justification, courtesy changes, cache), `hitTest.test.ts`, `ScoreView.test.tsx`.
+- Unit (Vitest): `notation.test.ts`, `layout.test.ts` (system breaking, widths, justification, courtesy changes, cache, density, spacing, accidentals, short last system), `../web/src/export/density.test.ts` (measures per system and A4 page count of the 100-measure fixture), `hitTest.test.ts`, `ScoreView.test.tsx`.
 - Browser (Playwright, `e2e/engraving.spec.ts`): every fixture engraves without error and without overflow, layout agrees with VexFlow, real click hit test, highlight toggles, dark theme, resize, **performance budgets**.
 - Browser, re-flow (`e2e/engraving.spec.ts`): after a re-flow, only part of the systems is engraved by the call, hit testing answers for the last (undrawn) system, then every system is drawn, in order.
 - Browser, keystroke budget (`e2e/note-entry.spec.ts`, "performance"): real key events on a 100-measure score, time from the key to the end of the synchronous render, p95 < 16 ms for a filled score, for a re-flow at the top of a filled score and while filling an empty score. `PLAYWRIGHT_PORT` changes the preview port when another run uses 4173.
@@ -130,17 +130,17 @@ Commit the changed PNG files with the code that changed the rendering, and say w
 
 ## Numbers
 
-Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 measures, grand staff, 34 systems at 1100 px, mostly eighth notes with accidentals and ties.
+Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 measures, grand staff, 23 systems at 1100 px (34 before #46), mostly eighth notes with accidentals and ties.
 
 | What                                                                            | Budget          | Measured                                                                  |
 | ------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------- |
-| First system painted (after the chunk is loaded)                                | < 100 ms        | about 45 ms (was 230 ms: the whole render)                                |
-| Full render, first ever (JIT cold), all systems                                 | n/a             | 230 to 320 ms (the drawing work is unchanged; it now runs in idle chunks) |
-| Full render, warm (median of 7)                                                 | < 200 ms        | about 120 ms                                                              |
-| One edit, median / max of 25                                                    | < 16 ms         | about 6 ms / 10 ms                                                        |
-| Keystroke, filled score, median / p95 / max of 40                               | p95 < 16 ms     | 8.6 / 11.8 / 12.1 ms (edit on screen)                                     |
-| Keystroke with a re-flow at the top of a filled score, median / p95 / max of 40 | p95 < 16 ms     | 7.1 / 11.2 / 11.6 ms, 2 systems at most (before: 9.5 / 16.2 / 16.5 ms)    |
-| Keystroke while filling an empty score, median / p95 / max of 400               | p95 < 16 ms     | 3.8 / 7.2 / 11.3 ms (before: 3.3 / 6.6 / 24.5 ms)                         |
+| First system painted (after the chunk is loaded)                                | < 100 ms        | about 27 ms                                |
+| Full render, first ever (JIT cold), all systems                                 | n/a             | about 207 ms (drawing runs in idle chunks) |
+| Full render, warm (median of 7)                                                 | < 200 ms        | about 83 ms                                                              |
+| One edit, median / max of 25                                                    | < 16 ms         | about 4.9 ms / 9 ms                                                        |
+| Keystroke, filled score, median / p95 / max of 40                               | p95 < 16 ms     | 9.6 / 14.1 / 15.2 ms (edit on screen; systems hold more measures, so each one costs more)                                     |
+| Keystroke with a re-flow at the top of a filled score, median / p95 / max of 40 | p95 < 16 ms     | 9.3 / 13.7 / 14.0 ms, 1 system at most    |
+| Keystroke while filling an empty score, median / p95 / max of 400               | p95 < 16 ms     | 3.7 / 7.1 / 12.6 ms                         |
 | Highlight (selection + playing)                                                 | class toggle    | < 1 ms                                                                    |
 | Layout alone (jsdom)                                                            | n/a             | a few ms                                                                  |
 | Initial JS                                                                      | <= 150 KB gzip  | 72.7 KB                                                                   |

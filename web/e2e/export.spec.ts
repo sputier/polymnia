@@ -96,6 +96,19 @@ test.describe('export', () => {
     expect(bytes.toString('latin1')).toContain('/MediaBox [0 0 595.28 841.89]');
   });
 
+  test('PDF: 100 simple 4/4 measures fit on at most 5 A4 pages (#46)', async ({ page }) => {
+    test.setTimeout(60_000);
+    await importLong(page, 100);
+    await page.getByRole('button', { name: 'Export' }).click();
+    await page.getByRole('menuitemradio', { name: 'Paper: A4' }).click();
+    const { bytes } = await exportAs(page, 'PDF');
+    const text = bytes.toString('latin1');
+    expect(text).toContain('/MediaBox [0 0 595.28 841.89]');
+    const count = Number(/\/Count (\d+)/.exec(text)![1]);
+    expect(count).toBeGreaterThanOrEqual(2);
+    expect(count).toBeLessThanOrEqual(5);
+  });
+
   test('PNG: one image for a short score, a zip of images for a long one', async ({ page }) => {
     test.setTimeout(60_000);
     const one = await exportAs(page, 'PNG images');
@@ -110,7 +123,9 @@ test.describe('export', () => {
     expect(many.name).toBe('Long-piece.zip');
     const files = unzipSync(new Uint8Array(many.bytes));
     const names = Object.keys(files);
-    expect(names.length).toBeGreaterThan(3);
+    // Dense engraving (#46): 100 simple measures take a few pages, not 7 or more.
+    expect(names.length).toBeGreaterThan(1);
+    expect(names.length).toBeLessThanOrEqual(5);
     expect(names[0]).toMatch(/^page-0*1\.png$/);
     for (const f of Object.values(files)) {
       expect(Buffer.from(f.subarray(0, 8)).equals(PNG)).toBe(true);
