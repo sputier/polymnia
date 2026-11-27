@@ -28,13 +28,16 @@ beforeEach(() => {
 });
 
 describe('EditorLayout', () => {
-  it('renders landmarks and the status bar', () => {
-    render(<EditorLayout saveState="saving" inputMode="note" measure={3} beat={2} />);
+  it('renders landmarks and the status bar', async () => {
+    const user = userEvent.setup();
+    render(<EditorLayout saveState="saving" />);
+    // Note input, then five quarter notes: measure 2, beat 2.
+    await user.keyboard('n5cdefg');
     expect(screen.getByRole('banner')).toBeInTheDocument();
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('contentinfo', { name: 'Editor status' })).toBeInTheDocument();
     expect(screen.getByText('NOTE INPUT')).toBeInTheDocument();
-    expect(screen.getByText('M3 · B2')).toBeInTheDocument();
+    expect(screen.getByText('M2 · B2')).toBeInTheDocument();
     expect(screen.getAllByText('Saving…').length).toBeGreaterThan(0);
   });
 
@@ -124,7 +127,7 @@ describe('EditorLayout', () => {
   it('is translated to French', () => {
     vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['fr']);
     resetLanguage();
-    render(<EditorLayout inputMode="select" />);
+    render(<EditorLayout />);
     expect(screen.getByText('SÉLECTION')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Avancé' })).toBeInTheDocument();
   });

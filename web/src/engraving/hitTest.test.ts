@@ -86,6 +86,16 @@ describe('hit testing', () => {
     expect(hitTest(layout, x, g2)!.pitch).toMatchObject({ step: 'G', octave: 2 });
   });
 
+  it('returns the tick of the column nearest to the point', () => {
+    const system = layout.systems[0]!;
+    const slot = system.staves[0]!;
+    const m = system.measures[0]!;
+    const y = system.y + slot.top + 10;
+    m.shape.columns.forEach((col, i) => {
+      expect(hitTest(layout, m.colX[i]! + 7, y)!.tick).toBe(col.tick);
+    });
+  });
+
   it('gives ledger-line pitches above and below the staff, up to a limit', () => {
     const system = layout.systems[0]!;
     const slot = system.staves[0]!;

@@ -112,22 +112,19 @@ export function ScoreView({ score, selection, playing, onHit, liveMessage }: Sco
     if (!engraver || !effective || width <= 0) return;
     // Visible systems now, the others in idle time; layout and hit testing are complete at once.
     engraver.render(effective, width, { progressive: true });
-    if (preview.fixture) {
-      // The test hook appears once every system is engraved.
+    if (preview.fixture || score) {
+      // The test hook appears once every system is engraved. Merged: the editor adds its store.
       let cancelled = false;
       void engraver.settled().then(() => {
         if (cancelled) return;
-        (window as unknown as { __polymnia?: unknown }).__polymnia = {
-          engraver,
-          score: effective,
-          width,
-        };
+        const w = window as unknown as { __polymnia?: Record<string, unknown> };
+        w.__polymnia = { ...w.__polymnia, engraver, score: effective, width };
       });
       return () => {
         cancelled = true;
       };
     }
-  }, [engraver, effective, width, preview.fixture]);
+  }, [engraver, effective, width, preview.fixture, score]);
 
   // Screen reader summary of the whole score (the selected event goes through the live region).
   useEffect(() => {

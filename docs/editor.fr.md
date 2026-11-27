@@ -10,11 +10,11 @@ L'éditeur est à l'adresse `#/editor` (routage par hash, sans dépendance de ro
 | --- | --- |
 | Barre du haut | Lien de retour, bascule des instruments, titre modifiable, état d'enregistrement (`Enregistré`, `Enregistrement…`, `Hors ligne`), bascule Simple/Avancé, Partager et Exporter (maquettes), thème et langue, bascule de l'inspecteur (mode Avancé uniquement) |
 | Panneau gauche | Instruments, repliable. En mode Simple, il indique comment accéder au mode Avancé |
-| Centre | La partition sur une surface « papier » (provisoire en attendant la gravure) et la bande de rappel des raccourcis |
+| Centre | La palette de saisie, la partition sur une surface « papier » et la bande de rappel des raccourcis |
 | Panneau droit | Inspecteur, repliable, **mode Avancé uniquement** |
 | Barre d'état | Mode de saisie (`SAISIE` / `SÉLECTION`), durée courante, mesure et temps, niveau d'interface, état d'enregistrement |
 
-Les composants sont dans `web/src/editor/`. La barre d'état reçoit ses valeurs par props (`inputMode`, `duration`, `measure`, `beat`, `saveState`) : les fonctionnalités suivantes n'ont qu'à fournir les vraies valeurs.
+Les composants sont dans `web/src/editor/`. La barre d'état est alimentée par le store de l'éditeur (mode, durée, mesure et temps du curseur) et affiche le dernier message.
 
 ### Simple et Avancé
 
@@ -32,9 +32,9 @@ Le choix est stocké dans `localStorage` (`polymnia.uiMode` ; les erreurs sont i
 | `Ctrl+B` (`Cmd+B` sur macOS) | Afficher ou masquer le panneau des instruments |
 | `Ctrl+I` (`Cmd+I` sur macOS) | Afficher ou masquer l'inspecteur (Avancé uniquement) |
 | `Alt+A` (`Option+A` sur macOS) | Basculer entre Simple et Avancé |
-| `Échap` | Fermer le panneau ouvert (écrans étroits) |
+| `Échap` | Fermer le panneau ouvert (écrans étroits), sinon quitter la saisie |
 
-Les raccourcis ne se déclenchent pas pendant la saisie dans un champ texte. Les touches de saisie de notes de la bande de rappel (`N`, `1`–`5`, `A`–`G`, flèches, `0`) ne sont qu'un rappel pour l'instant.
+Les raccourcis ne se déclenchent pas pendant la saisie dans un champ texte. Les touches de saisie de notes sont listées dans la section suivante.
 
 ### Registre de raccourcis
 
@@ -51,6 +51,46 @@ useShortcuts([
 - `allowInInput: true` autorise le déclenchement pendant la saisie dans un champ.
 - `shortcuts.list()` renvoie tous les raccourcis (pour la palette de commandes) ; `formatKeys` et `<Kbd>` affichent des libellés adaptés à la plateforme.
 
+## Saisie de notes
+
+Les touches sont celles par défaut de MuseScore 4 (`Cmd` remplace `Ctrl` sur macOS). Elles sont déclarées une seule fois dans `web/src/editor/entry/entryShortcuts.ts` et enregistrées dans le registre de raccourcis ; la palette au-dessus de la partition les reprend, avec la touche dans chaque infobulle.
+
+| Action | Touche |
+| --- | --- |
+| Activer ou quitter la saisie de notes (`Échap` la quitte aussi) | `N` |
+| Durée double croche / croche / noire / blanche / ronde | `3` / `4` / `5` / `6` / `7` (`1`, `2`, `8`, `9` sont réservées : elles affichent seulement un message) |
+| Point de prolongation | `.` |
+| Silence | `0` |
+| Saisir une note | `A`–`G` |
+| Ajouter une note à l'accord | `Shift+A`–`Shift+G` |
+| Dièse / bémol / bécarre | `+` / `-` / `=` |
+| Hauteur d'un demi-ton vers le haut / bas | `↑` / `↓` |
+| Hauteur d'une octave vers le haut / bas | `Ctrl+↑` / `Ctrl+↓` |
+| Liaison de prolongation | `T` |
+| Liaison de phrasé | `S` |
+| Triolet | `Ctrl+3` |
+| Déplacer le curseur ou la sélection | `←` / `→` |
+| Étendre la sélection | `Shift+←` / `Shift+→` |
+| Supprimer (devient des silences) | `Suppr` ou `Retour arrière` |
+| Copier / coller | `Ctrl+C` / `Ctrl+V` |
+| Annuler / rétablir | `Ctrl+Z` / `Ctrl+Y` ou `Ctrl+Shift+Z` |
+
+### Comportement
+
+- **L'état** vit dans `EditorStore` (`web/src/editor/entry/editorStore.ts`, une classe simple lue avec `useSyncExternalStore`) : partition via `History`, sélection, mode de saisie, durée courante, voix et portée, curseur de saisie. L'éditeur s'ouvre sur une nouvelle partition de piano (4/4, do majeur, 8 mesures) ; `#/editor?new=<n>` fixe le nombre de mesures et `#/editor?fixture=<nom>` affiche une fixture de gravure.
+- **Chaque modification est une commande du modèle** exécutée via `History` : annuler et rétablir sont exacts (le curseur et la sélection reviennent aussi). Une modification en plusieurs étapes (une note qui franchit une barre de mesure, un collage) est une seule étape d'annulation.
+- **Saisir une note** écrit au curseur en écrasant ce qui s'y trouve (le temps restant devient des silences), puis le curseur avance. Quand la dernière mesure est pleine, une mesure est ajoutée. Une note plus longue que la place restante est coupée en notes liées de part et d'autre de la barre.
+- **Hauteur** : la lettre choisit l'octave la plus proche de la note précédente, selon la position sur la portée (une quarte vers le haut l'emporte sur une quinte vers le bas) ; la première note est proche de la ligne centrale de la clef. L'altération vient de l'armure et des altérations déjà écrites plus tôt dans la mesure. `+`, `-`, `=` arment une altération pour la note suivante (une seconde pression l'annule) ; en sélection, elles modifient les notes sélectionnées. En sélection, une lettre déplace les notes sélectionnées sur cette lettre.
+- **Flèches haut/bas** transposent la sélection (ou, en saisie, la note qui vient d'être saisie). **`T`** lie les notes sélectionnées à la note suivante de même hauteur ; en saisie, elle lie la note qui vient d'être saisie à la suivante si elle a la même hauteur. **`S`** ajoute une liaison de phrasé entre la première et la dernière note de la sélection (une seule note : jusqu'à la suivante) ; en saisie, elle démarre une liaison qui finit sur la prochaine note saisie. **`Ctrl+3`** transforme l'événement sous le curseur (ou la sélection) en triolet 3:2 ; la durée devient la valeur du triolet.
+- **Souris** : cliquer une note la sélectionne (`Shift` étend une plage). En saisie, cliquer sur une ligne ou un interligne de la portée saisit une note à cette hauteur et à cette position (le `hitTest` de la gravure renvoie la hauteur naturelle et le tick de la colonne la plus proche ; l'armure est appliquée par le code de saisie).
+- **Sélection** : une plage est une suite d'événements d'une portée et d'une voix. `Ctrl+C` la copie dans un presse-papiers interne (rien n'est écrit dans le presse-papiers système ; les triolets ne sont pas encore copiables) ; `Ctrl+V` colle au curseur en écrasant, continue dans les mesures suivantes et ajoute des mesures si besoin. Un événement qui franchirait une barre de mesure est refusé.
+- **Point d'accroche du son** : `store.onNoteEntered?.(pitch)` est appelé pour chaque note saisie (le retour sonore est une fonctionnalité à part).
+- **Accessibilité** : la note saisie ou sélectionnée est annoncée par la région live de la partition (« do5 noire, mesure 3 temps 2 »), et les courts messages (« Pas assez de place dans la mesure. ») apparaissent aussi dans la barre d'état.
+
+### Crochet de test
+
+`window.__polymnia` contient `{ engraver, score, width, store }` (posé une fois les systèmes dessinés ; `store.getState()` est l'état courant). Les tests Playwright l'utilisent.
+
 ## Accessibilité
 
-Repères (`header`, `aside`, `main`, barre d'état), focus visible, `aria-label` sur les boutons-icônes, `aria-expanded` sur les bascules de panneaux, `aria-pressed` sur les bascules, annonces polies uniquement pour le mode de saisie et l'enregistrement (pas pour la position, qui change à chaque note), et `prefers-reduced-motion` respecté.
+Repères (`header`, `aside`, `main`, barre d'état), focus visible, `aria-label` sur les boutons-icônes, `aria-expanded` sur les bascules de panneaux, `aria-pressed` sur les bascules, annonces polies pour le mode de saisie, l'enregistrement et la note saisie ou sélectionnée (via la région live de la partition), et `prefers-reduced-motion` respecté.

@@ -41,7 +41,15 @@ export function parseCombo(keys: string): Combo {
   return combo;
 }
 
+/**
+ * Symbol keys, spelled by name because `+` separates combo parts. Shift is ignored for them: on
+ * many layouts `+` or `.` need Shift, on others they do not (AZERTY).
+ */
+const SYMBOL_KEYS: Record<string, string> = { plus: '+', minus: '-', equal: '=', period: '.' };
+
 function keyMatches(event: KeyboardEvent, key: string): boolean {
+  const symbol = SYMBOL_KEYS[key];
+  if (symbol) return event.key === symbol;
   // Letters and digits go through `code`: on macOS Alt+A types "å" in `key`.
   if (/^[a-z]$/.test(key)) {
     return event.code === `Key${key.toUpperCase()}` || event.key.toLowerCase() === key;
@@ -58,7 +66,7 @@ export function matches(event: KeyboardEvent, keys: string, mac = isMac()): bool
     event.ctrlKey === wantCtrl &&
     event.metaKey === wantMeta &&
     event.altKey === combo.alt &&
-    event.shiftKey === combo.shift &&
+    (event.shiftKey === combo.shift || combo.key in SYMBOL_KEYS) &&
     keyMatches(event, combo.key)
   );
 }
@@ -76,6 +84,12 @@ const DISPLAY: Record<string, string> = {
   arrowup: '↑',
   arrowdown: '↓',
   ' ': 'Space',
+  delete: 'Del',
+  backspace: '⌫',
+  plus: '+',
+  minus: '-',
+  equal: '=',
+  period: '.',
 };
 
 /** Splits a combo into the labels to show in `<kbd>` badges. */
