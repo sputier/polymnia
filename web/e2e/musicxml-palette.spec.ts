@@ -7,7 +7,7 @@ test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, heigh
 test('import and export are reachable from the command palette', async ({ page }) => {
   await mockSignedIn(page);
   await page.goto('/#/editor');
-  await page.getByRole('button', { name: 'Open the command palette' }).click();
+  await page.getByRole('button', { name: 'Commands…' }).click();
   const search = page.getByRole('combobox', { name: 'Search commands' });
   await search.fill('musicxml');
   await expect(page.getByRole('option', { name: /Import MusicXML/ })).toBeVisible();

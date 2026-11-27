@@ -181,7 +181,13 @@ export function Palette({ store, state, advanced }: PaletteProps) {
           keys={keysOf('entry.triplet')}
           onPress={() => store.triplet()}
         >
-          <span aria-hidden="true">3</span>
+          {/* A drawn "3", not text: a visible text must be part of the accessible name (WCAG 2.5.3). */}
+          <Glyph>
+            <path
+              d="M8 7.5c1-1.5 7-2 7 1.8 0 2.2-2.4 2.8-4 2.8 1.7 0 4.5.5 4.5 3.2 0 3.4-6.5 3.6-8 1.2"
+              fill="none"
+            />
+          </Glyph>
         </PaletteButton>
       )}
       <span className="pal-sep" aria-hidden="true" />

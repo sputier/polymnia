@@ -195,7 +195,7 @@ test.describe('library', () => {
     fake.add('Two');
     fake.add('Three');
     await setup(page, fake);
-    const open = (title: string) => page.getByRole('link', { name: `Open: ${title}` });
+    const open = (title: string) => page.getByRole('link', { name: title });
     await open('Three').focus();
     await page.keyboard.press('ArrowRight');
     await expect(open('Two')).toBeFocused();

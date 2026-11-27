@@ -44,12 +44,11 @@ export function ScoreCard({ score, tabbable, onFocusCard, onAction }: ScoreCardP
         href={scoreHref(score.id)}
         tabIndex={tabbable ? 0 : -1}
         onFocus={onFocusCard}
-        aria-label={`${t('library.open')}: ${score.title}`}
       >
         <span className="thumb">
           <StaffPreview />
         </span>
-        <h3>{score.title}</h3>
+        <h2>{score.title}</h2>
         <span className="chips">
           {score.instruments.map((id, i) => (
             <span className="chip" key={`${id}-${i}`}>

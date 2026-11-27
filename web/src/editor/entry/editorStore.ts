@@ -108,7 +108,16 @@ export interface Cursor {
 /** What the live region says: an event ("C5 quarter, measure 3 beat 2") or a short notice. */
 export type Announcement =
   | { readonly seq: number; readonly eventId: string }
-  | { readonly seq: number; readonly notice: Notice };
+  | { readonly seq: number; readonly notice: Notice }
+  /** "Describe the measure": the content of one measure of one staff and voice, read out in full. */
+  | {
+      readonly seq: number;
+      readonly measure: {
+        readonly index: number;
+        readonly staffId: string;
+        readonly voice: number;
+      };
+    };
 
 export interface EditorState {
   readonly score: Score;
@@ -276,6 +285,20 @@ export class EditorStore {
 
   private sayEvent(eventId: string): Partial<EditorState> {
     return { announcement: { seq: ++this.seq, eventId } };
+  }
+
+  /**
+   * Reads out the content of the measure under the selection (or the cursor) on the current staff and voice:
+   * the text alternative to the engraved measure (docs/accessibility.md).
+   */
+  describeMeasure(): boolean {
+    const s = this.state;
+    const loc = s.focus ? findEvent(s.score, s.focus) : undefined;
+    const index = loc ? loc.measure : s.cursor.measure;
+    this.set({
+      announcement: { seq: ++this.seq, measure: { index, staffId: s.staffId, voice: s.voice } },
+    });
+    return true;
   }
 
   private snapshot(): UiSnapshot {
@@ -1057,6 +1080,7 @@ export class EditorStore {
         anchor: null,
         focus: null,
         cursor: { measure: index, tick: 0 },
+        ...this.say({ key: 'notice.measureEmpty', params: { measure: index + 1 } }),
       });
     }
     return true;

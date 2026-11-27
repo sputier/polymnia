@@ -76,7 +76,7 @@ export function CheatSheet({ list, onClose, onOpenPalette }: CheatSheetProps) {
           <Icon name="close" />
         </button>
       </div>
-      <div className="sheet-body">
+      <div className="sheet-body" tabIndex={0} role="region" aria-labelledby={titleId}>
         {sections.map((section) => (
           <section key={section.group} className="sheet-group">
             <h3>{t(GROUP_LABEL[section.group])}</h3>

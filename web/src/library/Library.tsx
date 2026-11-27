@@ -15,6 +15,7 @@ import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
 import { cancelDelete, scheduleDelete, UNDO_WINDOW_MS } from './deferredDelete';
 import { RenameDialog } from './dialogs';
+import { SkipLink } from '../components/SkipLink';
 import { ScoreCard, type CardAction } from './ScoreCard';
 import { describeFailure } from './text';
 import { useLibrary } from './useLibrary';
@@ -253,6 +254,7 @@ export function Library() {
 
   return (
     <div className="lib">
+      <SkipLink target="main-content" label="a11y.skipToContent" />
       <header className="toolbar lib-top">
         <span className="brand">{t('app.name')}</span>
         <label className="lib-search">
@@ -307,7 +309,7 @@ export function Library() {
         </div>
       </header>
 
-      <main className="lib-main">
+      <main className="lib-main" id="main-content" tabIndex={-1}>
         <div className="lib-head">
           <h1>{t('library.title')}</h1>
           {state.status === 'ready' && <span className="muted">{countLabel}</span>}

@@ -21,7 +21,7 @@ test.describe('command palette (English)', () => {
     page,
   }) => {
     await openEditor(page);
-    const trigger = page.getByRole('button', { name: 'Open the command palette' });
+    const trigger = page.getByRole('button', { name: 'Commands…' });
     await trigger.focus();
     await page.keyboard.press('Control+k');
     await expect(palette(page)).toBeVisible();

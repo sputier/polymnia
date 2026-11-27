@@ -193,7 +193,7 @@ test.describe('export', () => {
   });
 
   test('the palette offers the three exports', async ({ page }) => {
-    await page.getByRole('button', { name: 'Open the command palette' }).click();
+    await page.getByRole('button', { name: 'Commands…' }).click();
     const search = page.getByRole('combobox', { name: 'Search commands' });
     await search.fill('export');
     for (const label of [/Export as MIDI/, /Export as PDF/, /Export as PNG/]) {

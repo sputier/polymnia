@@ -48,7 +48,7 @@ describe('command palette', () => {
   it('opens with Ctrl+K as a combobox over a listbox, and Esc gives the focus back', async () => {
     const user = userEvent.setup();
     render(<EditorLayout />);
-    const trigger = screen.getByRole('button', { name: 'Open the command palette' });
+    const trigger = screen.getByRole('button', { name: /^Commands/ });
     trigger.focus();
     const input = await openPalette(user);
     expect(screen.getByRole('dialog', { name: 'Command palette' })).toHaveAttribute(
