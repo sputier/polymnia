@@ -30,3 +30,6 @@ appsettings.*.local.json
 
 # Work documents kept outside the public repository
 /work/
+
+# Local tooling (never committed)
+.claude/

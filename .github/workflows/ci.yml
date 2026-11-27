@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run size
+
+      # Blocking: vulnerabilities in what ships to users (runtime dependencies).
+      - name: Audit runtime dependencies
+        run: npm audit --audit-level=high --omit=dev
+
+      # Informational: dev dependencies never ship, but they run in CI and on
+      # contributors' machines. Findings are visible in the log, Dependabot
+      # raises the fixes, and they do not block unrelated pull requests.
+      - name: Audit dev dependencies (informational)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+      # TEMPORARY artifact quota safeguard: artifacts count against the account
+      # storage quota, so nothing is uploaded on success. The report is kept
+      # only on failure, for one day, and a full quota must never fail CI
+      # (continue-on-error). Revisit after a few weeks of runs.
+      - name: Upload Playwright report on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The back end lands in a separate pull request. Until api/Polymnia.slnx
+      # exists, the job stays green without doing anything, so the required
+      # check is never left pending.
+      - name: Detect back end
+        id: detect
+        run: |
+          if [ -f api/Polymnia.slnx ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::api/Polymnia.slnx not found, skipping the api checks."
+          fi
+
+      - if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: |
+            api/**/*.csproj
+            api/**/packages.lock.json
+            api/**/Directory.Packages.props
+
+      - name: Restore
+        if: steps.detect.outputs.present == 'true'
+        working-directory: api
+        run: dotnet restore Polymnia.slnx
+
+      - name: Build
+        if: steps.detect.outputs.present == 'true'
+        working-directory: api
+        run: dotnet build Polymnia.slnx --no-restore -c Release -warnaserror
+
+      # Integration tests use Testcontainers (PostgreSQL); Docker is available
+      # on ubuntu-latest. Results are printed in the log, no artifact upload.
+      - name: Test
+        if: steps.detect.outputs.present == 'true'
+        working-directory: api
+        run: dotnet test Polymnia.slnx --no-build -c Release --logger "console;verbosity=normal"
+
+      - name: Audit NuGet packages
+        if: steps.detect.outputs.present == 'true'
+        working-directory: api
+        run: |
+          dotnet list Polymnia.slnx package --vulnerable --include-transitive | tee "$RUNNER_TEMP/vulnerable.txt"
+          if grep -Eq '^\s*>.*\s(High|Critical)\s' "$RUNNER_TEMP/vulnerable.txt"; then
+            echo "::error::High or Critical vulnerable NuGet package found."
+            exit 1
+          fi

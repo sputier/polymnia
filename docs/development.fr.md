@@ -44,3 +44,14 @@ Inter (interface) et IBM Plex Mono (raccourcis, barre d'état) sont auto-héberg
 ### Internationalisation
 
 Français et anglais, dans `web/src/i18n/` (`en.ts` fait référence, `fr.ts` doit définir les mêmes clés, vérifié par le compilateur et par un test). La langue est détectée depuis le choix mémorisé, puis `navigator.languages`, puis l'anglais, et peut être changée à l'exécution. Ne codez jamais un texte d'interface en dur : ajoutez une clé aux deux catalogues et utilisez `t('cle')` via `useI18n()`. La couche est un petit module typé sans dépendance d'exécution, pour garder un bundle léger.
+
+## Intégration continue
+
+Chaque pull request et chaque push sur `main` lance [`ci.yml`](../.github/workflows/ci.yml) (jobs `web` et `api`) et [`codeql.yml`](../.github/workflows/codeql.yml) (analyse statique, aussi chaque semaine). Dependabot propose chaque semaine des mises à jour groupées pour npm, NuGet, GitHub Actions et Docker.
+
+| Job   | Ce qu'il lance                                                                                              | En local                                                                                                       |
+| ----- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `web` | lint, types, tests unitaires, build, budget de poids, `npm audit` (dépendances de production), Playwright | depuis `web/` : `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e` |
+| `api` | restauration, build avec avertissements en erreurs, tests, audit des vulnérabilités NuGet                  | depuis `api/` : `dotnet build -warnaserror`, `dotnet test` (les tests d'intégration demandent Docker), `dotnet list package --vulnerable --include-transitive` |
+
+Le job `api` ne fait rien (et passe) tant que `api/Polymnia.slnx` n'existe pas. Les workflows épinglent les actions par SHA de commit complet, n'ont que des droits en lecture et ne publient aucun artefact, sauf si les tests de bout en bout échouent.
