@@ -45,9 +45,15 @@ public enum ScoreOutcome
     Conflict,
     QuotaExceeded,
     InvalidContent,
+
+    /// <summary>A patch that cannot be applied to the stored document (unknown id, inconsistent structure, limit).</summary>
+    InvalidPatch,
+
+    /// <summary>The patched document would be larger than a full save accepts.</summary>
+    TooLarge,
 }
 
-public sealed record ScoreResult<T>(ScoreOutcome Outcome, T? Value = default)
+public sealed record ScoreResult<T>(ScoreOutcome Outcome, T? Value = default, string? Error = null)
 {
     public bool IsOk => Outcome == ScoreOutcome.Ok;
 }

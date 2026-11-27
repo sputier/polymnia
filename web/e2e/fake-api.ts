@@ -60,13 +60,98 @@ export function emptyScoreDoc(
   };
 }
 
+type Json = Record<string, unknown>;
+interface Op extends Json {
+  op: string;
+}
+
+/**
+ * Applies the operations of an incremental save (docs/api.md, "Incremental updates") to a copy of the document,
+ * like the server does: `undefined` when one cannot be applied (unknown id, inconsistent structure).
+ */
+function applyOps(source: Json, ops: Op[] | undefined): Json | undefined {
+  if (!Array.isArray(ops) || ops.length === 0) return undefined;
+  const doc = structuredClone(source) as {
+    meta: unknown;
+    measures: { id: string }[];
+    parts: { id: string; staves: { id: string; measures: unknown[] }[] }[];
+    slurs: unknown;
+  };
+  const staves = () => doc.parts.flatMap((p) => p.staves);
+  const measureIndex = (id: unknown) => doc.measures.findIndex((m) => m.id === id);
+  const partIndex = (id: unknown) => doc.parts.findIndex((p) => p.id === id);
+  for (const o of ops) {
+    switch (o.op) {
+      case 'setMeta':
+        doc.meta = o.meta;
+        break;
+      case 'setMeasureInfo': {
+        const i = measureIndex(o.measureId);
+        if (i < 0) return undefined;
+        doc.measures[i] = o.value as { id: string };
+        break;
+      }
+      case 'setStaffMeasure': {
+        const i = measureIndex(o.measureId);
+        const staff = staves().find((s) => s.id === o.staffId);
+        if (i < 0 || !staff) return undefined;
+        staff.measures[i] = o.value;
+        break;
+      }
+      case 'insertMeasure': {
+        const index = o.index as number;
+        const entries = o.staffMeasures as { staffId: string; value: unknown }[];
+        if (index > doc.measures.length || entries.length !== staves().length) return undefined;
+        doc.measures.splice(index, 0, o.info as { id: string });
+        for (const { staffId, value } of entries) {
+          const staff = staves().find((s) => s.id === staffId);
+          if (!staff) return undefined;
+          staff.measures.splice(index, 0, value);
+        }
+        break;
+      }
+      case 'deleteMeasure': {
+        const i = measureIndex(o.measureId);
+        if (i < 0 || doc.measures.length === 1) return undefined;
+        doc.measures.splice(i, 1);
+        for (const staff of staves()) staff.measures.splice(i, 1);
+        break;
+      }
+      case 'replacePart': {
+        const i = partIndex(o.partId);
+        if (i < 0) return undefined;
+        doc.parts[i] = o.value as (typeof doc.parts)[number];
+        break;
+      }
+      case 'insertPart':
+        if ((o.index as number) > doc.parts.length) return undefined;
+        doc.parts.splice(o.index as number, 0, o.value as (typeof doc.parts)[number]);
+        break;
+      case 'deletePart': {
+        const i = partIndex(o.partId);
+        if (i < 0 || doc.parts.length === 1) return undefined;
+        doc.parts.splice(i, 1);
+        break;
+      }
+      case 'setSlurs':
+        doc.slurs = o.slurs;
+        break;
+      default:
+        return undefined;
+    }
+  }
+  return doc as unknown as Json;
+}
+
 export class FakeApi {
   readonly scores = new Map<string, Stored>();
   readonly requests: RecordedRequest[] = [];
   /** `true`: every score request fails like a dropped connection. */
   offline = false;
-  /** Status to answer to the next write, once (for example 429 or 413). */
-  failNextWrite: { status: number; headers?: Record<string, string> } | undefined;
+  /** Status to answer to the next write(s), `times` times (default once), for example 429 or 413. */
+  failNextWrite: { status: number; headers?: Record<string, string>; times?: number } | undefined;
+  /** Status the server answers to an incremental save (`PATCH .../content`) it cannot apply, until cleared. */
+  rejectPatches: number | undefined;
   private counter = 0;
   private clock = Date.parse('2026-06-01T10:00:00Z');
 
@@ -97,6 +182,23 @@ export class FakeApi {
 
   writes(method: string): RecordedRequest[] {
     return this.requests.filter((r) => r.method === method);
+  }
+
+  /** Full document saves (`PUT`). */
+  fullSaves(): RecordedRequest[] {
+    return this.writes('PUT');
+  }
+
+  /** Incremental saves (`PATCH .../content`). */
+  patches(): RecordedRequest[] {
+    return this.requests.filter((r) => r.method === 'PATCH' && r.path.endsWith('/content'));
+  }
+
+  /** Every request that saves the content of a score, full or incremental. */
+  contentSaves(): RecordedRequest[] {
+    return [...this.fullSaves(), ...this.patches()].sort(
+      (a, b) => this.requests.indexOf(a) - this.requests.indexOf(b),
+    );
   }
 
   async install(page: Page): Promise<void> {
@@ -221,8 +323,9 @@ export class FakeApi {
 
     if (this.offline) return route.abort('internetdisconnected');
     if (method !== 'GET' && this.failNextWrite) {
-      const { status, headers } = this.failNextWrite;
-      this.failNextWrite = undefined;
+      const { status, headers, times = 1 } = this.failNextWrite;
+      this.failNextWrite =
+        times > 1 ? { status, ...(headers ? { headers } : {}), times: times - 1 } : undefined;
       return route.fulfill({ status, headers: headers ?? {}, json: { title: 'Failed' } });
     }
 
@@ -269,7 +372,18 @@ export class FakeApi {
           json: { type: 'urn:polymnia:problem:version-conflict', title: 'Conflict' },
         });
       }
-      if (method === 'PUT') stored.doc = body as Record<string, unknown>;
+      if (method === 'PATCH' && action === 'content') {
+        const patched = this.rejectPatches
+          ? undefined
+          : applyOps(stored.doc, (body as { ops?: Op[] } | undefined)?.ops);
+        if (!patched) {
+          return route.fulfill({
+            status: this.rejectPatches ?? 400,
+            json: { title: 'Invalid patch' },
+          });
+        }
+        stored.doc = patched;
+      } else if (method === 'PUT') stored.doc = body as Record<string, unknown>;
       else (stored.doc.meta as { title: string }).title = (body as { title: string }).title;
       stored.version += 1;
       stored.updatedAt = this.tick();

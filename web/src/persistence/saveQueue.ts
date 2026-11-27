@@ -11,6 +11,7 @@
 // - The edits stay in memory until a save succeeds. Nothing here ever drops them, whatever the error.
 import { ApiError } from '../api/client';
 import { isNetworkError } from '../api/scores';
+import type { SavePlan } from './scoreSync';
 
 export type SaveStatus = 'saved' | 'saving' | 'offline' | 'conflict' | 'error' | 'unauthorized';
 
@@ -27,6 +28,8 @@ export interface SaveBackend {
   saveContent(text: string, version: number): Promise<{ version: number }>;
   /** Renames only (no document sent), resolves with the new version. */
   rename(title: string, version: number): Promise<{ version: number }>;
+  /** Applies an incremental save (JSON `{ "ops": [...] }`) to the document at `version`. */
+  savePatch?(patch: string, version: number): Promise<{ version: number }>;
   /** The version the server holds now (to overwrite after a conflict). */
   currentVersion(): Promise<number>;
 }
@@ -35,6 +38,11 @@ export interface SaveQueueOptions {
   backend: SaveBackend;
   /** JSON text of the document as it is now, title included. */
   getContent: () => string;
+  /**
+   * Prepares a save from a snapshot of the document: an incremental one (what changed since the last save) or,
+   * when `full` is true or the changes are too many, the whole document. Without it, `getContent` is always sent.
+   */
+  plan?: (full: boolean) => SavePlan;
   getTitle: () => string;
   /** The version of the document the editor was loaded from. */
   version: number;
@@ -52,6 +60,7 @@ const DEFAULT_RETRY_AFTER_MS = 5_000;
 export class SaveQueue {
   private readonly backend: SaveBackend;
   private readonly getContent: () => string;
+  private readonly plan: ((full: boolean) => SavePlan) | undefined;
   private readonly getTitle: () => string;
   private readonly debounceMs: number;
   private readonly maxWaitMs: number;
@@ -63,6 +72,10 @@ export class SaveQueue {
   private dirtyTitle = false;
   private inFlight = false;
   private attempts = 0;
+  /** Set when the diffs can no longer be trusted (conflict): the next content save sends the whole document. */
+  private sendInFull = false;
+  /** Saves left to send in full after the server refused a patch (400, 413). */
+  private fullSavesLeft = 0;
   private released = false;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   private maxTimer: ReturnType<typeof setTimeout> | undefined;
@@ -74,6 +87,7 @@ export class SaveQueue {
   constructor(options: SaveQueueOptions) {
     this.backend = options.backend;
     this.getContent = options.getContent;
+    this.plan = options.plan;
     this.getTitle = options.getTitle;
     this.version = options.version;
     this.debounceMs = options.debounceMs ?? 1000;
@@ -216,7 +230,7 @@ export class SaveQueue {
     this.set('saving');
     try {
       const result = sendContent
-        ? await this.backend.saveContent(this.getContent(), this.version)
+        ? await this.sendContent()
         : await this.backend.rename(this.getTitle(), this.version);
       this.version = result.version;
       this.attempts = 0;
@@ -233,6 +247,36 @@ export class SaveQueue {
     this.notifyIdle();
   }
 
+  /**
+   * Saves the document: only what changed since the last save when the plan allows it (`PATCH`), the whole
+   * document otherwise. A patch the server cannot apply (400, 413: its document differs from what the diff
+   * assumed, or the result would be too large) is not an error for the user: the same snapshot is sent in full.
+   */
+  private async sendContent(): Promise<{ version: number }> {
+    if (!this.plan) return this.backend.saveContent(this.getContent(), this.version);
+    const full = this.sendInFull || this.fullSavesLeft > 0;
+    if (this.fullSavesLeft > 0) this.fullSavesLeft -= 1;
+    const plan = this.plan(full);
+    if (plan.nothingToSave) return { version: this.version };
+    if (plan.patch !== null && this.backend.savePatch) {
+      try {
+        const result = await this.backend.savePatch(plan.patch, this.version);
+        plan.commit();
+        return result;
+      } catch (error) {
+        if (!(error instanceof ApiError && (error.status === 400 || error.status === 413)))
+          throw error;
+        // The server cannot patch this document (for example it is close to the size limit): the next saves are
+        // full ones too, so every autosave does not pay a patch that cannot succeed first.
+        this.fullSavesLeft = 20;
+      }
+    }
+    const result = await this.backend.saveContent(plan.text(), this.version);
+    plan.commit();
+    this.sendInFull = false;
+    return result;
+  }
+
   private fail(error: unknown): void {
     if (isNetworkError(error)) {
       this.set('offline');
@@ -240,7 +284,11 @@ export class SaveQueue {
       return;
     }
     const status = error instanceof ApiError ? error.status : 0;
-    if (status === 409) return this.set('conflict');
+    if (status === 409) {
+      // The server's document is no longer the one the diffs start from: only a full save is safe now.
+      this.sendInFull = true;
+      return this.set('conflict');
+    }
     if (status === 401) return this.set('unauthorized');
     if (status === 429) {
       const delay = Math.min(
@@ -294,6 +342,8 @@ export class SaveQueue {
     this.clearTimers();
     this.clearRetry();
     this.version = version;
+    this.fullSavesLeft = 0;
+    this.sendInFull = false; // the caller replaced the base with the server document it just loaded
     this.dirtyContent = false;
     this.dirtyTitle = false;
     this.attempts = 0;

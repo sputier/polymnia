@@ -135,6 +135,19 @@ export async function saveScore(id: string, text: string, version: number): Prom
   });
 }
 
+/**
+ * Applies an incremental save (the JSON text `{ "ops": [...] }`, see scoreOps.ts) to the document at `version`.
+ * Rejects with a 409 ApiError when `version` is not the current one, and with a 400 or 413 when the server cannot
+ * apply the operations to its document (the caller then saves the whole document).
+ */
+export function patchScore(id: string, text: string, version: number): Promise<SavedScore> {
+  return apiJson<SavedScore>(`/api/scores/${encodeURIComponent(id)}/content`, {
+    method: 'PATCH',
+    headers: { ...JSON_HEADERS, ...ifMatch(version) },
+    body: text,
+  });
+}
+
 export function renameScore(id: string, title: string, version: number): Promise<SavedScore> {
   return apiJson<SavedScore>(`/api/scores/${encodeURIComponent(id)}`, {
     method: 'PATCH',

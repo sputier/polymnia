@@ -41,6 +41,13 @@ const firstMeasure = (page: Page): Promise<string[]> =>
     );
   });
 
+/** The score of the editor, as the JSON the server would store (the title is the one the title box holds). */
+const editorDocument = (page: Page): Promise<unknown> =>
+  page.evaluate(() => {
+    const hook = (window as unknown as { __polymnia: Hook }).__polymnia;
+    return JSON.parse(JSON.stringify(hook.store.getState().score)) as unknown;
+  });
+
 const savedLabel = (page: Page) =>
   page.getByRole('contentinfo', { name: 'Editor status' }).locator('.save');
 
@@ -52,7 +59,9 @@ async function typeNotes(page: Page, keys = 'n5cd') {
 }
 
 test.describe('autosave', () => {
-  test('saves after a pause with a gzip body, and survives a reload', async ({ page }) => {
+  test('saves after a pause with a patch of the changed measure, and survives a reload', async ({
+    page,
+  }) => {
     const fake = new FakeApi();
     const id = fake.add('Draft', emptyScoreDoc('Draft', { measures: 40 }));
     await open(page, fake, id);
@@ -62,11 +71,17 @@ test.describe('autosave', () => {
     await expect(savedLabel(page)).toHaveText('Saving…');
     await expect(savedLabel(page)).toHaveText('Saved');
 
-    const puts = fake.writes('PUT');
-    expect(puts).toHaveLength(1);
-    expect(puts[0]!.ifMatch).toBe('"1"');
-    expect(puts[0]!.contentEncoding).toBe('gzip');
+    // Only the first measure of the one staff left the browser, not the 40 measures of the score.
+    const patches = fake.patches();
+    expect(patches).toHaveLength(1);
+    expect(patches[0]!.ifMatch).toBe('"1"');
+    expect(fake.fullSaves()).toHaveLength(0);
+    const ops = (patches[0]!.body as { ops: { op: string; measureId?: string }[] }).ops;
+    expect(ops.map((o) => o.op)).toEqual(['setStaffMeasure']);
+    expect(ops[0]!.measureId).toBe('m1');
     expect(fake.version(id)).toBe(2);
+    // The server's document is exactly the editor's.
+    expect(fake.scores.get(id)!.doc).toEqual(await editorDocument(page));
 
     await page.reload();
     await expect(page.locator('svg.pm-score')).toBeVisible();
@@ -82,8 +97,8 @@ test.describe('autosave', () => {
     await open(page, fake, id);
     let inFlight = 0;
     let maxInFlight = 0;
-    await page.route(`**/api/scores/${id}`, async (route) => {
-      if (route.request().method() !== 'PUT') return route.fallback();
+    await page.route(new RegExp(`/api/scores/${id}(/content)?$`), async (route) => {
+      if (!['PUT', 'PATCH'].includes(route.request().method())) return route.fallback();
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
       await new Promise((r) => setTimeout(r, 600));
@@ -93,7 +108,44 @@ test.describe('autosave', () => {
     await typeNotes(page, 'n5cdefgabcdefg');
     await expect(savedLabel(page)).toHaveText('Saved', { timeout: 15_000 });
     expect(maxInFlight).toBe(1);
-    expect(fake.writes('PUT').length).toBeGreaterThanOrEqual(1);
+    expect(fake.contentSaves().length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('a patch the server cannot apply falls back to the whole document, gzip-compressed', async ({
+    page,
+  }) => {
+    const fake = new FakeApi();
+    const id = fake.add('Fallback', emptyScoreDoc('Fallback', { measures: 40 }));
+    await open(page, fake, id);
+    fake.rejectPatches = 400;
+    await typeNotes(page);
+    await expect(savedLabel(page)).toHaveText('Saved');
+
+    expect(fake.patches()).toHaveLength(1);
+    const full = fake.fullSaves();
+    expect(full).toHaveLength(1);
+    expect(full[0]!.ifMatch).toBe('"1"');
+    expect(full[0]!.contentEncoding).toBe('gzip');
+    expect(fake.version(id)).toBe(2);
+    expect(fake.scores.get(id)!.doc).toEqual(await editorDocument(page));
+  });
+
+  test('each save sends only what changed since the previous one', async ({ page }) => {
+    const fake = new FakeApi();
+    const id = fake.add('Steps', emptyScoreDoc('Steps', { measures: 40 }));
+    await open(page, fake, id);
+
+    await typeNotes(page);
+    await expect(savedLabel(page)).toHaveText('Saved');
+    await typeNotes(page, 'n5ef');
+    await expect.poll(() => fake.version(id)).toBe(3);
+    await expect(savedLabel(page)).toHaveText('Saved');
+
+    const patches = fake.patches();
+    expect(patches).toHaveLength(2);
+    expect(patches.map((p) => p.ifMatch)).toEqual(['"1"', '"2"']);
+    expect(fake.fullSaves()).toHaveLength(0);
+    expect(fake.scores.get(id)!.doc).toEqual(await editorDocument(page));
   });
 
   test('renaming from the editor title saves with PATCH and If-Match', async ({ page }) => {
@@ -144,7 +196,7 @@ test.describe('autosave', () => {
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
     await expect(savedLabel(page)).toHaveText('Saved');
     expect(await firstMeasure(page)).toEqual(['rest']);
-    expect(fake.writes('PUT').length).toBe(1); // only the one that conflicted
+    expect(fake.contentSaves().length).toBe(1); // only the one that conflicted
   });
 
   test('offline: edits are kept, the status says so, and they are saved when back online', async ({
@@ -173,17 +225,17 @@ test.describe('autosave', () => {
     await open(page, fake, id);
     fake.failNextWrite = { status: 429, headers: { 'Retry-After': '2' } };
     await typeNotes(page);
-    await expect.poll(() => fake.writes('PUT').length).toBe(1);
+    await expect.poll(() => fake.contentSaves().length).toBe(1);
     await expect(page.getByRole('status').filter({ hasText: 'Too many saves' })).toBeVisible();
     await expect(savedLabel(page)).toHaveText('Saved', { timeout: 10_000 });
-    expect(fake.writes('PUT')).toHaveLength(2);
+    expect(fake.contentSaves()).toHaveLength(2);
   });
 
   test('a 413 explains that the score is too large', async ({ page }) => {
     const fake = new FakeApi();
     const id = fake.add('Huge', emptyScoreDoc('Huge', { measures: 40 }));
     await open(page, fake, id);
-    fake.failNextWrite = { status: 413 };
+    fake.failNextWrite = { status: 413, times: 2 }; // the patch, then the full document
     await typeNotes(page);
     await expect(page.getByRole('alert').filter({ hasText: 'too large to save' })).toBeVisible();
     await expect(savedLabel(page)).toHaveText('Not saved');
@@ -209,7 +261,7 @@ test.describe('autosave', () => {
     await open(page, fake, id);
     await typeNotes(page);
     await page.keyboard.press('Control+s');
-    await expect.poll(() => fake.writes('PUT').length).toBe(1);
+    await expect.poll(() => fake.contentSaves().length).toBe(1);
     await expect(savedLabel(page)).toHaveText('Saved');
     await page.keyboard.press('Alt+l');
     await expect(page).toHaveURL(/#\/$/);

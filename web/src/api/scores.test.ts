@@ -9,6 +9,7 @@ import {
   listScores,
   loadScore,
   parseETag,
+  patchScore,
   renameScore,
   saveScore,
 } from './scores';
@@ -102,6 +103,23 @@ describe('score requests', () => {
     expect(header('If-Match')).toBe('"3"');
     expect(header('Content-Encoding')).toBe('gzip');
     expect(header('X-XSRF-TOKEN')).toBe('tok');
+  });
+
+  it('patches the content with If-Match, the token and the JSON text as is', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'abc', version: 4 }));
+    const text = '{"ops":[{"op":"setSlurs","slurs":[]}]}';
+    await patchScore('a b', text, 3);
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/scores/a%20b/content');
+    expect(init().method).toBe('PATCH');
+    expect(header('If-Match')).toBe('"3"');
+    expect(header('Content-Type')).toBe('application/json');
+    expect(header('X-XSRF-TOKEN')).toBe('tok');
+    expect(init().body).toBe(text);
+  });
+
+  it('rejects a patch the server refuses with the status of the answer', async () => {
+    fetchMock.mockResolvedValue(Response.json({ title: 'Conflict' }, { status: 409 }));
+    await expect(patchScore('abc', '{"ops":[]}', 3)).rejects.toMatchObject({ status: 409 });
   });
 
   it('renames with PATCH and If-Match', async () => {

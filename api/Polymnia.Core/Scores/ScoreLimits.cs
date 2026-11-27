@@ -16,6 +16,21 @@ public static class ScoreLimits
     /// <summary>Maximum title length, in UTF-16 units: the database column size (a code point is at most 2 units).</summary>
     public const int MaxTitleColumnLength = MaxTitleLength * 2;
 
+    /// <summary>
+    /// Maximum request body of an incremental update (<c>PATCH /api/scores/{id}/content</c>), in bytes, after
+    /// decompression. A typical autosave batch is a few KB; the client sends the full document above 256 KB anyway.
+    /// </summary>
+    public const int MaxPatchBytes = 1024 * 1024;
+
+    /// <summary>Maximum number of operations in one patch.</summary>
+    public const int MaxPatchOps = 64;
+
+    /// <summary>
+    /// Maximum number of document edits one patch expands to (an inserted measure costs one per staff). Every edit
+    /// rewrites the stored document inside PostgreSQL, so this bounds the work of one request.
+    /// </summary>
+    public const int MaxPatchEdits = 64;
+
     /// <summary>Default maximum number of scores one user can own.</summary>
     public const int DefaultMaxScoresPerUser = 200;
 

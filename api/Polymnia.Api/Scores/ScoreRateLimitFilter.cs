@@ -11,6 +11,7 @@ internal sealed class ScoreRateLimiters
     {
         Writes = Create(options.PermitLimit, options.WindowSeconds);
         Reads = Create(options.ReadPermitLimit, options.WindowSeconds);
+        PermitLimit = options.PermitLimit;
         WriteConcurrency = Concurrent(2);
         ReadConcurrency = Concurrent(4);
     }
@@ -26,6 +27,8 @@ internal sealed class ScoreRateLimiters
             PermitLimit = permits,
             QueueLimit = 0,
         }));
+
+    public int PermitLimit { get; }
 
     public PartitionedRateLimiter<Guid> Writes { get; }
 
