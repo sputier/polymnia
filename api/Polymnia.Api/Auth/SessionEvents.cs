@@ -60,7 +60,7 @@ internal static class SessionEvents
         var identity = new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString("D", CultureInfo.InvariantCulture)),
-                new Claim(AuthDefaults.AuthTimeClaim, time.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
+                new Claim(AuthDefaults.AuthTimeClaim, AuthTimeSeconds(google, time.GetUtcNow(), context.Properties).ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
             ],
             AuthDefaults.CookieScheme);
 
@@ -71,6 +71,26 @@ internal static class SessionEvents
 
         // The return URL was validated at login and travels in protected state; validate again anyway.
         context.ReturnUri = ReturnUrl.Sanitize(context.ReturnUri);
+    }
+
+    /// <summary>
+    /// The sign-in time stored in the ticket. A plain sign-in uses the ID token's <c>auth_time</c> when Google sends one
+    /// and it is plausible (not in the future, not older than a day), otherwise the callback time. A re-authentication
+    /// (the person just picked their account again on purpose) always uses the callback time: if Google ignored
+    /// <c>max_age=0</c> and returned an old <c>auth_time</c>, the person would be stuck in a loop.
+    /// </summary>
+    internal static long AuthTimeSeconds(ClaimsPrincipal google, DateTimeOffset now, AuthenticationProperties? properties)
+    {
+        bool reauth = properties?.Items.ContainsKey(AuthDefaults.ReauthProperty) == true;
+        if (!reauth
+            && long.TryParse(google.FindFirstValue(AuthDefaults.AuthTimeClaim), NumberStyles.None, CultureInfo.InvariantCulture, out long claimed)
+            && claimed <= now.ToUnixTimeSeconds()
+            && now.ToUnixTimeSeconds() - claimed <= 86_400)
+        {
+            return claimed;
+        }
+
+        return now.ToUnixTimeSeconds();
     }
 
     /// <summary>Audit: the session now exists (the cookie is issued and the ticket stored). User id only.</summary>

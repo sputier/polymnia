@@ -150,6 +150,8 @@ internal static class AuthExtensions
                     {
                         // Re-authentication (account deletion): Google asks the person to pick their account again.
                         context.ProtocolMessage.Prompt = "select_account";
+                        // Harmless if Google ignores it: ask for a fresh authentication.
+                        context.ProtocolMessage.MaxAge = "0";
                     }
 
                     return Task.CompletedTask;
