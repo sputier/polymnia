@@ -58,3 +58,7 @@ Reference the issue in the body or footer: `Closes #12`.
 ## Licensing
 
 By contributing, you agree that your contribution is licensed under the [MIT License](LICENSE). Do not copy code from projects under incompatible licenses (for example GPL-licensed notation software).
+
+## Continuous integration
+
+Pull requests run the `web` and `api` CI jobs and CodeQL. They must be green before merge. They run the commands above, plus `npm audit --audit-level=high --omit=dev` in `web/` and, in `api/`, `dotnet build -warnaserror`, `dotnet test` and `dotnet list package --vulnerable --include-transitive`. Details: [docs/development.md](docs/development.md#continuous-integration).

@@ -58,3 +58,7 @@ Les messages de commit sont en anglais. Référencez l'issue dans le corps ou le
 ## Licence
 
 En contribuant, vous acceptez que votre contribution soit publiée sous [licence MIT](LICENSE). Ne copiez pas de code issu de projets sous licence incompatible (par exemple des logiciels de notation sous GPL).
+
+## Intégration continue
+
+Les pull requests lancent les jobs CI `web` et `api` ainsi que CodeQL, qui doivent être verts avant la fusion. Ils exécutent les commandes ci-dessus, plus `npm audit --audit-level=high --omit=dev` dans `web/` et, dans `api/`, `dotnet build -warnaserror`, `dotnet test` et `dotnet list package --vulnerable --include-transitive`. Détails : [docs/development.fr.md](docs/development.fr.md#intégration-continue).

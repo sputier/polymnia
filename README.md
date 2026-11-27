@@ -2,6 +2,8 @@
 
 **English** · [Français](README.fr.md)
 
+[![CI](https://github.com/sputier/polymnia/actions/workflows/ci.yml/badge.svg)](https://github.com/sputier/polymnia/actions/workflows/ci.yml) [![CodeQL](https://github.com/sputier/polymnia/actions/workflows/codeql.yml/badge.svg)](https://github.com/sputier/polymnia/actions/workflows/codeql.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 > Write music. Hear it. Share it. Right in your browser.
 
 Polymnia is a free and open-source web application for composing music in standard notation and listening to what you write. It is named after Polyhymnia (Πολύμνια), the Greek muse of song and hymns.

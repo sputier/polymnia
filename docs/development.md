@@ -44,3 +44,14 @@ Inter (UI) and IBM Plex Mono (shortcuts, status bar) are self-hosted through `@f
 ### Internationalization
 
 French and English, in `web/src/i18n/` (`en.ts` is the source of truth, `fr.ts` must define the same keys, checked by the compiler and by a test). The language is detected from the stored choice, then `navigator.languages`, then English, and can be switched at runtime. Never hard-code a UI string: add a key to both catalogs and use `t('key')` from `useI18n()`. The layer is a small typed module with no runtime dependency, to keep the bundle small.
+
+## Continuous integration
+
+Every pull request and every push to `main` runs [`ci.yml`](../.github/workflows/ci.yml) (jobs `web` and `api`), and [`codeql.yml`](../.github/workflows/codeql.yml) (static analysis, also weekly). Dependabot proposes weekly, grouped updates for npm, NuGet, GitHub Actions and Docker.
+
+| Job   | What it runs                                                                                       | Same thing locally                                                                                             |
+| ----- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `web` | lint, type check, unit tests, build, bundle budget, `npm audit` (runtime dependencies), Playwright | from `web/`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e` |
+| `api` | restore, build with warnings as errors, tests, NuGet vulnerability audit                           | from `api/`: `dotnet build -warnaserror`, `dotnet test` (integration tests need Docker), `dotnet list package --vulnerable --include-transitive` |
+
+The `api` job does nothing (and passes) until `api/Polymnia.slnx` exists. Workflows use pinned action versions (full commit SHA), read-only permissions, and upload no artifact unless the end-to-end tests fail.
