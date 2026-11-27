@@ -16,8 +16,26 @@ Thank you for your interest in Polymnia. This guide explains how to propose a ch
 2. Keep each pull request focused on one issue.
 3. Add or update automated tests. A change without tests is not finished.
 4. Update the documentation (README, `docs/`) in the same pull request when behavior changes, in **both English and French**.
-5. Run the checks locally (commands will be listed here once the project skeleton exists).
+5. Run the checks locally (see [Checks](#checks)).
 6. Open a pull request against `main` and fill in the template.
+
+## Project priorities: security and performance first
+
+Security and performance come before new features. A change that weakens security (secrets, injection, permissive CORS or CSP, unvalidated input) or that blows the performance budget (initial JavaScript above 150 KB gzip, heavy libraries not lazy-loaded) is not merged until fixed.
+
+## Checks
+
+Front end, from `web/` (details in [docs/development.md](docs/development.md)):
+
+```
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run size
+npm run test:e2e
+```
 
 ## Commit messages
 
