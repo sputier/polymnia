@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockSignedIn } from './engraving-helpers';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 900 } });
 
@@ -49,6 +50,7 @@ declare global {
 }
 
 async function openEditor(page: Page, query = '') {
+  await mockSignedIn(page);
   await page.goto(`/#/editor${query}`);
   await expect(page.locator('svg.pm-score')).toBeVisible();
   await page.waitForFunction(
