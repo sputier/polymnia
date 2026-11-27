@@ -74,6 +74,28 @@ test.describe('on-screen piano', () => {
     await expect(page.locator('.pk.is-on')).toHaveCount(2);
   });
 
+  test('a guitar part: the key that sounds C4 enters the written C5 and lights C4', async ({
+    page,
+  }) => {
+    await openEditor(page);
+    await page.evaluate(() => {
+      const s = (window as unknown as W).__polymnia.store as unknown as {
+        addPart(i: string): boolean;
+        removePart(id: string): boolean;
+        getState(): { score: { parts: { id: string }[] } };
+      };
+      s.addPart('guitar-classical');
+      s.removePart(s.getState().score.parts[0]!.id);
+    });
+    await page.keyboard.press('p');
+    await page.keyboard.press('n');
+    await page.keyboard.press('5');
+    await key(page, 'C4').click();
+    expect(await notes(page)).toEqual(['C5']);
+    await expect(key(page, 'C4')).toHaveClass(/is-on/);
+    await expect(page.locator('.pk.is-on')).toHaveCount(1);
+  });
+
   test('black keys follow the key signature in the label (C major: sharps)', async ({ page }) => {
     await openEditor(page);
     await page.keyboard.press('p');
