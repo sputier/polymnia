@@ -33,6 +33,7 @@ The choice is stored in `localStorage` (`polymnia.uiMode`; failures are ignored)
 | ----------------------------- | ----------------------------------------------------------------------------------- |
 | `Ctrl+B` (`Cmd+B` on macOS)   | Show or hide the instruments panel                                                  |
 | `Ctrl+I` (`Cmd+I` on macOS)   | Show or hide the inspector (Advanced only)                                          |
+| `P`                           | Show or hide the on-screen piano                                                    |
 | `Alt+A` (`Option+A` on macOS) | Switch between Simple and Advanced                                                  |
 | `Space`                       | Play or pause (MuseScore behavior; a focused button keeps it)                       |
 | `Home`                        | Back to the start of the score                                                      |
@@ -156,6 +157,18 @@ Commands without a key are palette-only (`shortcut.keys` empty): they appear in 
 ### Out-of-range notes
 
 A note outside the range of its part's instrument (sounding range, extended by a custom tuning) is drawn in the warning color (`--warn`), with a **triangle mark** above it (not color alone) whose tooltip says "Out of range for <instrument> (<low> to <high>)", and is listed in the inspector. It is a warning: nothing is blocked. Selection and playback colors win over the warning color.
+
+## On-screen piano and MIDI keyboard
+
+Code in `web/src/editor/piano/` (`Piano.tsx`, `midi.ts`), one lazy chunk fetched the first time the piano opens (it is not in the initial bundle). `P` (or the palette command "Show or hide the on-screen piano") shows and hides it; the choice is kept in `localStorage` (`polymnia.piano`, failures ignored). It sits under the score and is hidden in focus mode.
+
+- **Keys**: 88 keys (A0 to C8) in a horizontal scroller, opened around the middle line of the clef of the current staff (treble: B4, bass: D3, ...), and re-centered when another staff is used. Every key is a button named after the note in the interface language ("C4" / "Do4", "C sharp 4" / "Do dièse 4"); `←` / `→` / `Home` / `End` move between keys (one tab stop), `Enter` or `Space` plays one.
+- **Click, touch or `Enter`**: in note input the note is entered at the current duration, as `A`–`G` do; `Shift` adds it to the chord of the note just entered. In select mode the selected notes move to that pitch (`Shift`: the pitch is added to them). With nothing to change, the key only plays the note. Every entered note is heard through `onNoteEntered`.
+- **Spelling**: the pitch is spelled from the key signature at the cursor (`midiToPitch`): notes of the key keep their spelling (B flat in F major), the other black keys are sharps in C major and sharp keys and flats in flat keys (D flat in B flat major). Notes entered this way do not use the armed accidental (`+`, `-`, `=`).
+- **Lit keys**: the notes selected (or, in note input, the note just entered) are lit in the accent color, the notes sounding during playback in the playback color. Both are class toggles done outside React (the key buttons render once, again only when the key signature or the language changes), so playback does not re-render the piano; a Playwright test checks that the key DOM only sees class changes. Closed, the piano does no work at all.
+- **MIDI keyboard**: the "Connect MIDI keyboard" button in the piano header is the only thing that calls `navigator.requestMIDIAccess` (never on load), with `sysex: false`. Once connected, note-on events enter notes at the current duration in note input mode, or change the selected notes in select mode. Notes pressed within 50 ms of the first one of a group are added to its chord (the first note is entered at once, no delay). Several devices: a picker ("All devices" by default). Hot-plug is handled: devices that appear or disappear update the list, and a picked device that goes away falls back to all devices. The MIDI input stays active while the piano is hidden. **Sustain pedal, velocity, pitch bend and note-off are ignored in V1** (a note-on with velocity 0 counts as a note-off); running status and real-time bytes are parsed.
+- **Fallbacks**: without Web MIDI (Safari has none; Firefox needs its site permission add-on) the button is replaced by an explanation, and a denied permission or a failure shows a message with a retry button. The on-screen piano works either way. The API sends `Permissions-Policy: midi=(self)`, so Web MIDI is allowed for the app's own origin.
+- **Accessibility**: keys are labelled buttons with a visible focus ring, AA contrast in both themes (white keys keep a piano look; lit keys use the accent and playback tokens), transitions only when motion is allowed, and the connection messages are a polite live region.
 
 ## Accessibility
 
