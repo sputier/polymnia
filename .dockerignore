@@ -16,6 +16,8 @@ api/Polymnia.Tests
 api/Polymnia.Api/wwwroot/*
 .env
 .env.*
+secrets/
+*.pfx
 !.env.example
 docs
 *.md

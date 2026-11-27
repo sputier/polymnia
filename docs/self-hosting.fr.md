@@ -14,7 +14,7 @@ Faire tourner sa propre instance de Polymnia avec Docker Compose : l'application
 
 1. Récupérer le fichier compose et l'exemple de configuration : cloner le dépôt, ou télécharger `docker-compose.yml` et `.env.example`.
 2. `cp .env.example .env`
-3. Éditer `.env` : renseigner `POSTGRES_PASSWORD` (long, aléatoire, sans `;`, `"` ni espace : `openssl rand -hex 24`), `POLYMNIA_ALLOWED_HOSTS` (votre nom d'hôte), les trois valeurs de connexion Google (`POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET`, voir [Authentification](authentication.fr.md)) et `POLYMNIA_VERSION` (une version exacte comme `1.0.0`, voir les [releases](https://github.com/sputier/polymnia/releases)).
+3. Éditer `.env` : renseigner `POSTGRES_PASSWORD` (long, aléatoire, sans `;`, `"` ni espace : `openssl rand -hex 24`), `POLYMNIA_ALLOWED_HOSTS` (votre nom d'hôte), les trois valeurs de connexion Google (`POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET`, voir [Authentification](authentication.fr.md)) et `POLYMNIA_VERSION` (une version exacte comme `1.0.0`, voir les [releases](https://github.com/sputier/polymnia/releases)). Créez aussi le certificat de chiffrement des clés (`secrets/polymnia-keys.pfx`, voir [Authentification](authentication.fr.md), « Chiffrer les clés Data Protection ») et renseignez `POLYMNIA_KEYS_CERT_PASSWORD`.
 4. `docker compose up -d --wait`
 5. Vérifier : `curl -H "Host: <votre nom d'hôte>" http://127.0.0.1:8080/api/health` répond `Healthy`.
 
@@ -34,6 +34,7 @@ Tout passe par des variables d'environnement, renseignées dans `.env` pour le f
 | `POSTGRES_USER`, `POSTGRES_DB` | `polymnia` | Utilisateur et nom de la base |
 | `POLYMNIA_ALLOWED_HOSTS` | aucun, obligatoire | Noms d'hôte acceptés par l'application, séparés par `;` (correspond à `AllowedHosts`) |
 | `POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET` | aucun, obligatoire | Connexion Google : origine publique `https` de l'application et client OAuth, voir [Authentification](authentication.fr.md). L'application refuse de démarrer sans eux |
+| `POLYMNIA_KEYS_CERT_FILE`, `POLYMNIA_KEYS_CERT_PASSWORD` | `./secrets/polymnia-keys.pfx`, mot de passe obligatoire | Certificat (PKCS#12) qui chiffre les clés Data Protection stockées en base, monté comme secret Docker. Créez-le avec la commande openssl de [Authentification](authentication.fr.md) (« Chiffrer les clés Data Protection »). Conservez-le : sans lui, les utilisateurs doivent se reconnecter |
 | `POLYMNIA_IMAGE`, `POLYMNIA_VERSION` | `ghcr.io/sputier/polymnia`, `latest` | Image à exécuter |
 | `POLYMNIA_BIND`, `POLYMNIA_PORT` | `127.0.0.1`, `8080` | Adresse d'écoute de l'application sur l'hôte |
 | `POLYMNIA_FORWARDED_HEADERS` | `false` | Faire confiance à `X-Forwarded-For` et `X-Forwarded-Proto` du reverse proxy |
@@ -106,7 +107,8 @@ Pour vérifier qu'une image provient du workflow de release de ce dépôt : `gh 
 ```
 git clone https://github.com/sputier/polymnia.git && cd polymnia
 docker build -t polymnia .
-printf 'POSTGRES_PASSWORD=%s\nPOLYMNIA_ALLOWED_HOSTS=localhost\nPOLYMNIA_PUBLIC_BASE_URL=https://localhost\nPOLYMNIA_GOOGLE_CLIENT_ID=dummy.apps.googleusercontent.com\nPOLYMNIA_GOOGLE_CLIENT_SECRET=dummy\nPOLYMNIA_IMAGE=polymnia\nPOLYMNIA_VERSION=latest\n' "$(openssl rand -hex 16)" > .env
+mkdir -p secrets && openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -subj /CN=local -days 2 && openssl pkcs12 -export -inkey k.pem -in c.pem -out secrets/polymnia-keys.pfx -passout pass:dummy && chmod 644 secrets/polymnia-keys.pfx
+printf 'POLYMNIA_KEYS_CERT_PASSWORD=dummy\nPOSTGRES_PASSWORD=%s\nPOLYMNIA_ALLOWED_HOSTS=localhost\nPOLYMNIA_PUBLIC_BASE_URL=https://localhost\nPOLYMNIA_GOOGLE_CLIENT_ID=dummy.apps.googleusercontent.com\nPOLYMNIA_GOOGLE_CLIENT_SECRET=dummy\nPOLYMNIA_IMAGE=polymnia\nPOLYMNIA_VERSION=latest\n' "$(openssl rand -hex 16)" > .env
 docker compose up -d --wait
 curl -i http://localhost:8080/api/health     # 200 Healthy
 curl -i http://localhost:8080/                # l'application web, avec les en-têtes de sécurité

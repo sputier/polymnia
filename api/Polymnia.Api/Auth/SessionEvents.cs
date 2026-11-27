@@ -38,6 +38,9 @@ internal static class SessionEvents
             google.FindFirstValue("picture"),
             context.HttpContext.RequestAborted);
 
+        ILogger audit = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
+        AuthLog.SignedIn(audit, userId);
+
         var identity = new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, userId.ToString("D", CultureInfo.InvariantCulture))],
             AuthDefaults.CookieScheme);
@@ -66,26 +69,22 @@ internal static class SessionEvents
             return;
         }
 
-        PolymniaDbContext db = context.HttpContext.RequestServices.GetRequiredService<PolymniaDbContext>();
-        TimeProvider time = context.HttpContext.RequestServices.GetRequiredService<TimeProvider>();
-        CancellationToken ct = context.HttpContext.RequestAborted;
-
-        DateTimeOffset? lastSeen = await db.Users
-            .AsNoTracking()
-            .Where(u => u.Id == userId)
-            .Select(u => (DateTimeOffset?)u.LastSeenAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (lastSeen is null)
+        // The ticket store loaded the session and its user in one query and left the last-seen time here.
+        // Without it the ticket did not come from the store in this request: reject.
+        if (!context.HttpContext.Items.TryGetValue(DbTicketStore.LastSeenItemKey, out object? item) || item is not DateTimeOffset lastSeen)
         {
             await Reject(context);
             return;
         }
 
+        TimeProvider time = context.HttpContext.RequestServices.GetRequiredService<TimeProvider>();
         DateTimeOffset now = time.GetUtcNow();
-        if (now - lastSeen.Value > LastSeenGranularity)
+        if (now - lastSeen > LastSeenGranularity)
         {
-            await db.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(u => u.LastSeenAt, now), ct);
+            PolymniaDbContext db = context.HttpContext.RequestServices.GetRequiredService<PolymniaDbContext>();
+            await db.Users
+                .Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastSeenAt, now), context.HttpContext.RequestAborted);
         }
     }
 
@@ -109,7 +108,7 @@ internal static class SessionEvents
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        ILogger logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Polymnia.Auth");
+        ILogger logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
         AuthLog.SignInFailed(logger, context.Failure?.GetType().Name ?? "unknown");
 
         context.Response.Redirect("/?signin=failed");

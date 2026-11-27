@@ -16,14 +16,14 @@ namespace Polymnia.Infrastructure.Migrations
                 name: "data_protection_keys",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    FriendlyName = table.Column<string>(type: "text", nullable: true),
-                    Xml = table.Column<string>(type: "text", nullable: true)
+                    friendly_name = table.Column<string>(type: "text", nullable: true),
+                    xml = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_data_protection_keys", x => x.Id);
+                    table.PrimaryKey("PK_data_protection_keys", x => x.id);
                 });
 
             migrationBuilder.CreateTable(

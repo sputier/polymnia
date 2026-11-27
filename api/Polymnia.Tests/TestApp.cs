@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -24,6 +25,12 @@ internal sealed class TestApp : WebApplicationFactory<Program>
 
     /// <summary>The identity the fake Google returns at the next sign-in.</summary>
     public FakeGoogleIdentity Google { get; } = new();
+
+    /// <summary>Stand-in for Google when the real OpenID Connect handler is used (<c>fakeGoogle: false</c>).</summary>
+    public OidcTestServer Oidc { get; } = new();
+
+    /// <summary>Every log entry of the host.</summary>
+    internal LogCapture Logs { get; } = new();
 
     private readonly string _environment;
     private readonly string _connectionString;
@@ -75,8 +82,21 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         builder.UseWebRoot(_webRoot);
         builder.UseSetting("ConnectionStrings:Polymnia", _connectionString);
         builder.UseSetting("https_port", "443");
+        if (_environment != "Development")
+        {
+            // Required outside Development: a real host list, never "*".
+            builder.UseSetting("AllowedHosts", "polymnia.example;localhost");
+        }
+
         if (_configureAuth)
         {
+            if (_environment != "Development")
+            {
+                // Required outside Development: the Data Protection keys are encrypted with a certificate.
+                builder.UseSetting("DataProtection:CertificatePath", TestCertificate.Path);
+                builder.UseSetting("DataProtection:CertificatePassword", TestCertificate.Password);
+            }
+
             // Dummy values: no call to Google is ever made.
             builder.UseSetting("Auth:PublicBaseUrl", PublicBaseUrl);
             builder.UseSetting("Auth:Google:ClientId", "test-client-id.apps.googleusercontent.com");
@@ -96,20 +116,19 @@ internal sealed class TestApp : WebApplicationFactory<Program>
             }
             else
             {
-                // Real OpenID Connect handler, without discovery over the network.
+                // Real OpenID Connect handler. No discovery over the network: static configuration and keys,
+                // and a token endpoint served by OidcTestServer.
                 services.PostConfigure<OpenIdConnectOptions>("Google", options =>
                 {
-                    var configuration = new OpenIdConnectConfiguration
-                    {
-                        Issuer = "https://accounts.example",
-                        AuthorizationEndpoint = "https://accounts.example/authorize",
-                        TokenEndpoint = "https://accounts.example/token",
-                    };
+                    OpenIdConnectConfiguration configuration = Oidc.CreateConfiguration();
                     options.Configuration = configuration;
                     options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
+                    options.Backchannel = new HttpClient(Oidc.Handler);
                 });
             }
         });
+        builder.ConfigureLogging(logging => logging.AddProvider(Logs));
+        builder.UseSetting("Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command", "Information");
 
         foreach ((string key, string? value) in _settings)
         {
@@ -120,6 +139,11 @@ internal sealed class TestApp : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
+        if (disposing)
+        {
+            Oidc.Dispose();
+        }
+
         if (disposing && Directory.Exists(_webRoot))
         {
             try

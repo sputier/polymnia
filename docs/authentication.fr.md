@@ -48,7 +48,7 @@ Le cookie ne contient qu'une clé aléatoire. Le ticket (l'identifiant interne d
 
 ### Clés Data Protection
 
-Les clés sont stockées dans PostgreSQL (`data_protection_keys`) et le nom d'application est `Polymnia` : les redémarrages et plusieurs conteneurs partagent les mêmes clés, donc cookies et jetons restent valides. Les clés de session sont aléatoires et stockées hachées : elles ne dépendent pas de ces clés. Par défaut les clés sont stockées en clair dans la même base ; pour les chiffrer au repos, renseignez `DataProtection:CertificatePath` (un fichier PKCS#12 `.pfx`, par exemple monté comme secret) et `DataProtection:CertificatePassword`. Recommandé pour tout déploiement dont les sauvegardes de base quittent le serveur.
+Les clés sont stockées dans PostgreSQL (`data_protection_keys`) et le nom d'application est `Polymnia` : les redémarrages et plusieurs conteneurs partagent les mêmes clés, donc cookies et jetons restent valides. **Elles sont chiffrées au repos avec un certificat, obligatoire hors Development** (l'application refuse de démarrer sans `DataProtection:CertificatePath`) : un dump ou une sauvegarde de la base ne les expose donc pas. Voir « Chiffrer les clés Data Protection » ci-dessous. Les clés de session sont aléatoires, stockées hachées, et ne dépendent pas de ces clés.
 
 ## Protection CSRF (antiforgery)
 
@@ -68,11 +68,32 @@ Un appel d'API sans session valide renvoie `401`, jamais une redirection vers Go
 | `Auth:Google:ClientSecret` | `Auth__Google__ClientSecret` | Secret du client OAuth. Ne jamais le commiter. |
 | `Auth:IdleTimeout` | `Auth__IdleTimeout` | Expiration glissante, `7.00:00:00` par défaut |
 | `Auth:AbsoluteTimeout` | `Auth__AbsoluteTimeout` | Durée de vie absolue, `30.00:00:00` par défaut |
+| `DataProtection:CertificatePath` | `DataProtection__CertificatePath` | Fichier PKCS#12 (`.pfx`) qui chiffre les clés Data Protection. Obligatoire hors Development. |
+| `DataProtection:CertificatePassword` | `DataProtection__CertificatePassword` | Mot de passe de ce fichier |
+| `Auth:RateLimit:PermitLimit`, `Auth:RateLimit:Window` | `Auth__RateLimit__PermitLimit`, `Auth__RateLimit__Window` | Requêtes par IP cliente sur `/api/auth/*` par fenêtre, `60` par `00:01:00` par défaut. Au-delà : `429` avec `Retry-After`. |
 
 - **Tout environnement autre que Development refuse de démarrer** s'il manque l'identifiant client, le secret ou une `Auth:PublicBaseUrl` valide (le message nomme la clé, jamais sa valeur).
 - En Development et dans les tests l'application démarre sans ces valeurs : l'authentification est désactivée, une tentative de connexion renvoie `503` et `/api/me` renvoie `401`.
-- Renseignez `AllowedHosts` avec le vrai nom d'hôte en production. L'URI de redirection n'en dépend pas, mais les en-têtes `Host` inattendus doivent être refusés quand même.
+- **`AllowedHosts` doit lister les vrais noms d'hôte** (ni vide, ni `*`) hors Development, sinon l'application refuse de démarrer. L'URI de redirection n'en dépend pas, mais les en-têtes `Host` inattendus doivent être refusés.
+- **`DataProtection:CertificatePath` est obligatoire** hors Development (voir « Chiffrer les clés Data Protection »).
 - Derrière un reverse proxy, transmettez le schéma d'origine (voir « Derrière un reverse proxy » dans le [guide de développement](development.fr.md)) : les cookies sont `Secure` et la redirection HTTPS doit voir du HTTPS.
+
+## Chiffrer les clés Data Protection
+
+Créez une fois un certificat auto-signé (il ne sert qu'à chiffrer les clés, personne ne se connecte avec) et gardez le fichier et son mot de passe dans votre gestionnaire de secrets :
+
+```
+mkdir -p secrets
+openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -subj "/CN=polymnia-keys" -days 3650
+openssl pkcs12 -export -inkey key.pem -in cert.pem -out secrets/polymnia-keys.pfx -passout pass:<choisir un mot de passe>
+shred -u key.pem cert.pem; chmod 644 secrets/polymnia-keys.pfx
+```
+
+Avec `docker-compose.yml` : le fichier est monté comme secret Docker sur `/run/secrets/polymnia_keys` (chemin défini par `POLYMNIA_KEYS_CERT_FILE`, `./secrets/polymnia-keys.pfx` par défaut) et le mot de passe vient de `POLYMNIA_KEYS_CERT_PASSWORD` dans `.env`. Sans compose, renseignez `DataProtection__CertificatePath` et `DataProtection__CertificatePassword`. Le fichier est protégé par mot de passe : `chmod 644` permet à l'utilisateur du conteneur de le lire. **Conservez ce fichier : sans lui, les clés stockées sont illisibles, toutes les sessions et tous les jetons deviennent invalides et les utilisateurs doivent se reconnecter.** Renouvellement : pour changer de certificat, générez un nouveau fichier et remplacez-le, en acceptant que les utilisateurs se reconnectent.
+
+## Limitation de débit et journal d'audit
+
+`/api/auth/*` est limité par IP cliente (`Auth:RateLimit`, 60 requêtes par minute par défaut) : au-delà, la réponse est `429` avec `Retry-After`. Derrière un reverse proxy, activez les en-têtes transférés (voir le [guide de développement](development.fr.md)) sinon tous les utilisateurs partagent l'adresse du proxy. Connexion et déconnexion sont journalisées en événements structurés de niveau `Information` (`AuthSignedIn` id 10, `AuthSignedOut` id 11, avec le seul identifiant interne de l'utilisateur : jamais de nom, d'e-mail, de sujet Google ni de jeton) ; une connexion échouée est `AuthSignInFailed` (id 4, `Warning`, type d'échec seulement) et une requête limitée `AuthRateLimited` (id 12). Les cookies de corrélation et de nonce d'une connexion vivent 10 minutes.
 
 ## Créer le client OAuth Google
 

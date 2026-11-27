@@ -16,6 +16,7 @@ namespace Polymnia.Api.Auth;
 /// <summary>
 /// Keeps the authentication ticket in PostgreSQL. The cookie only carries an unguessable key, so a session can
 /// be ended on the server (logout, user deleted, absolute lifetime) and a copied cookie stops working then.
+/// Loading a session also proves the user still exists (one joined query per request).
 /// </summary>
 internal sealed class DbTicketStore(
     IServiceScopeFactory scopes,
@@ -24,11 +25,48 @@ internal sealed class DbTicketStore(
     TimeProvider time,
     ILogger<DbTicketStore> logger) : ITicketStore
 {
+    /// <summary>
+    /// <see cref="HttpContext.Items"/> key under which <see cref="RetrieveAsync(string, HttpContext, CancellationToken)"/>
+    /// leaves the user's last-seen time. Its presence means "the session and the user were found in this request".
+    /// </summary>
+    internal const string LastSeenItemKey = "Polymnia.Auth.LastSeenAt";
+
     private const int KeyBytes = 32;
 
     private readonly IDataProtector _protector = dataProtection.CreateProtector("Polymnia.Auth.Session.v1");
 
-    public async Task<string> StoreAsync(AuthenticationTicket ticket)
+    public Task<string> StoreAsync(AuthenticationTicket ticket) => StoreCoreAsync(ticket, CancellationToken.None);
+
+    public Task<string> StoreAsync(AuthenticationTicket ticket, CancellationToken cancellationToken) =>
+        StoreCoreAsync(ticket, cancellationToken);
+
+    public Task<string> StoreAsync(AuthenticationTicket ticket, HttpContext httpContext, CancellationToken cancellationToken) =>
+        StoreCoreAsync(ticket, cancellationToken);
+
+    public Task RenewAsync(string key, AuthenticationTicket ticket) => RenewCoreAsync(key, ticket, CancellationToken.None);
+
+    public Task RenewAsync(string key, AuthenticationTicket ticket, CancellationToken cancellationToken) =>
+        RenewCoreAsync(key, ticket, cancellationToken);
+
+    public Task RenewAsync(string key, AuthenticationTicket ticket, HttpContext httpContext, CancellationToken cancellationToken) =>
+        RenewCoreAsync(key, ticket, cancellationToken);
+
+    public Task<AuthenticationTicket?> RetrieveAsync(string key) => RetrieveCoreAsync(key, null, CancellationToken.None);
+
+    public Task<AuthenticationTicket?> RetrieveAsync(string key, CancellationToken cancellationToken) =>
+        RetrieveCoreAsync(key, null, cancellationToken);
+
+    public Task<AuthenticationTicket?> RetrieveAsync(string key, HttpContext httpContext, CancellationToken cancellationToken) =>
+        RetrieveCoreAsync(key, httpContext, cancellationToken);
+
+    public Task RemoveAsync(string key) => RemoveCoreAsync(key, CancellationToken.None);
+
+    public Task RemoveAsync(string key, CancellationToken cancellationToken) => RemoveCoreAsync(key, cancellationToken);
+
+    public Task RemoveAsync(string key, HttpContext httpContext, CancellationToken cancellationToken) =>
+        RemoveCoreAsync(key, cancellationToken);
+
+    private async Task<string> StoreCoreAsync(AuthenticationTicket ticket, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ticket);
 
@@ -52,11 +90,11 @@ internal sealed class DbTicketStore(
             ExpiresAt = Min(ticket.Properties.ExpiresUtc ?? now + options.Value.IdleTimeout, now + options.Value.AbsoluteTimeout),
             AbsoluteExpiresAt = now + options.Value.AbsoluteTimeout,
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(cancellationToken);
         return key;
     }
 
-    public async Task RenewAsync(string key, AuthenticationTicket ticket)
+    private async Task RenewCoreAsync(string key, AuthenticationTicket ticket, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ticket);
 
@@ -71,12 +109,14 @@ internal sealed class DbTicketStore(
         // Only a live session is renewed, and the sliding expiry is capped by the absolute one.
         await db.Sessions
             .Where(s => s.KeyHash == hash && s.ExpiresAt > now && s.AbsoluteExpiresAt > now)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(x => x.Ticket, protectedTicket)
-                .SetProperty(x => x.ExpiresAt, x => expires < x.AbsoluteExpiresAt ? expires : x.AbsoluteExpiresAt));
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(x => x.Ticket, protectedTicket)
+                    .SetProperty(x => x.ExpiresAt, x => expires < x.AbsoluteExpiresAt ? expires : x.AbsoluteExpiresAt),
+                cancellationToken);
     }
 
-    public async Task<AuthenticationTicket?> RetrieveAsync(string key)
+    private async Task<AuthenticationTicket?> RetrieveCoreAsync(string key, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(key) || key.Length > 128)
         {
@@ -88,30 +128,41 @@ internal sealed class DbTicketStore(
 
         await using AsyncServiceScope scope = scopes.CreateAsyncScope();
         PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
-        byte[]? stored = await db.Sessions
+
+        // One query: the live session and its user. A session whose user is gone is not found.
+        var found = await db.Sessions
             .AsNoTracking()
             .Where(s => s.KeyHash == hash && s.ExpiresAt > now && s.AbsoluteExpiresAt > now)
-            .Select(s => s.Ticket)
-            .FirstOrDefaultAsync();
+            .Join(db.Users, s => s.UserId, u => u.Id, (s, u) => new { s.Ticket, u.LastSeenAt })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (stored is null)
+        if (found is null)
         {
             return null;
         }
 
+        AuthenticationTicket? ticket;
         try
         {
-            return TicketSerializer.Default.Deserialize(_protector.Unprotect(stored));
+            ticket = TicketSerializer.Default.Deserialize(_protector.Unprotect(found.Ticket));
         }
         catch (Exception ex) when (ex is CryptographicException or IOException or FormatException or InvalidOperationException)
         {
-            // Keys lost or rotated away: the session is unusable, the user signs in again.
+            // Keys lost or rotated away, or a damaged row: unusable. Drop it so it is not retried on every request.
             AuthLog.SessionUndecryptable(logger, ex);
+            await db.Sessions.Where(s => s.KeyHash == hash).ExecuteDeleteAsync(CancellationToken.None);
             return null;
         }
+
+        if (httpContext is not null)
+        {
+            httpContext.Items[LastSeenItemKey] = found.LastSeenAt;
+        }
+
+        return ticket;
     }
 
-    public async Task RemoveAsync(string key)
+    private async Task RemoveCoreAsync(string key, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(key))
         {
@@ -121,7 +172,7 @@ internal sealed class DbTicketStore(
         string hash = Hash(key);
         await using AsyncServiceScope scope = scopes.CreateAsyncScope();
         PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
-        await db.Sessions.Where(s => s.KeyHash == hash).ExecuteDeleteAsync();
+        await db.Sessions.Where(s => s.KeyHash == hash).ExecuteDeleteAsync(cancellationToken);
     }
 
     private static DateTimeOffset Min(DateTimeOffset a, DateTimeOffset b) => a < b ? a : b;

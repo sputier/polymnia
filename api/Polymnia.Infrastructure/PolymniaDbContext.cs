@@ -23,6 +23,12 @@ public sealed class PolymniaDbContext(DbContextOptions<PolymniaDbContext> option
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PolymniaDbContext).Assembly);
-        modelBuilder.Entity<DataProtectionKey>().ToTable("data_protection_keys");
+        modelBuilder.Entity<DataProtectionKey>(key =>
+        {
+            key.ToTable("data_protection_keys");
+            key.Property(k => k.Id).HasColumnName("id");
+            key.Property(k => k.FriendlyName).HasColumnName("friendly_name");
+            key.Property(k => k.Xml).HasColumnName("xml");
+        });
     }
 }

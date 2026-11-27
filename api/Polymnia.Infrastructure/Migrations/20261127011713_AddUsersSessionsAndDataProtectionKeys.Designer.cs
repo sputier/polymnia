@@ -12,7 +12,7 @@ using Polymnia.Infrastructure;
 namespace Polymnia.Infrastructure.Migrations
 {
     [DbContext(typeof(PolymniaDbContext))]
-    [Migration("20261127004334_AddUsersSessionsAndDataProtectionKeys")]
+    [Migration("20261127011713_AddUsersSessionsAndDataProtectionKeys")]
     partial class AddUsersSessionsAndDataProtectionKeys
     {
         /// <inheritdoc />
@@ -29,15 +29,18 @@ namespace Polymnia.Infrastructure.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("FriendlyName")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("friendly_name");
 
                     b.Property<string>("Xml")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("xml");
 
                     b.HasKey("Id");
 

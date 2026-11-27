@@ -5,6 +5,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Security
+- Authentication hardening (#7): Data Protection keys encrypted at rest with a certificate, mandatory outside Development (`DataProtection:CertificatePath`; compose mounts it as a secret, see `docs/authentication.md`); startup refuses `AllowedHosts` empty or `*` outside Development; per-IP rate limit with `429` and `Retry-After` on `/api/auth/*`; sign-in cookies expire after 10 minutes; structured audit events for sign-in, sign-out, failed sign-in and rate limiting (user id only); one database query per authenticated request for session and user.
+
 ### Changed
 - The Content Security Policy now allows images from `https://*.googleusercontent.com` (Google avatars). An unsafe method on any `/api` route without a valid antiforgery token now answers `400`, before routing.
 

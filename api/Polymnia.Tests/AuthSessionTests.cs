@@ -45,7 +45,7 @@ public sealed class AuthSessionTests(PostgresFixture postgres) : IClassFixture<P
         await app.MigrateAsync();
         var browser = new TestBrowser(app);
 
-        using HttpResponseMessage response = await browser.SendAsync(HttpMethod.Get, "/api/auth/login?returnUrl=/scores", host: "evil.example");
+        using HttpResponseMessage response = await browser.SendAsync(HttpMethod.Get, "/api/auth/login?returnUrl=/scores", host: "localhost");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Uri location = response.Headers.Location!;
@@ -58,7 +58,7 @@ public sealed class AuthSessionTests(PostgresFixture postgres) : IClassFixture<P
         Assert.False(string.IsNullOrEmpty(query["state"]));
         Assert.False(string.IsNullOrEmpty(query["nonce"]));
         Assert.Equal("openid profile", query["scope"]);
-        Assert.DoesNotContain("evil.example", location.OriginalString, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost", location.OriginalString, StringComparison.Ordinal);
 
         // Correlation and nonce cookies: __Host-, Secure, HttpOnly, Lax, Path=/, no Domain.
         string[] cookies = response.Headers.GetValues("Set-Cookie").ToArray();
@@ -68,6 +68,29 @@ public sealed class AuthSessionTests(PostgresFixture postgres) : IClassFixture<P
             Assert.StartsWith("__Host-Polymnia.", cookie, StringComparison.Ordinal);
             AuthWithoutDatabaseTests.AssertCookieFlags(cookie, sameSite: "lax", httpOnly: true);
         }
+    }
+
+    [Fact]
+    public async Task An_authenticated_request_costs_at_most_two_database_commands()
+    {
+        using TestApp app = await StartAsync();
+        var browser = new TestBrowser(app);
+        using (await browser.SignInAsync())
+        {
+        }
+
+        using (await browser.GetAsync("/api/me"))
+        {
+        } // warm-up: Data Protection key ring
+
+        app.Logs.Clear();
+        using HttpResponseMessage me = await browser.GetAsync("/api/me");
+
+        int commands = app.Logs.Entries.Count(e =>
+            e.Category == "Microsoft.EntityFrameworkCore.Database.Command" && e.EventId.Id == 20101);
+        Assert.Equal(HttpStatusCode.OK, me.StatusCode);
+        Console.WriteLine($"DB commands for an authenticated GET /api/me: {commands}");
+        Assert.InRange(commands, 1, 2);
     }
 
     [Fact]
@@ -373,9 +396,9 @@ public sealed class AuthSessionTests(PostgresFixture postgres) : IClassFixture<P
         var ticket = new Microsoft.AspNetCore.Authentication.AuthenticationTicket(
             new System.Security.Claims.ClaimsPrincipal(identity), properties, AuthDefaults.CookieScheme);
 
-        string key = await store.StoreAsync(ticket);
+        string key = await store.StoreAsync(ticket, TestContext.Current.CancellationToken);
         properties.ExpiresUtc = DateTimeOffset.UtcNow.AddDays(2);
-        await store.RenewAsync(key, ticket);
+        await store.RenewAsync(key, ticket, TestContext.Current.CancellationToken);
         (DateTimeOffset expires, DateTimeOffset absolute) = await WithDbAsync(app, async db =>
         {
             var row = await SessionsOf(db, app.Google.Subject).AsNoTracking().SingleAsync(TestContext.Current.CancellationToken);
@@ -384,15 +407,15 @@ public sealed class AuthSessionTests(PostgresFixture postgres) : IClassFixture<P
         Assert.InRange(expires, DateTimeOffset.UtcNow.AddDays(1.9), DateTimeOffset.UtcNow.AddDays(2.1));
 
         properties.ExpiresUtc = DateTimeOffset.UtcNow.AddDays(365);
-        await store.RenewAsync(key, ticket);
+        await store.RenewAsync(key, ticket, TestContext.Current.CancellationToken);
         DateTimeOffset capped = await WithDbAsync(app, async db =>
             (await SessionsOf(db, app.Google.Subject).AsNoTracking().SingleAsync(TestContext.Current.CancellationToken)).ExpiresAt);
         Assert.Equal(absolute, capped);
         Assert.InRange(absolute, DateTimeOffset.UtcNow.AddDays(29.9), DateTimeOffset.UtcNow.AddDays(30.1));
-        Assert.NotNull(await store.RetrieveAsync(key));
+        Assert.NotNull(await store.RetrieveAsync(key, TestContext.Current.CancellationToken));
 
-        await store.RemoveAsync(key);
-        Assert.Null(await store.RetrieveAsync(key));
+        await store.RemoveAsync(key, TestContext.Current.CancellationToken);
+        Assert.Null(await store.RetrieveAsync(key, TestContext.Current.CancellationToken));
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Polymnia.Api.Auth;
 using Polymnia.Infrastructure.Users;
@@ -129,7 +130,7 @@ public sealed class AuthWithoutDatabaseTests
     public void Options_validation(string environment, string? baseUrl, string? id, string? secret, bool valid)
     {
         var options = new AuthOptions { PublicBaseUrl = baseUrl, Google = { ClientId = id, ClientSecret = secret } };
-        var validator = new AuthOptionsValidator(new FakeEnvironment(environment));
+        var validator = new AuthOptionsValidator(new FakeEnvironment(environment), Deployment("polymnia.example", TestCertificate.Path));
 
         Assert.Equal(valid, validator.Validate(null, options).Succeeded);
     }
@@ -138,13 +139,115 @@ public sealed class AuthWithoutDatabaseTests
     public void Options_validation_failures_never_contain_the_secret()
     {
         var options = new AuthOptions { PublicBaseUrl = "http://x.example", Google = { ClientId = "id", ClientSecret = "very-secret-value" } };
-        var validator = new AuthOptionsValidator(new FakeEnvironment("Production"));
+        var validator = new AuthOptionsValidator(new FakeEnvironment("Production"), Deployment("polymnia.example", TestCertificate.Path));
 
         ValidateOptionsResult result = validator.Validate(null, options);
 
         Assert.True(result.Failed);
         Assert.DoesNotContain("very-secret-value", string.Join(' ', result.Failures!), StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("*", true)]
+    [InlineData("polymnia.example;*", true)]
+    [InlineData("polymnia.example", false)]
+    [InlineData("polymnia.example;www.polymnia.example", false)]
+    [InlineData("*.polymnia.example", false)]
+    public void Outside_development_AllowedHosts_must_list_real_hosts(string? allowedHosts, bool fails)
+    {
+        var options = new AuthOptions { PublicBaseUrl = "https://polymnia.example", Google = { ClientId = "id", ClientSecret = "secret" } };
+        var validator = new AuthOptionsValidator(new FakeEnvironment("Production"), Deployment(allowedHosts, TestCertificate.Path));
+
+        ValidateOptionsResult result = validator.Validate(null, options);
+
+        Assert.Equal(fails, result.Failed);
+        if (fails)
+        {
+            Assert.Contains("AllowedHosts", string.Join(' ', result.Failures!), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Development_accepts_wildcard_hosts_and_no_certificate()
+    {
+        var options = new AuthOptions();
+        var validator = new AuthOptionsValidator(new FakeEnvironment("Development"), Deployment("*", null));
+
+        Assert.True(validator.Validate(null, options).Succeeded);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("/nonexistent/dp.pfx")]
+    public void Outside_development_the_data_protection_certificate_is_mandatory(string? path)
+    {
+        var options = new AuthOptions { PublicBaseUrl = "https://polymnia.example", Google = { ClientId = "id", ClientSecret = "secret" } };
+        var validator = new AuthOptionsValidator(new FakeEnvironment("Production"), Deployment("polymnia.example", path));
+
+        ValidateOptionsResult result = validator.Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains("DataProtection:CertificatePath", string.Join(' ', result.Failures!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Production_host_refuses_to_start_without_a_certificate_or_with_wildcard_hosts()
+    {
+        using var app = new TestApp(
+            environment: "Production",
+            settings: new() { ["DataProtection:CertificatePath"] = string.Empty, ["AllowedHosts"] = "*" });
+
+        Exception ex = Assert.ThrowsAny<Exception>(() => app.CreateClient());
+
+        string message = ex.ToString();
+        Assert.Contains("DataProtection:CertificatePath", message, StringComparison.Ordinal);
+        Assert.Contains("AllowedHosts", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Auth_endpoints_are_rate_limited_per_ip_with_retry_after_and_other_routes_are_not()
+    {
+        using var app = new TestApp(settings: new() { ["Auth:RateLimit:PermitLimit"] = "3", ["Auth:RateLimit:Window"] = "00:01:00" });
+        var browser = new TestBrowser(app);
+
+        var statuses = new List<HttpStatusCode>();
+        HttpResponseMessage? limited = null;
+        for (int i = 0; i < 5; i++)
+        {
+            HttpResponseMessage response = await browser.GetAsync("/api/auth/login");
+            statuses.Add(response.StatusCode);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                limited ??= response;
+            }
+            else
+            {
+                response.Dispose();
+            }
+        }
+
+        Assert.Equal([HttpStatusCode.Redirect, HttpStatusCode.Redirect, HttpStatusCode.Redirect, HttpStatusCode.TooManyRequests, HttpStatusCode.TooManyRequests], statuses);
+        Assert.NotNull(limited);
+        Assert.True(int.Parse(limited.Headers.GetValues("Retry-After").Single(), System.Globalization.CultureInfo.InvariantCulture) is > 0 and <= 60);
+        limited.Dispose();
+
+        using HttpResponseMessage health = await browser.GetAsync("/api/health");
+        using HttpResponseMessage me = await browser.GetAsync("/api/me");
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
+    }
+
+    internal static Microsoft.Extensions.Configuration.IConfiguration Deployment(string? allowedHosts, string? certificatePath) =>
+        new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AllowedHosts"] = allowedHosts,
+                ["DataProtection:CertificatePath"] = certificatePath,
+            })
+            .Build();
 
     internal static void AssertCookieFlags(string setCookie, string sameSite, bool httpOnly)
     {

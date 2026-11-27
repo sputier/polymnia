@@ -48,7 +48,7 @@ The cookie holds only a random key. The ticket (the internal user id) is encrypt
 
 ### Data Protection keys
 
-Keys are stored in PostgreSQL (`data_protection_keys`) and the application name is `Polymnia`: restarts and several containers share the same keys, so cookies and tokens stay valid. Session keys are random and stored hashed, so they do not depend on these keys. By default the keys are stored unencrypted in the same database; to encrypt them at rest, set `DataProtection:CertificatePath` (a PKCS#12 `.pfx` file, for example mounted as a secret) and `DataProtection:CertificatePassword`. Recommended for any deployment whose database backups leave the server.
+Keys are stored in PostgreSQL (`data_protection_keys`) and the application name is `Polymnia`: restarts and several containers share the same keys, so cookies and tokens stay valid. **They are encrypted at rest with a certificate, mandatory outside Development** (the application refuses to start without `DataProtection:CertificatePath`), so a database dump or backup does not expose them. See "Encrypt the Data Protection keys" below. Session keys are random and stored hashed, and do not depend on these keys.
 
 ## CSRF protection (antiforgery)
 
@@ -68,11 +68,32 @@ An API call without a valid session is a `401`, never a redirect to Google.
 | `Auth:Google:ClientSecret` | `Auth__Google__ClientSecret` | OAuth client secret. Never commit it. |
 | `Auth:IdleTimeout` | `Auth__IdleTimeout` | Sliding expiration, default `7.00:00:00` |
 | `Auth:AbsoluteTimeout` | `Auth__AbsoluteTimeout` | Absolute lifetime, default `30.00:00:00` |
+| `DataProtection:CertificatePath` | `DataProtection__CertificatePath` | PKCS#12 file (`.pfx`) that encrypts the Data Protection keys. Required outside Development. |
+| `DataProtection:CertificatePassword` | `DataProtection__CertificatePassword` | Password of that file |
+| `Auth:RateLimit:PermitLimit`, `Auth:RateLimit:Window` | `Auth__RateLimit__PermitLimit`, `Auth__RateLimit__Window` | Requests per client IP on `/api/auth/*` per window, default `60` per `00:01:00`. Above it: `429` with `Retry-After`. |
 
 - **Any environment except Development fails to start** if the client id, the client secret or a valid `Auth:PublicBaseUrl` is missing (the message names the key, never its value).
 - In Development and tests the application starts without them: authentication is disabled, a sign-in attempt returns `503` and `/api/me` returns `401`.
-- Set `AllowedHosts` to the real host name in production. The redirect URI does not depend on it, but unexpected `Host` headers should be refused anyway.
+- **`AllowedHosts` must list the real host names** (not empty, not `*`) outside Development, otherwise the application refuses to start. The redirect URI does not depend on it, but unexpected `Host` headers must be refused.
+- **`DataProtection:CertificatePath` is mandatory** outside Development (see "Encrypt the Data Protection keys").
 - Behind a reverse proxy, forward the original scheme (see "Behind a reverse proxy" in the [development guide](development.md)): cookies are `Secure` and HTTPS redirection must see HTTPS.
+
+## Encrypt the Data Protection keys
+
+Create a self-signed certificate once (it only encrypts keys, nobody connects to it) and keep the file and its password in your secret store:
+
+```
+mkdir -p secrets
+openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -subj "/CN=polymnia-keys" -days 3650
+openssl pkcs12 -export -inkey key.pem -in cert.pem -out secrets/polymnia-keys.pfx -passout pass:<choose a password>
+shred -u key.pem cert.pem; chmod 644 secrets/polymnia-keys.pfx
+```
+
+With `docker-compose.yml`: the file is mounted as a Docker secret at `/run/secrets/polymnia_keys` (path set by `POLYMNIA_KEYS_CERT_FILE`, default `./secrets/polymnia-keys.pfx`) and the password comes from `POLYMNIA_KEYS_CERT_PASSWORD` in `.env`. Without compose, set `DataProtection__CertificatePath` and `DataProtection__CertificatePassword`. The file is password protected, so `chmod 644` lets the container user read it. **Keep the file: without it the stored keys cannot be read, every session and token becomes invalid and users sign in again.** To rotate the certificate, generate a new file and replace it, accepting that users sign in again.
+
+## Rate limiting and audit log
+
+`/api/auth/*` is limited per client IP (`Auth:RateLimit`, default 60 requests per minute): beyond it the answer is `429` with `Retry-After`. Behind a reverse proxy, enable forwarded headers (see the [development guide](development.md)) or every user shares the proxy address. Sign-in and sign-out are logged as structured events at `Information` level (`AuthSignedIn` id 10, `AuthSignedOut` id 11, with the internal user id only: never a name, e-mail, Google subject or token); a failed sign-in is `AuthSignInFailed` (id 4, `Warning`, failure type only) and a rate-limited request `AuthRateLimited` (id 12). The correlation and nonce cookies of a sign-in live 10 minutes.
 
 ## Create the Google OAuth client
 

@@ -18,9 +18,15 @@ x-polymnia: &polymnia
     Auth__PublicBaseUrl: ${POLYMNIA_PUBLIC_BASE_URL:?Set POLYMNIA_PUBLIC_BASE_URL in .env (see .env.example)}
     Auth__Google__ClientId: ${POLYMNIA_GOOGLE_CLIENT_ID:?Set POLYMNIA_GOOGLE_CLIENT_ID in .env (see .env.example)}
     Auth__Google__ClientSecret: ${POLYMNIA_GOOGLE_CLIENT_SECRET:?Set POLYMNIA_GOOGLE_CLIENT_SECRET in .env (see .env.example)}
+    # The Data Protection keys (stored in the database) are encrypted with this certificate. Required: see
+    # docs/authentication.md for the one-line openssl command that creates it.
+    DataProtection__CertificatePath: /run/secrets/polymnia_keys
+    DataProtection__CertificatePassword: ${POLYMNIA_KEYS_CERT_PASSWORD:?Set POLYMNIA_KEYS_CERT_PASSWORD in .env (see .env.example)}
     # Behind a reverse proxy only. Only the compose network is trusted as a proxy source.
     ForwardedHeaders__Enabled: ${POLYMNIA_FORWARDED_HEADERS:-false}
     ForwardedHeaders__KnownNetworks__0: ${POLYMNIA_SUBNET:-172.31.250.0/24}
+  secrets:
+    - polymnia_keys
   read_only: true
   tmpfs:
     - /tmp
@@ -73,6 +79,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+
+secrets:
+  polymnia_keys:
+    # PKCS#12 file, readable by the container user (chmod 644; it is password protected).
+    file: ${POLYMNIA_KEYS_CERT_FILE:-./secrets/polymnia-keys.pfx}
 
 networks:
   default:

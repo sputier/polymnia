@@ -1,4 +1,8 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -36,22 +40,23 @@ internal static class AuthExtensions
 
         IConfigurationSection section = configuration.GetSection(AuthOptions.SectionName);
         services.AddOptions<AuthOptions>().Bind(section).ValidateOnStart();
-        services.AddSingleton<IValidateOptions<AuthOptions>>(new AuthOptionsValidator(environment));
+        services.AddSingleton<IValidateOptions<AuthOptions>>(new AuthOptionsValidator(environment, configuration));
         AuthOptions auth = section.Get<AuthOptions>() ?? new();
 
         // Keys live in PostgreSQL: cookies and antiforgery tokens survive restarts and work across containers.
-        services.AddDataProtection()
+        // Outside Development they are encrypted at rest with a certificate (the options validator requires it).
+        IDataProtectionBuilder dataProtection = services.AddDataProtection()
             .SetApplicationName(AuthDefaults.DataProtectionApplicationName)
             .PersistKeysToDbContext<PolymniaDbContext>();
-
-        // Optional encryption of the stored keys with a certificate (see docs/authentication.md).
         string? keyCertificatePath = configuration["DataProtection:CertificatePath"];
         if (!string.IsNullOrWhiteSpace(keyCertificatePath))
         {
-            services.AddDataProtection().ProtectKeysWithCertificate(
-                System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12FromFile(
-                    keyCertificatePath, configuration["DataProtection:CertificatePassword"]));
+            dataProtection.ProtectKeysWithCertificate(
+                LoadKeyCertificate(keyCertificatePath, configuration["DataProtection:CertificatePassword"]));
         }
+
+        services.AddOptions<RateLimiterOptions>().Configure<IOptions<AuthOptions>, ILoggerFactory>(ConfigureRateLimiter);
+        services.AddRateLimiter(static _ => { });
 
         services.AddAntiforgery(options =>
         {
@@ -124,6 +129,13 @@ internal static class AuthExtensions
                 options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.NonceCookie.HttpOnly = true;
 
+                // Leftover cookies of abandoned sign-ins vanish quickly (also: a stale sign-in cannot be finished later).
+                TimeSpan signInWindow = TimeSpan.FromMinutes(10);
+                options.RemoteAuthenticationTimeout = signInWindow;
+                options.CorrelationCookie.MaxAge = signInWindow;
+                options.NonceCookie.MaxAge = signInWindow;
+                options.ProtocolValidator.NonceLifetime = signInWindow;
+
                 options.Events.OnRedirectToIdentityProvider = context =>
                 {
                     // Never derived from the request Host header.
@@ -148,11 +160,63 @@ internal static class AuthExtensions
         return services;
     }
 
+    private static X509Certificate2 LoadKeyCertificate(string path, string? password)
+    {
+        try
+        {
+            return X509CertificateLoader.LoadPkcs12FromFile(path, password);
+        }
+        catch (Exception ex) when (ex is CryptographicException or IOException)
+        {
+            // No path or password in the message.
+            throw new InvalidOperationException(
+                "The Data Protection certificate could not be loaded: check DataProtection:CertificatePath and DataProtection:CertificatePassword.",
+                ex);
+        }
+    }
+
+    /// <summary>
+    /// Per-IP fixed window on <c>/api/auth/*</c> (login, callback, antiforgery, logout): 429 with <c>Retry-After</c>.
+    /// Everything else is not limited here.
+    /// </summary>
+    private static void ConfigureRateLimiter(RateLimiterOptions limiter, IOptions<AuthOptions> authOptions, ILoggerFactory loggers)
+    {
+        RateLimitOptions settings = authOptions.Value.RateLimit;
+        ILogger logger = loggers.CreateLogger(AuthLog.Category);
+
+        limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            context.Request.Path.StartsWithSegments("/api/auth", StringComparison.OrdinalIgnoreCase)
+                ? RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = settings.PermitLimit,
+                        Window = settings.Window,
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    })
+                : RateLimitPartition.GetNoLimiter("not-auth"));
+        limiter.OnRejected = async (context, cancellationToken) =>
+        {
+            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+            {
+                context.HttpContext.Response.Headers.RetryAfter =
+                    Math.Ceiling(retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+            }
+
+            AuthLog.RateLimited(logger);
+            await Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Too many requests.")
+                .ExecuteAsync(context.HttpContext);
+        };
+    }
+
     /// <summary>Authentication, then antiforgery, then authorization (the token is bound to the signed-in user).</summary>
     public static IApplicationBuilder UsePolymniaAuth(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
 
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseMiddleware<ApiAntiforgeryMiddleware>();
         app.UseAuthorization();
@@ -219,10 +283,18 @@ internal static class AuthExtensions
         return TypedResults.NoContent();
     }
 
-    private static async Task<IResult> Logout(HttpContext context)
+    private static async Task<IResult> Logout(HttpContext context, ILoggerFactory loggers)
     {
+        Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), CultureInfo.InvariantCulture, out Guid userId);
+
         // Removes the server-side session, so a copy of the cookie stops working too.
         await context.SignOutAsync(AuthDefaults.CookieScheme);
+        if (userId != Guid.Empty)
+        {
+            ILogger audit = loggers.CreateLogger(AuthLog.Category);
+            AuthLog.SignedOut(audit, userId);
+        }
+
         context.Response.Cookies.Delete(AuthDefaults.RequestTokenCookieName, new CookieOptions { Secure = true, Path = "/" });
         return TypedResults.NoContent();
     }

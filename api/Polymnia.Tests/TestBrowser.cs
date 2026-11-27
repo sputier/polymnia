@@ -23,6 +23,14 @@ internal sealed class TestBrowser
 
     public void SetCookie(string name, string value) => _cookies[name] = value;
 
+    public void RemoveCookiesStartingWith(string prefix)
+    {
+        foreach (string name in _cookies.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+        {
+            _cookies.Remove(name);
+        }
+    }
+
     public async Task<HttpResponseMessage> SendAsync(
         HttpMethod method,
         string path,

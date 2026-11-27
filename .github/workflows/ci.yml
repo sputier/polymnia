@@ -135,7 +135,13 @@ jobs:
       # Same file a self-hoster uses: db -> migrate (one-shot) -> app, each with its health check.
       - name: Start the stack and probe it
         run: |
+          # Throw-away certificate for the Data Protection keys (required outside Development).
+          mkdir -p secrets
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" -subj "/CN=polymnia-ci" -days 2
+          openssl pkcs12 -export -inkey "$RUNNER_TEMP/key.pem" -in "$RUNNER_TEMP/cert.pem" -out secrets/polymnia-keys.pfx -passout pass:ci-throwaway
+          chmod 644 secrets/polymnia-keys.pfx
           {
+            echo "POLYMNIA_KEYS_CERT_PASSWORD=ci-throwaway"
             echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
             echo "POLYMNIA_ALLOWED_HOSTS=localhost"
             # Dummy Google settings: Production refuses to start without them; no call to Google is made.

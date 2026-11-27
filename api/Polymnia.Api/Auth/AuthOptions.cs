@@ -15,6 +15,9 @@ internal sealed class AuthOptions
 
     public GoogleAuthOptions Google { get; set; } = new();
 
+    /// <summary>Per-IP limit on <c>/api/auth/*</c>.</summary>
+    public RateLimitOptions RateLimit { get; set; } = new();
+
     /// <summary>Sliding expiration: a session unused for this long ends.</summary>
     public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromDays(7);
 
@@ -31,6 +34,13 @@ internal sealed class AuthOptions
             : null;
 }
 
+internal sealed class RateLimitOptions
+{
+    public int PermitLimit { get; set; } = 60;
+
+    public TimeSpan Window { get; set; } = TimeSpan.FromMinutes(1);
+}
+
 internal sealed class GoogleAuthOptions
 {
     public string? ClientId { get; set; }
@@ -39,7 +49,7 @@ internal sealed class GoogleAuthOptions
 }
 
 /// <summary>Fails the start-up on an unusable configuration. Messages never contain configuration values.</summary>
-internal sealed class AuthOptionsValidator(IHostEnvironment environment) : IValidateOptions<AuthOptions>
+internal sealed class AuthOptionsValidator(IHostEnvironment environment, IConfiguration configuration) : IValidateOptions<AuthOptions>
 {
     public ValidateOptionsResult Validate(string? name, AuthOptions options)
     {
@@ -71,6 +81,16 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment) : IVali
             ValidatePublicBaseUrl(options, failures);
         }
 
+        if (!environment.IsDevelopment())
+        {
+            ValidateDeployment(failures);
+        }
+
+        if (options.RateLimit.PermitLimit < 1 || options.RateLimit.Window <= TimeSpan.Zero)
+        {
+            failures.Add("Auth:RateLimit:PermitLimit and Auth:RateLimit:Window must be positive.");
+        }
+
         if (options.IdleTimeout <= TimeSpan.Zero || options.AbsoluteTimeout <= TimeSpan.Zero)
         {
             failures.Add("Auth:IdleTimeout and Auth:AbsoluteTimeout must be positive.");
@@ -81,6 +101,27 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment) : IVali
         }
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
+
+    /// <summary>Outside Development: a real host list and encrypted Data Protection keys are mandatory.</summary>
+    private void ValidateDeployment(List<string> failures)
+    {
+        string? allowedHosts = configuration["AllowedHosts"];
+        if (string.IsNullOrWhiteSpace(allowedHosts)
+            || allowedHosts.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Contains("*"))
+        {
+            failures.Add("AllowedHosts must list the real host names, not be empty or \"*\" (outside Development).");
+        }
+
+        string? certificate = configuration["DataProtection:CertificatePath"];
+        if (string.IsNullOrWhiteSpace(certificate))
+        {
+            failures.Add("DataProtection:CertificatePath is required outside Development (encrypts the Data Protection keys; see docs/authentication.md).");
+        }
+        else if (!File.Exists(certificate))
+        {
+            failures.Add("DataProtection:CertificatePath does not point to an existing file.");
+        }
     }
 
     private void ValidatePublicBaseUrl(AuthOptions options, List<string> failures)
