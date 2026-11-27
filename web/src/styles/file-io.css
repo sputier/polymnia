@@ -89,6 +89,37 @@
   padding-left: 20px;
 }
 
+.menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
+.menu-item[aria-checked='true']::before {
+  content: '\2713  ';
+}
+
+.export-progress {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.export-progress progress {
+  width: 120px;
+  accent-color: var(--accent);
+}
+
 .drop-hint {
   position: fixed;
   inset: 12px;
