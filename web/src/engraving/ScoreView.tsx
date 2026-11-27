@@ -13,6 +13,8 @@ export interface ScoreViewProps {
   selection?: readonly string[];
   /** Event ids drawn with the playback highlight. */
   playing?: readonly string[];
+  /** Out-of-range notes: drawn in the warning color with a mark and a tooltip (`text`). */
+  warnings?: readonly { id: string; text: string }[];
   /** Called on pointer down with what is under the pointer (null outside every system). */
   onHit?: (hit: HitResult | null, event: React.PointerEvent<HTMLDivElement>) => void;
   /** Text announced politely to screen readers (the selected event description, wired by #19). */
@@ -46,6 +48,7 @@ export function ScoreView({
   score,
   selection,
   playing,
+  warnings,
   onHit,
   liveMessage,
   onEngraver,
@@ -162,6 +165,10 @@ export function ScoreView({
   useEffect(() => {
     engraver?.setPlaying(playing ?? []);
   }, [engraver, playing]);
+
+  useEffect(() => {
+    engraver?.setWarnings(warnings ?? []);
+  }, [engraver, warnings]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!engraver || !onHit) return;

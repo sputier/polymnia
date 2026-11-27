@@ -117,6 +117,25 @@ export function setKeySignature(p: { measure: number; fifths: number }): Command
 }
 
 /**
+ * Tempo change (quarter notes per minute, 20..400) starting at `measure`, or `null` to remove the
+ * change (the tempo in force before it, or the score tempo, applies again).
+ */
+export function setTempo(p: { measure: number; bpm: number | null }): Command {
+  return defineCommand('setTempo', (score) => {
+    if (p.bpm !== null && (!Number.isInteger(p.bpm) || p.bpm < 20 || p.bpm > 400)) {
+      throw new CommandError('invalid-argument', 'Tempo must be an integer between 20 and 400');
+    }
+    return updateMeasure(score, p.measure, (m) => {
+      if (m.tempoBpm === (p.bpm ?? undefined)) return m;
+      const copy: { tempoBpm?: number } & MeasureInfo = { ...m };
+      if (p.bpm === null) delete copy.tempoBpm;
+      else copy.tempoBpm = p.bpm;
+      return copy;
+    });
+  });
+}
+
+/**
  * Pickup / shortened measure: sets the actual length in ticks (multiple of 120, below the time
  * signature) or `null` to restore the full length. Contents are padded or truncated like setTimeSignature.
  */

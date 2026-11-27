@@ -3,6 +3,7 @@ export { LIMITS } from './limits';
 export * from './ticks';
 export * from './pitch';
 export * from './instruments';
+export * from './tuning';
 export { newId, idGen, type IdGen } from './ids';
 export {
   voiceEventTicks,
@@ -25,3 +26,4 @@ export { History } from './history';
 export { CommandError, type Command, type CommandErrorCode } from './commands/core';
 export * from './commands/notes';
 export * from './commands/structure';
+export * from './commands/parts';

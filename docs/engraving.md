@@ -72,6 +72,7 @@ The model shares unchanged objects between versions, so references are the chang
 `engraver.render(score, width, { progressive: true })` (what `ScoreView` uses) computes the whole layout at once (it is pure and takes a few ms), sets the final size of the SVG, then engraves synchronously the systems that intersect the viewport (with a small margin), so the first system is painted quickly. The other systems are engraved in chunks of at most 20 ms in `requestIdleCallback` (`setTimeout` where it does not exist), in score order, and are inserted in the DOM at their place. `engraver.stats.complete` is `false` until the queue is empty and `await engraver.settled()` resolves when everything is drawn.
 
 - Hit testing and boxes only use the layout, so they work on systems that are not drawn yet; selection and playback highlights are applied to a system as soon as it is drawn.
+- Out-of-range warnings (#15) are class toggles like selection: `Engraver.setWarnings(list)` adds `pm-warn` (warning color) on the events and draws a triangle mark with a tooltip above each in a separate layer, from the layout boxes (so no re-engrave); a newly engraved system gets the class when it is drawn. The mark keeps the warning from relying on color alone.
 - A new `render` cancels the pending chunks. Systems already drawn and unchanged are reused as usual, so an edit is still incremental, and `render(score, width)` without options stays fully synchronous (what the benchmarks use).
 - `RenderStats` gains `firstSystemMs` (time to the first engraved system) and `complete`.
 

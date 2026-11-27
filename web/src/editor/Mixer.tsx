@@ -9,13 +9,17 @@ const SET_INSTRUMENT: Record<string, string> = { 'guitar-nylon': 'guitar-classic
 export function Mixer({ controller, score }: { controller: PlaybackController; score: Score }) {
   const { t, language } = useI18n();
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
-  const rows = score.parts.flatMap((part) =>
-    part.staves.map((staff, i) => ({
+  const rows = score.parts.flatMap((part) => {
+    // The TAB staff of a standard + TAB part repeats the standard staff and is not played.
+    const staves = part.staves.filter(
+      (staff) => staff.type !== 'tab' || !part.staves.some((o) => o.type === 'standard'),
+    );
+    return staves.map((staff, i) => ({
       id: staff.id,
-      label: part.staves.length > 1 ? `${part.name} (${i + 1})` : part.name,
+      label: staves.length > 1 ? part.name + ' (' + String(i + 1) + ')' : part.name,
       instrument: part.instrument,
-    })),
-  );
+    }));
+  });
   if (rows.length === 0) return <p className="panel-empty">{t('mixer.empty')}</p>;
 
   const standIns = new Map<string, string>();

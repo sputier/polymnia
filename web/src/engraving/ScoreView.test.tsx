@@ -38,6 +38,7 @@ vi.mock('./engraver', () => ({
     setSelection(ids: readonly string[]) {
       calls.selection.push(ids);
     }
+    setWarnings() {}
     setPlaying(ids: readonly string[]) {
       calls.playing.push(ids);
     }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildScore } from '../score/fixtures/dsl';
+import { guitarArpeggio } from '../score/fixtures';
 import type { NoteEvent } from '../score';
 import { makeTempoMap } from './clock';
 import { beatTicks, buildTimeline } from './timeline';
@@ -114,6 +115,12 @@ describe('buildTimeline', () => {
       const tl = buildTimeline(one(['C4:h D4:h']));
       expect(tl.notes).toHaveLength(2);
     });
+  });
+
+  it('plays a standard + TAB part once: the TAB staff repeats the standard staff', () => {
+    const tl = buildTimeline(guitarArpeggio);
+    expect(tl.staves).toHaveLength(1);
+    expect(tl.notes.filter((n) => n.startTick === 0)).toHaveLength(1);
   });
 
   describe('sounding pitch', () => {

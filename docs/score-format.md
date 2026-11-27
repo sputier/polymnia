@@ -55,8 +55,10 @@ A pitch is **spelled**, not a MIDI number: `{ step: 'C'..'B', alter: -2..2, octa
 
 - **Tuning override and capo.** `Part.tuning` (sounding pitches, high to low) replaces the catalog tuning (drop D, ...); `Part.capo` raises every string by that many semitones.
 - **Clefs.** `treble`, `bass`, `alto`, `tenor`, `treble-8vb` (guitar), `percussion` (reserved). `Staff.clef` is the initial clef; `StaffMeasure.clef` is a clef change at the start of that measure (`clefAt(staff, measure)`, `setClef`). Mid-measure clef changes are not modelled.
-- **Staff type.** `standard` or `tab` (tab rendering comes later).
+- **Staff type.** `standard` or `tab`. A fretted part is written `standard`, `tab` or both (two staves; `setStaffLayout` builds the second from the first and `syncCompanionStaff` keeps them in step while editing); `putEvent` on a tab staff derives the fretting.
 - **Fretting.** A note pitch may carry `fretting: { string, fret }` (`string` 1 = highest). `validateScore` checks that the string exists, the fret is within the instrument's frets, and that string + capo + fret sounds the same MIDI note as the written pitch plus the transposition.
+- **Changing instrument.** `changeInstrument` moves every written pitch by `oldTransposition - newTransposition` (spelling from the key of each measure; ties re-checked), keeps allowed clefs and replaces others with the instrument's default, adds an empty bass staff for piano, drops extra staves only when empty (`not-empty`), resets tuning and capo and recomputes frets. A tab staff repeating a standard staff of the same part is not played (playback and the mixer skip it).
+- **Tuning presets.** `tuningPresets(instrumentId)` (guitar: standard, drop D, DADGAD, open G, open D, half and whole step down; ukulele: GCEA, low G, baritone, D tuning), `matchTuningPreset`, `assignFretting` (lowest fret, preferred string kept) and `partRange` (catalog range extended down to the lowest string of a custom tuning) are in `tuning.ts`.
 - **Range.** `isInRange(instrument, pitch)` and `rangeWarnings(score)` report notes outside the sounding range as warnings, never errors.
 
 ## Ties, slurs
@@ -70,19 +72,25 @@ Every edit is a command (`commands/`): `interface Command { name; apply(score): 
 
 **Structural sharing.** A command copies only the path from the root to the change (score, part, staff, measure array, staff measure, voice). Everything else keeps its reference identity, so renderers and React can skip unchanged measures with `===`.
 
-| Command                                                              | Behavior                                                                                                           |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `setPitch`, `setAccidental`                                          | change a pitch (chords stay sorted); duplicates in a chord are refused; tie and fretting of that pitch are dropped |
-| `addPitch`, `removePitch`                                            | edit a chord; the last pitch cannot be removed (use `deleteEvent`)                                                 |
-| `setFretting`                                                        | sets string and fret and derives the written pitch                                                                 |
-| `putEvent`                                                           | writes a note, chord or rest at a tick of a voice (overwrite rule)                                                 |
-| `deleteEvent`                                                        | replaces by a rest of the same duration (same id); slurs on it are removed                                         |
-| `changeDuration`, `toggleDot`                                        | resize an event (overflow rule)                                                                                    |
-| `toggleTie`, `addSlur`, `removeSlur`                                 | ties and slurs                                                                                                     |
-| `createTriplet`                                                      | turns an undotted event into a 3:2 triplet (first slot keeps the note, two rests)                                  |
-| `transpose`                                                          | by semitones (12 = octave), all or nothing; fretting is dropped                                                    |
-| `insertMeasure`, `deleteMeasure`                                     | structure                                                                                                          |
-| `setTimeSignature`, `setKeySignature`, `setMeasureLength`, `setClef` | attributes from a measure on                                                                                       |
+| Command                                                              | Behavior                                                                                                                                                       |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setPitch`, `setAccidental`                                          | change a pitch (chords stay sorted); duplicates in a chord are refused; tie and fretting of that pitch are dropped                                             |
+| `addPitch`, `removePitch`                                            | edit a chord; the last pitch cannot be removed (use `deleteEvent`)                                                                                             |
+| `setFretting`                                                        | sets string and fret and derives the written pitch                                                                                                             |
+| `putEvent`                                                           | writes a note, chord or rest at a tick of a voice (overwrite rule)                                                                                             |
+| `deleteEvent`                                                        | replaces by a rest of the same duration (same id); slurs on it are removed                                                                                     |
+| `changeDuration`, `toggleDot`                                        | resize an event (overflow rule)                                                                                                                                |
+| `toggleTie`, `addSlur`, `removeSlur`                                 | ties and slurs                                                                                                                                                 |
+| `createTriplet`                                                      | turns an undotted event into a 3:2 triplet (first slot keeps the note, two rests)                                                                              |
+| `transpose`                                                          | by semitones (12 = octave), all or nothing; fretting is dropped                                                                                                |
+| `insertMeasure`, `deleteMeasure`                                     | structure                                                                                                                                                      |
+| `setTempo`                                                           | tempo change (20 to 400) from a measure, `null` removes it                                                                                                     |
+| `addPart`, `removePart`, `movePart`, `renamePart`                    | parts (the last part cannot be removed: `last-part`)                                                                                                           |
+| `changeInstrument`                                                   | new instrument: notes keep their sounding pitch, clef, staves, tuning and frets follow (see below)                                                             |
+| `setStaffLayout`                                                     | fretted parts: `standard`, `tab` or `standard+tab`                                                                                                             |
+| `syncCompanionStaff`                                                 | "standard + tab" parts: rebuilds the other staff from the one being edited when their notes differ (the editor runs it after each edit, in the same undo step) |
+| `setTuning`, `setCapo`                                               | tuning override (`null` = catalog) and capo; frets are recomputed                                                                                              |
+| `setTimeSignature`, `setKeySignature`, `setMeasureLength`, `setClef` | attributes from a measure on                                                                                                                                   |
 
 **Filling and overflow rules (MuseScore-like).**
 

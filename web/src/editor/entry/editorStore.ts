@@ -18,6 +18,26 @@ import {
   findStaff,
   History,
   insertMeasure,
+  addPart,
+  changeInstrument,
+  deleteMeasure,
+  movePart,
+  removePart,
+  renamePart,
+  setCapo,
+  setClef,
+  setKeySignature,
+  setMeasureLength,
+  setStaffLayout,
+  setTempo,
+  setTimeSignature,
+  setTuning,
+  staffLayoutOf,
+  syncCompanionStaff,
+  measureLength,
+  type Clef,
+  type StaffLayout,
+  type TimeSignature,
   newId,
   putEvent,
   removeSlur,
@@ -132,6 +152,12 @@ function noticeFor(e: CommandError): Notice {
       return { key: 'notice.duplicate' };
     case 'no-tie-target':
       return { key: 'notice.noTie' };
+    case 'last-part':
+      return { key: 'notice.lastPart' };
+    case 'not-empty':
+      return { key: 'notice.notEmpty' };
+    case 'last-measure':
+      return { key: 'notice.lastMeasure' };
     default:
       return { key: 'notice.cannot' };
   }
@@ -240,7 +266,7 @@ export class EditorStore {
     const before = this.history.score;
     let after: Score;
     try {
-      after = this.history.execute(cmd);
+      after = this.history.execute(this.withCompanionSync(before, cmd));
     } catch (e) {
       return this.fail(e);
     }
@@ -254,6 +280,15 @@ export class EditorStore {
       canRedo: this.history.canRedo,
     });
     return true;
+  }
+
+  /**
+   * A "standard + TAB" part keeps its second staff in step: after any edit the other staff of the
+   * edited part is rebuilt from the one being edited, in the same undo step.
+   */
+  private withCompanionSync(before: Score, cmd: Command): Command {
+    if (!before.parts.some((p) => staffLayoutOf(p) === 'standard+tab')) return cmd;
+    return composite(cmd.name, [cmd], [syncCompanionStaff({ staffId: this.state.staffId })]);
   }
 
   private seqOfCurrent(): SeqItem[] {
@@ -893,6 +928,161 @@ export class EditorStore {
             cursor: end,
           }
         : { cursor: end, ...this.say({ key: 'notice.pasted', params: { count: ids.length } }) },
+    );
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Structure: measures, attributes, parts (every one is a score command, so undo is exact)
+  // ---------------------------------------------------------------------------------------------
+
+  /** Keeps staff, cursor and selection valid after a structural edit. */
+  private keepValid(after: Score): Partial<EditorState> {
+    const s = this.state;
+    let staffId = s.staffId;
+    if (!findStaff(after, staffId)) {
+      const old = findStaff(s.score, staffId);
+      const part = after.parts[Math.min(old?.partIndex ?? 0, after.parts.length - 1)]!;
+      staffId = part.staves[Math.min(old?.staffIndex ?? 0, part.staves.length - 1)]!.id;
+    }
+    const measure = Math.min(s.cursor.measure, after.measures.length - 1);
+    const tick =
+      measure === s.cursor.measure && s.cursor.tick < measureLength(after, measure)
+        ? s.cursor.tick
+        : 0;
+    const selection = this.liveSelection(after, s.selection);
+    return {
+      staffId,
+      cursor: { measure, tick },
+      selection,
+      anchor: s.anchor && selection.includes(s.anchor) ? s.anchor : (selection[0] ?? null),
+      focus:
+        s.focus && selection.includes(s.focus)
+          ? s.focus
+          : (selection[selection.length - 1] ?? null),
+      lastEntered: s.lastEntered && findEvent(after, s.lastEntered) ? s.lastEntered : null,
+      pendingTie: null,
+      pendingSlur: null,
+    };
+  }
+
+  private structure(cmd: Command, notice: Notice, patch?: Partial<EditorState>): boolean {
+    return this.commit(cmd, (after) => ({
+      ...this.keepValid(after),
+      ...patch,
+      ...this.say(notice),
+    }));
+  }
+
+  /** Inserts an empty measure before the cursor measure, after it, or at the end; the cursor moves onto it. */
+  insertMeasure(where: 'before' | 'after' | 'end'): boolean {
+    const m = this.state.cursor.measure;
+    const index =
+      where === 'before' ? m : where === 'after' ? m + 1 : this.state.score.measures.length;
+    return this.structure(
+      insertMeasure({ index }),
+      { key: 'notice.measureInserted' },
+      {
+        cursor: { measure: index, tick: 0 },
+      },
+    );
+  }
+
+  /** Deletes the measure of the cursor (all staves). */
+  deleteMeasure(): boolean {
+    return this.structure(deleteMeasure({ index: this.state.cursor.measure }), {
+      key: 'notice.measureDeleted',
+    });
+  }
+
+  setKeySignature(fifths: number): boolean {
+    return this.structure(setKeySignature({ measure: this.state.cursor.measure, fifths }), {
+      key: 'notice.keySet',
+      params: { measure: this.state.cursor.measure + 1 },
+    });
+  }
+
+  setTimeSignature(time: TimeSignature): boolean {
+    return this.structure(setTimeSignature({ measure: this.state.cursor.measure, time }), {
+      key: 'notice.timeSet',
+      params: { time: `${time.beats}/${time.beatType}`, measure: this.state.cursor.measure + 1 },
+    });
+  }
+
+  /** Pickup / shortened measure at the cursor: length in ticks, or null for the full length. */
+  setMeasureLength(length: number | null): boolean {
+    return this.structure(setMeasureLength({ measure: this.state.cursor.measure, length }), {
+      key: 'notice.lengthSet',
+      params: { measure: this.state.cursor.measure + 1 },
+    });
+  }
+
+  /** Tempo change at the cursor measure; `null` removes it. */
+  setTempo(bpm: number | null): boolean {
+    const measure = this.state.cursor.measure;
+    return this.structure(
+      setTempo({ measure, bpm }),
+      bpm === null
+        ? { key: 'notice.tempoCleared', params: { measure: measure + 1 } }
+        : { key: 'notice.tempoSet', params: { bpm, measure: measure + 1 } },
+    );
+  }
+
+  /** Clef change at the cursor measure, on the staff being edited (measure 1 sets the initial clef). */
+  setClef(clef: Clef): boolean {
+    const { staffId, cursor } = this.state;
+    return this.structure(setClef({ staffId, measure: cursor.measure, clef }), {
+      key: 'notice.clefSet',
+      params: { measure: cursor.measure + 1 },
+    });
+  }
+
+  addPart(instrument: string, opts: { name?: string; layout?: StaffLayout } = {}): boolean {
+    const index = this.state.score.parts.length;
+    if (!this.structure(addPart({ instrument, ...opts }), { key: 'notice.partAdded' }))
+      return false;
+    this.focusPart(index);
+    return true;
+  }
+
+  /** Makes the first staff of a part the one being edited. */
+  focusPart(partIndex: number): void {
+    const part = this.state.score.parts[partIndex];
+    if (!part) return;
+    // The selection goes: note input starts where the focus is, and the focus is now this part.
+    this.set({ staffId: part.staves[0]!.id, selection: [], anchor: null, focus: null });
+  }
+
+  removePart(partId: string): boolean {
+    return this.structure(removePart({ partId }), { key: 'notice.partRemoved' });
+  }
+
+  movePart(partId: string, toIndex: number): boolean {
+    const ok = this.structure(movePart({ partId, toIndex }), { key: 'notice.partMoved' });
+    return ok;
+  }
+
+  renamePart(partId: string, name: string): boolean {
+    return this.structure(renamePart({ partId, name }), { key: 'notice.partRenamed' });
+  }
+
+  changeInstrument(partId: string, instrument: string, name?: string): boolean {
+    return this.structure(changeInstrument({ partId, instrument, ...(name ? { name } : {}) }), {
+      key: 'notice.instrumentChanged',
+    });
+  }
+
+  setStaffLayout(partId: string, layout: StaffLayout): boolean {
+    return this.structure(setStaffLayout({ partId, layout }), { key: 'notice.layoutSet' });
+  }
+
+  setTuning(partId: string, tuning: readonly Pitch[] | null): boolean {
+    return this.structure(setTuning({ partId, tuning }), { key: 'notice.tuningSet' });
+  }
+
+  setCapo(partId: string, capo: number): boolean {
+    return this.structure(
+      setCapo({ partId, capo }),
+      capo === 0 ? { key: 'notice.capoOff' } : { key: 'notice.capoSet', params: { fret: capo } },
     );
   }
 

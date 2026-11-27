@@ -10,6 +10,7 @@ import './styles/tokens.css';
 import './styles/app.css';
 import './styles/editor.css';
 import './styles/palette.css';
+import './styles/parts.css';
 import './styles/commands.css';
 import './styles/file-io.css';
 import './styles/library.css';

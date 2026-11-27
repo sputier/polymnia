@@ -42,6 +42,8 @@ score ──buildTimeline──▶ Timeline (notes, spans, tempo, beats)        
 
 ## Instruments and samples
 
+The instrument of a part comes from `Part.instrument`, so changing it in the instruments panel (#15) changes the sound at once. A TAB staff that repeats a standard staff of the same part ("standard + TAB") is skipped by the timeline and the mixer: the part is heard once.
+
 Samples are short Ogg Opus excerpts, a few pitches per instrument; Tone's `Sampler` repitches the nearest one. Only the sets used by the staves of the score are downloaded, and only when you play or enter a note.
 
 | Instrument                 | Set                           | Download | Source (all CC0 1.0)                                       |

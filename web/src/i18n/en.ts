@@ -1,4 +1,6 @@
 import { libraryEn } from './library';
+import { partsEn } from './parts.en';
+
 export const en = {
   'app.name': 'Polymnia',
   'app.tagline': 'Compose music in your browser.',
@@ -250,6 +252,7 @@ export const en = {
   'io.error.invalid-score': 'The score cannot be represented in Polymnia.',
   'io.error.read': 'The file could not be read.',
   ...libraryEn,
+  ...partsEn,
 } as const;
 
 export type MessageKey = keyof typeof en;

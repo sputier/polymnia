@@ -13,7 +13,25 @@
   user-select: none;
 }
 
+/* Out of range: warning color plus a triangle mark (not color alone). Selection and playback win. */
+.pm-score .pm-event.pm-warn {
+  color: var(--warn);
+}
+
+.pm-score .pm-warn-mark path {
+  fill: var(--warn);
+}
+
+.pm-score .pm-warn-mark text {
+  font: 700 9px var(--font-ui, sans-serif);
+  fill: var(--paper);
+}
+
 .pm-score .pm-event.pm-selected {
+  color: var(--accent);
+}
+
+.pm-score .pm-event.pm-warn.pm-selected {
   color: var(--accent);
 }
 
