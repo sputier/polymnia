@@ -1,11 +1,19 @@
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { consumeReturn } from './auth/returnTo';
-import { EditorLayout } from './editor/EditorLayout';
+import { useI18n } from './i18n/i18n';
 import { flushDeletes, hasPendingDeletes } from './library/deferredDelete';
-import { Library } from './library/Library';
-import { ScoreEditorRoute } from './persistence/ScoreEditorRoute';
 import { hasPendingSaves } from './persistence/saveQueue';
+import { Library, ScoreEditorRoute, ScratchEditor } from './route/chunks';
 import { useRoute } from './route/useRoute';
+
+function Loading() {
+  const { t } = useI18n();
+  return (
+    <p role="status" className="muted signin-main">
+      {t('auth.loading')}
+    </p>
+  );
+}
 
 export function App() {
   const route = useRoute();
@@ -38,7 +46,15 @@ export function App() {
     };
   }, []);
 
-  if (route.name === 'score') return <ScoreEditorRoute key={route.id} id={route.id} />;
-  if (route.name === 'editor') return <EditorLayout />;
-  return <Library />;
+  return (
+    <Suspense fallback={<Loading />}>
+      {route.name === 'score' ? (
+        <ScoreEditorRoute key={route.id} id={route.id} />
+      ) : route.name === 'editor' ? (
+        <ScratchEditor />
+      ) : (
+        <Library />
+      )}
+    </Suspense>
+  );
 }

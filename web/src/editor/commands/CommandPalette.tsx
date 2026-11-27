@@ -1,6 +1,6 @@
-import { useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react';
 import { Kbd } from '../../components/Kbd';
-import { useI18n } from '../../i18n/i18n';
+import { allCatalogsLoaded, loadAllCatalogs, useI18n } from '../../i18n/i18n';
 import {
   buildCommands,
   GROUP_LABEL,
@@ -31,7 +31,14 @@ export function CommandPalette({ list, onClose }: CommandPaletteProps) {
   const titleId = `${uid}-title`;
   const listId = `${uid}-list`;
   const commands = useMemo(() => buildCommands(list), [list]);
-  const entries = useMemo(() => searchEntries(commands), [commands]);
+  // The search matches the labels in every language: download the other catalogs when the palette opens (not before,
+  // so a visitor who never opens it only ever loads their own language).
+  const [allLanguages, setAllLanguages] = useState(allCatalogsLoaded);
+  useEffect(() => {
+    if (!allLanguages) void loadAllCatalogs().then(() => setAllLanguages(true));
+  }, [allLanguages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- allLanguages: the entries read the catalogs it signals
+  const entries = useMemo(() => searchEntries(commands), [commands, allLanguages]);
   const byId = useMemo(() => new Map(commands.map((c) => [c.id, c])), [commands]);
   // Availability is read once: nothing changes behind the dialog while it is open.
   const enabled = useMemo(() => new Map(commands.map((c) => [c.id, c.enabled()])), [commands]);

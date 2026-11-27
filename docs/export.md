@@ -77,7 +77,7 @@ Chromium, production build, Windows 11 laptop, a 100-measure piano score (grand 
 | PDF (engrave, pages, write) | < 3 s | 100 to 120 ms |
 | PNG (3 pages at 2x, zipped) | < 2 s | 155 to 175 ms |
 | Export chunk | gzip budget 70 KB (`npm run size`) | 50.6 KB (41 KB of it are the Bravura outlines; the Inter tables are separate lazy chunks) |
-| Initial JS | <= 150 KB gzip | unchanged by the export code (the menu items and the paper preference are a few hundred bytes) |
+| Initial JS | <= 110 KB gzip | unchanged by the export code (the menu items and the paper preference are a few hundred bytes) |
 
 ## Tests
 

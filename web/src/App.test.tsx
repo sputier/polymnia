@@ -20,7 +20,7 @@ describe('App', () => {
     vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en']);
     resetLanguage();
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'My scores' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'My scores' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /FR/ }));
 
@@ -35,7 +35,7 @@ describe('App', () => {
     resetLanguage();
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /dark theme|thème sombre/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /dark theme|thème sombre/i }));
 
     expect(document.documentElement.dataset.theme).toBe('dark');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
@@ -48,7 +48,7 @@ describe('App', () => {
     });
     render(<App />);
 
-    await userEvent.click(screen.getByRole('button', { name: /dark theme|thème sombre/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /dark theme|thème sombre/i }));
 
     expect(document.documentElement.dataset.theme).toBe('dark');
   });

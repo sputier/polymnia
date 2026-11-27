@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
-const BUDGET_KB = 150;
+const BUDGET_KB = 110; // gzip, the initial JavaScript: React, session, sign-in, active language (#50)
 const EDITOR_BUDGET_KB = 200; // gzip, the chunk that holds VexFlow (#33)
 const PLAYBACK_BUDGET_KB = 80; // gzip, the chunk that holds Tone.js (#10)
 const EXPORT_BUDGET_KB = 70; // gzip, the chunk with MIDI, PDF and PNG export (#14)
@@ -108,6 +108,25 @@ const css = files
   .filter((f) => f.endsWith('.css'))
   .reduce((sum, f) => sum + gzipKb(join(assets, f)), 0);
 console.log(`  css  total ${css.toFixed(1)} KB gzip`);
+
+// What each screen downloads before it can render: the initial JS plus the chunks route-preload.js adds for it
+// (vite-plugins/routePreload.ts, with the English catalog). Informational: only the initial JS has a budget.
+try {
+  const script = readFileSync(join(dist, 'route-preload.js'), 'utf8');
+  const map = JSON.parse(/var R=(\{.*?\});/s.exec(script)?.[1] ?? '{}');
+  for (const [name, list] of Object.entries(map)) {
+    if (name === 'en' || name === 'fr') continue;
+    const own = [...new Set([...list, ...(map.en ?? [])])].reduce(
+      (sum, f) => sum + gzipKb(join(dist, f)),
+      0,
+    );
+    console.log(
+      `  route ${name.padEnd(8)} ${(totalJs + own).toFixed(1)} KB gzip JS (initial + ${own.toFixed(1)} KB)`,
+    );
+  }
+} catch {
+  console.log('  route-preload.js not found: per-route sizes skipped.');
+}
 
 console.log(`Initial JS: ${totalJs.toFixed(1)} KB gzip (budget ${BUDGET_KB} KB)`);
 if (totalJs > BUDGET_KB) fail(`Initial JS over budget by ${(totalJs - BUDGET_KB).toFixed(1)} KB.`);

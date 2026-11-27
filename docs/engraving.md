@@ -175,7 +175,7 @@ Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 
 | Keystroke while filling an empty score, median / p95 / max of 400               | p95 < 16 ms     | 3.7 / 7.1 / 12.6 ms                         |
 | Highlight (selection + playing)                                                 | class toggle    | < 1 ms                                                                    |
 | Layout alone (jsdom)                                                            | n/a             | a few ms                                                                  |
-| Initial JS                                                                      | <= 150 KB gzip  | 72.7 KB                                                                   |
+| Initial JS                                                                      | <= 110 KB gzip  | 75 KB                                                                     |
 | Editor chunk (VexFlow + engraving, no font)                                     | <= 200 KB gzip  | 180 KB (was 468 KB with the fonts)                                        |
 | Bravura font file                                                               | <= 250 KB woff2 | 247 KB, separate file, immutable cache                                    |
 
