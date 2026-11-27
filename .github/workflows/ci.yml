@@ -154,6 +154,10 @@ jobs:
             echo "POLYMNIA_PUBLIC_BASE_URL=https://localhost"
             echo "POLYMNIA_GOOGLE_CLIENT_ID=ci-dummy-client-id.apps.googleusercontent.com"
             echo "POLYMNIA_GOOGLE_CLIENT_SECRET=ci-dummy-client-secret"
+            # Dummy operator details: Production refuses to start without them.
+            echo "POLYMNIA_LEGAL_OPERATOR_NAME=CI Operator"
+            echo "POLYMNIA_LEGAL_CONTACT=ci@polymnia.example"
+            echo "POLYMNIA_LEGAL_HOSTING_PROVIDER=CI Hosting"
             echo "POLYMNIA_IMAGE=polymnia"
             echo "POLYMNIA_VERSION=ci"
           } > .env
@@ -166,6 +170,9 @@ jobs:
           grep -qi '^content-security-policy:' "$RUNNER_TEMP/headers.txt"
           grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/headers.txt"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Host: evil.example' http://127.0.0.1:8080/)" = 400
+          # The public legal endpoint serves the operator details from the environment.
+          curl --fail --silent --show-error --max-time 10 -H 'Host: localhost' http://127.0.0.1:8080/api/legal | tee "$RUNNER_TEMP/legal.json"; echo
+          grep -q '"operatorName":"CI Operator"' "$RUNNER_TEMP/legal.json"
 
       - name: Compose logs on failure
         if: failure()

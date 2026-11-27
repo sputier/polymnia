@@ -1,0 +1,63 @@
+# Confidentialité, suppression du compte et export des données
+
+[English](privacy.md) · **Français**
+
+Pour les personnes qui exploitent une instance. Polymnia conserve peu de données personnelles et donne à chaque utilisateur l'accès, l'export et l'effacement en libre-service (RGPD, articles 15, 17 et 20). En tant qu'exploitant vous êtes le responsable de traitement : cette page dit ce que le logiciel contient, ce que vous devez configurer et ce qui reste à votre charge. Ce n'est pas un avis juridique.
+
+## Inventaire des données
+
+| Où                                      | Données                                                                                                                                                                       | Pourquoi                             | Conservation                                                                                                   |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `users`                                 | identifiant interne, `sub` Google (identifiant opaque), nom affiché, URL de l'avatar (hôte Google seulement), langue, dates de création et de dernière visite. **Ni e-mail, ni mot de passe, ni jeton Google.** | le compte                            | jusqu'à la suppression du compte par l'utilisateur                                                             |
+| `scores`                                | titre, contenu (JSON), dates, version                                                                                                                                         | le service                           | jusqu'à la suppression de la partition ou du compte par l'utilisateur                                          |
+| `share_links`                           | hachage du jeton du lien, id de la partition, dates (le jeton lui-même n'est jamais stocké)                                                                                  | le partage                           | jusqu'à la révocation ou à la suppression du compte                                                            |
+| `user_sessions`                         | SHA-256 de la clé de session, identifiant utilisateur, ticket chiffré, dates                                                                                                  | rester connecté                      | inactivité `Auth:IdleTimeout` (7 j), absolue `Auth:AbsoluteTimeout` (30 j), lignes expirées purgées toutes les heures |
+| `data_protection_keys`                  | clés de chiffrement des cookies et jetons (aucune donnée personnelle ; chiffrées au repos avec votre certificat)                                                              | sécurité                             | durée de vie des clés (90 jours), puis renouvelées                                                             |
+| Journaux de l'application               | événements d'audit (connexion, déconnexion, export, suppression, limites de débit) avec le **seul identifiant interne** : ni nom, ni e-mail, ni identifiant Google, ni jeton, ni contenu de partition | sécurité, prévention des abus        | **vous décidez** (`Legal:LogRetentionDays`, 30 par défaut) : l'application ne fait pas tourner les journaux, votre chaîne de journaux le fait |
+| Journaux du reverse proxy et de l'hôte  | en général adresses IP et URL. **Non produits par Polymnia** : les réglages de votre proxy et de votre hébergeur s'appliquent                                                  | exploitation                         | à définir et à publier par vous                                                                                |
+| Navigateur (`localStorage`)             | choix de langue et de thème. Jamais envoyés au serveur                                                                                                                        | confort                              | dans le navigateur de l'utilisateur                                                                            |
+
+Tous les cookies sont strictement nécessaires (session, antiforgery, vérifications de connexion) : aucun bandeau de consentement n'est requis. Il n'y a ni statistiques ni requête tierce, sauf vers Google pour la connexion et vers l'hôte d'images de Google pour les avatars.
+
+## Ce que vous devez configurer
+
+Les paramètres `Legal` vous identifient sur la page publique de confidentialité (`#/privacy`). **Hors Development, l'application refuse de démarrer sans les trois premiers** : une instance publique ne peut donc jamais tourner sans responsable de traitement ni contact.
+
+| Clé                      | Variable d'environnement (compose)                              | Obligatoire | Sens                                                                                                  |
+| ------------------------ | --------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| `Legal:OperatorName`     | `Legal__OperatorName` (`POLYMNIA_LEGAL_OPERATOR_NAME`)          | oui         | Votre nom légal (personne ou organisation), 200 caractères au plus                                    |
+| `Legal:Contact`          | `Legal__Contact` (`POLYMNIA_LEGAL_CONTACT`)                     | oui         | Une adresse e-mail ou une URL `https` pour les demandes relatives aux données. Rien d'autre n'est accepté (cela devient un lien) |
+| `Legal:HostingProvider`  | `Legal__HostingProvider` (`POLYMNIA_LEGAL_HOSTING_PROVIDER`)    | oui         | Votre hébergeur (un sous-traitant) ; nommez-le et ayez un contrat de sous-traitance avec lui          |
+| `Legal:HostingCountry`   | `Legal__HostingCountry` (`POLYMNIA_LEGAL_HOSTING_COUNTRY`)      | non         | Pays où les données sont stockées                                                                     |
+| `Legal:Address`          | `Legal__Address` (`POLYMNIA_LEGAL_ADDRESS`)                     | non         | Adresse postale, 400 caractères au plus                                                               |
+| `Legal:LogRetentionDays` | `Legal__LogRetentionDays` (`POLYMNIA_LOG_RETENTION_DAYS`)       | non         | Jours pendant lesquels vous conservez les journaux, de 1 à 3650, 30 par défaut. La page le cite : rendez-le vrai |
+
+Tout est affiché tel quel sur une page publique : utilisez des informations que vous acceptez de publier. Rien n'est codé en dur dans le dépôt. En Development les paramètres peuvent rester vides : la page affiche alors un avis clair « non configuré » et `GET /api/legal` répond `configured: false`. Le validateur nomme les clés fausses ou manquantes, jamais leurs valeurs. Les durées de session citées sur la page viennent de `Auth:IdleTimeout` et `Auth:AbsoluteTimeout`.
+
+## Ce que les utilisateurs peuvent faire
+
+Tout se fait depuis le menu du compte (le nom dans la barre d'outils) :
+
+- **Politique de confidentialité** : `#/privacy`, en français et en anglais, aussi liée depuis l'écran de connexion. Publique, sans session. C'est un chunk séparé chargé à la demande (environ 5 Ko gzip) : le premier chargement ne change pas.
+- **Exporter mes données** (accès et portabilité) : `GET /api/me/export` télécharge un ZIP avec `profile.json` et un fichier JSON par partition (le format de partition de Polymnia, [score-format.fr.md](score-format.fr.md)). Il contient exactement les données de l'utilisateur et aucun secret : ni la clé de session ou son hachage, ni le ticket, ni aucun jeton. Limité à 3 par 10 minutes. Le MusicXML n'est pas dans l'archive : cette conversion vit dans le navigateur ([musicxml.fr.md](musicxml.fr.md)) et obligerait la page à télécharger et convertir jusqu'à 200 partitions ; chaque partition reste exportable en MusicXML, MIDI, PDF ou PNG depuis l'éditeur, et les fichiers JSON se réimportent avec tout outil qui lit le format ouvert.
+- L'export n'exige pas de connexion récente, contrairement à la suppression : tout ce qu'il contient (les partitions et les données de compte que l'utilisateur voit déjà) est lisible avec la même session via `GET /api/scores` et `GET /api/me` ; il n'ajoute que l'identifiant Google et les dates de session. La suppression est irréversible, d'où sa rigueur. L'export est limité en débit.
+- **Supprimer mon compte** (effacement) : une boîte de dialogue demande de saisir `SUPPRIMER` (`DELETE` en anglais), puis `DELETE /api/me` supprime l'utilisateur et, par `ON DELETE CASCADE`, toutes ses partitions, sessions et liens de partage, en une seule instruction. Les cookies sont effacés et l'écran de connexion le confirme. Exige une **connexion récente** (10 minutes par défaut, `Auth:RecentSignInWindow`) : une session plus ancienne repasse d'abord par Google, voir [Authentification](authentication.fr.md#connexion-récente-suppression-du-compte). Le choix : une étape de confirmation qui force une nouvelle connexion Google vaut mieux que « la session a moins de N minutes » seul, car un cookie volé ne peut pas la franchir, et la fenêtre évite d'embêter quelqu'un qui vient de se connecter.
+- **Rectification** : le nom et l'avatar viennent de Google et sont rafraîchis à chaque connexion ; l'utilisateur les modifie dans son compte Google.
+
+Tout le reste (limitation, opposition, questions) vous parvient par `Legal:Contact`. Vous avez un mois pour répondre.
+
+## Piste d'audit
+
+La suppression et l'export sont journalisés au niveau `Information` avec le seul identifiant interne (`AuthAccountDeleted` id 13, `AuthDataExported` id 14 avec le nombre de partitions). Un export interrompu est `AuthDataExportFailed` (id 15, `Warning`) et une suppression refusée `AuthReauthRequired` (id 16). Après la suppression du compte, la ligne de journal garde l'identifiant désormais orphelin pendant `Legal:LogRetentionDays` : il n'identifie plus personne une fois la ligne `users` disparue.
+
+## Ce qui reste à votre charge
+
+1. **Sauvegardes.** Une suppression retire les données de la base active seulement. Les sauvegardes les gardent jusqu'à leur rotation (voir « Sauvegarde et restauration » dans [Auto-hébergement](self-hosting.fr.md)). Gardez une rotation courte (la page dit « jusqu'à leur remplacement par la rotation normale »), et si vous restaurez une sauvegarde, **supprimez de nouveau les comptes supprimés depuis** (conservez la liste des dates et identifiants de suppression issue du journal d'audit).
+2. **Journaux.** Appliquez `Legal:LogRetentionDays` dans votre chaîne de journaux, votre proxy et votre hôte.
+3. **Sous-traitants.** Ayez un contrat avec votre hébergeur. Google est responsable de traitement indépendant pour la connexion.
+4. **Demandes par e-mail.** Répondez sous un mois. La plupart des demandes sont couvertes par les boutons en libre-service.
+5. **N'ajoutez pas de suivi.** Toute statistique ou requête tierce change la politique et peut exiger un consentement.
+
+## Tests
+
+`api/Polymnia.Tests/AccountPrivacyTests.cs` (PostgreSQL dans Testcontainers) : la suppression retire chaque ligne de l'utilisateur dans toutes les tables qui le référencent (trouvées dans le catalogue) et rien d'un autre utilisateur ; toute clé étrangère vers `users` cascade ; l'en-tête antiforgery est exigé ; une connexion ancienne est refusée avec `reauth-required` et réussit après une nouvelle connexion ; l'export contient exactement les données de l'utilisateur et aucun secret, est limité en débit et, pour 200 partitions (208 Mo de JSON), se diffuse en mémoire bornée (environ 4 s, 3 Mo de tas en plus). `LegalTests.cs` : `GET /api/legal` et la règle de démarrage. Playwright `web/e2e/privacy.spec.ts` : la page de confidentialité hors connexion, le parcours de suppression et le téléchargement de l'export (l'API est simulée).

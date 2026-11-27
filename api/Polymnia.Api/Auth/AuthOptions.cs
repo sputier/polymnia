@@ -24,6 +24,12 @@ internal sealed class AuthOptions
     /// <summary>Hard limit: a session never outlives this, however active it is.</summary>
     public TimeSpan AbsoluteTimeout { get; set; } = TimeSpan.FromDays(30);
 
+    /// <summary>
+    /// How recent the sign-in must be for a destructive account action (deleting the account). An older session
+    /// must sign in with Google again first.
+    /// </summary>
+    public TimeSpan RecentSignInWindow { get; set; } = TimeSpan.FromMinutes(10);
+
     public bool GoogleConfigured =>
         !string.IsNullOrWhiteSpace(Google.ClientId) && !string.IsNullOrWhiteSpace(Google.ClientSecret);
 
@@ -98,6 +104,11 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IConfig
         else if (options.IdleTimeout > options.AbsoluteTimeout)
         {
             failures.Add("Auth:IdleTimeout must not exceed Auth:AbsoluteTimeout.");
+        }
+
+        if (options.RecentSignInWindow <= TimeSpan.Zero || options.RecentSignInWindow > TimeSpan.FromHours(24))
+        {
+            failures.Add("Auth:RecentSignInWindow must be between 00:00:01 and 1.00:00:00.");
         }
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);

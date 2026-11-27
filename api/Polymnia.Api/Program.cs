@@ -1,5 +1,7 @@
+using Polymnia.Api.Account;
 using Polymnia.Api.Auth;
 using Polymnia.Api.Hosting;
+using Polymnia.Api.Legal;
 using Polymnia.Api.Scores;
 using Polymnia.Api.Sharing;
 using Polymnia.Api.Spa;
@@ -39,6 +41,8 @@ builder.Services.AddPolymniaHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPolymniaAuth(builder.Configuration, builder.Environment);
 builder.Services.AddScoreApi(builder.Configuration, builder.Environment);
 builder.Services.AddShareApi(builder.Configuration);
+builder.Services.AddLegal(builder.Configuration);
+builder.Services.AddAccount();
 
 WebApplication app = builder.Build();
 
@@ -55,6 +59,8 @@ app.MapPolymniaEndpoints();
 app.MapAuthEndpoints();
 app.MapScoreApi();
 app.MapShareEndpoints();
+app.MapAccountEndpoints();
+app.MapLegalEndpoints();
 app.MapSpaFallback();
 
 await app.RunAsync();

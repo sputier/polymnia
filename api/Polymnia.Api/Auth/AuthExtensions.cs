@@ -146,6 +146,14 @@ internal static class AuthExtensions
                 {
                     // Never derived from the request Host header.
                     context.ProtocolMessage.RedirectUri = redirectUri;
+                    if (context.Properties.Items.ContainsKey(AuthDefaults.ReauthProperty))
+                    {
+                        // Re-authentication (account deletion): Google asks the person to pick their account again.
+                        context.ProtocolMessage.Prompt = "select_account";
+                        // Harmless if Google ignores it: ask for a fresh authentication.
+                        context.ProtocolMessage.MaxAge = "0";
+                    }
+
                     return Task.CompletedTask;
                 };
                 options.Events.OnAuthorizationCodeReceived = context =>
@@ -354,7 +362,7 @@ internal static class AuthExtensions
         return endpoints;
     }
 
-    private static async Task<IResult> Login(HttpContext context, IAuthenticationSchemeProvider schemes, string? returnUrl)
+    private static async Task<IResult> Login(HttpContext context, IAuthenticationSchemeProvider schemes, string? returnUrl, bool? reauth)
     {
         if (await schemes.GetSchemeAsync(AuthDefaults.GoogleScheme) is null)
         {
@@ -364,14 +372,22 @@ internal static class AuthExtensions
         }
 
         string target = ReturnUrl.Sanitize(returnUrl);
-        if (context.User.Identity?.IsAuthenticated == true)
+        if (context.User.Identity?.IsAuthenticated == true && reauth != true)
         {
             return Results.LocalRedirect(target);
         }
 
-        return Results.Challenge(
-            new AuthenticationProperties { RedirectUri = target },
-            [AuthDefaults.GoogleScheme]);
+        var properties = new AuthenticationProperties { RedirectUri = target };
+        if (reauth == true)
+        {
+            // A fresh sign-in replaces the session (and its auth_time); the old session row dies with its expiry.
+            // The value is the user who must come back: it travels in the protected OIDC state, and the callback
+            // refuses a different Google account (otherwise the person would delete a new, empty account).
+            properties.Items[AuthDefaults.ReauthProperty] =
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        }
+
+        return Results.Challenge(properties, [AuthDefaults.GoogleScheme]);
     }
 
     private static NoContent IssueAntiforgeryToken(HttpContext context, IAntiforgery antiforgery)
