@@ -57,7 +57,7 @@ Other rules: a pickup measure uses its own `length` (it gets less width); braces
 
 ## Theming and highlighting
 
-The SVG sets `color: var(--score-ink)` and VexFlow draws with `currentColor`; a few hard-coded colors of VexFlow (stems, ledger lines) are overridden in `engraving.css`. Each event is a `<g class="pm-event" data-event-id="...">`. `setSelection(ids)` adds `pm-selected` (color `--accent`, plus a soft `--accent-soft` rectangle in a separate overlay group); `setPlaying(ids)` adds `pm-playing` (color `--play`). Both are class toggles on existing nodes, so they never re-engrave and work with the dark theme.
+The SVG sets `color: var(--score-ink)` and VexFlow draws with `currentColor`; a few hard-coded colors of VexFlow (stems, ledger lines) are overridden in `engraving.css`. Each event is a `<g class="pm-event" data-event-id="...">`. `setSelection(ids)` adds `pm-selected` (color `--accent`, plus a soft `--accent-soft` rectangle in a separate overlay group); `setPlaying(ids)` adds `pm-playing` (color `--play`); `setPlayCursor(ids)` moves one `<rect class="pm-cursor">` (color `--play`) over the given events and returns its box, for playback ([docs/playback.md](playback.md)). Both are class toggles on existing nodes, so they never re-engrave and work with the dark theme.
 
 ## Incremental rendering
 

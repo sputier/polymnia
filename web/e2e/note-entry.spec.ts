@@ -51,6 +51,10 @@ declare global {
 
 async function openEditor(page: Page, query = '') {
   await mockSignedIn(page);
+  // Entered notes are previewed through the audio engine: silence it (and keep Tone.js out of the timings).
+  await page.addInitScript(() => {
+    (window as unknown as { __polymniaAudio: string }).__polymniaAudio = 'mock';
+  });
   await page.goto(`/#/editor${query}`);
   await expect(page.locator('svg.pm-score')).toBeVisible();
   await page.waitForFunction(

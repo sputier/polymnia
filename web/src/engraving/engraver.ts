@@ -8,7 +8,7 @@
  */
 import { Renderer, type RenderContext } from 'vexflow/core';
 import type { Score } from '../score/types';
-import { eventBox, hitTest, type EventBox, type HitResult } from './hitTest';
+import { eventBox, hitTest, type EventBox, type HitResult, type Rect } from './hitTest';
 import { LayoutCache, layoutScore, type Layout, type SystemLayout } from './layout';
 import { drawSystem } from './draw';
 import './vexflowSetup';
@@ -100,6 +100,8 @@ export class Engraver {
   };
   private readonly ctx: RenderContext;
   private readonly overlay: SVGGElement;
+  private readonly cursorLayer: SVGGElement;
+  private cursor: SVGRectElement | undefined;
   private readonly cache = new LayoutCache();
   private entries: (Entry | undefined)[] = [];
   private job: Job | undefined;
@@ -120,6 +122,10 @@ export class Engraver {
     this.overlay.setAttribute('class', 'pm-overlay');
     this.overlay.setAttribute('aria-hidden', 'true');
     this.svg.appendChild(this.overlay);
+    this.cursorLayer = document.createElementNS(SVG_NS, 'g');
+    this.cursorLayer.setAttribute('class', 'pm-cursor-layer');
+    this.cursorLayer.setAttribute('aria-hidden', 'true');
+    this.svg.appendChild(this.cursorLayer);
     this.layout = { width: 0, height: 0, systems: [], staves: [] };
   }
 
@@ -352,6 +358,37 @@ export class Engraver {
     this.playing = new Set(ids);
     for (const id of before) if (!this.playing.has(id)) this.toggle(id, 'pm-playing', false);
     for (const id of this.playing) if (!before.has(id)) this.toggle(id, 'pm-playing', true);
+  }
+
+  /**
+   * Draws the playback cursor around the given events (a vertical bar spanning their staves), or
+   * hides it. One rect that is moved: no re-engrave, safe at 60 fps. Returns the bar in SVG
+   * coordinates so the caller can scroll to it.
+   */
+  setPlayCursor(ids: readonly string[]): Rect | undefined {
+    const boxes = ids.map((id) => eventBox(this.layout, id)).filter((b): b is EventBox => !!b);
+    if (boxes.length === 0) {
+      this.cursor?.setAttribute('visibility', 'hidden');
+      return undefined;
+    }
+    // Only the events of the system at the left-most column (the playhead is in one place).
+    const x = Math.min(...boxes.map((b) => b.x));
+    const here = boxes.filter((b) => Math.abs(b.x - x) < 40);
+    const top = Math.min(...here.map((b) => b.y)) - 6;
+    const bottom = Math.max(...here.map((b) => b.y + b.h)) + 6;
+    if (!this.cursor) {
+      this.cursor = document.createElementNS(SVG_NS, 'rect');
+      this.cursor.setAttribute('class', 'pm-cursor');
+      this.cursor.setAttribute('rx', '1.5');
+      this.cursorLayer.appendChild(this.cursor);
+    }
+    const rect = { x: x - 5, y: top, w: 3, h: bottom - top };
+    this.cursor.setAttribute('x', String(rect.x));
+    this.cursor.setAttribute('y', String(rect.y));
+    this.cursor.setAttribute('width', String(rect.w));
+    this.cursor.setAttribute('height', String(rect.h));
+    this.cursor.removeAttribute('visibility');
+    return rect;
   }
 
   private toggle(id: string, cls: string, on: boolean): void {

@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import type { Engraver } from '../engraving/engraver';
+import { playback, previewNote } from '../playback';
+import { followPlayback } from '../playback/follow';
 import { Kbd } from '../components/Kbd';
 import type { SaveState } from '../components/SaveStatus';
 import { ScoreView } from '../engraving/ScoreView';
 import { useI18n } from '../i18n/i18n';
 import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
+import { Mixer } from './Mixer';
 import { ShortcutStrip } from './ShortcutStrip';
 import { SidePanel } from './SidePanel';
 import { describeDuration, describeEvent, formatNotice, positionLabel } from './entry/describe';
@@ -14,6 +18,7 @@ import { sequenceOf } from './entry/plan';
 import { Palette } from './Palette';
 import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
+import { TransportBar } from './TransportBar';
 import { useMediaQuery } from './useMediaQuery';
 import { useUiMode } from './uiMode';
 
@@ -31,6 +36,18 @@ function hashParams(): URLSearchParams {
   return new URLSearchParams(window.location.hash.split('?')[1] ?? '');
 }
 
+/** Hooks the note entry of the store to the audio: each entered note is heard at once. */
+function bindNotePreview(store: EditorStore): () => void {
+  store.onNoteEntered = (pitch) => {
+    const { score, staffId } = store.getState();
+    const part = score.parts.find((p) => p.staves.some((s) => s.id === staffId));
+    if (part) previewNote(part.id, pitch);
+  };
+  return () => {
+    store.onNoteEntered = undefined;
+  };
+}
+
 export function EditorLayout({ saveState = 'saved', store: given }: EditorLayoutProps) {
   const { t } = useI18n();
   const [store] = useState(() => {
@@ -45,8 +62,34 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
     // Fixture preview: the hook only appears once everything is drawn (docs/engraving.md).
     if (fixture) return;
     const w = window as unknown as { __polymnia?: Record<string, unknown> };
-    w.__polymnia = { ...w.__polymnia, store };
+    w.__polymnia = { ...w.__polymnia, store, playback };
   }, [store, fixture]);
+  // Playback: the controller plays the score of the store; it follows it on the engraved score.
+  const [engraver, setEngraver] = useState<Engraver | null>(null);
+  useEffect(() => {
+    playback.setScore(state.score);
+  }, [state.score]);
+  useEffect(() => (engraver ? followPlayback(playback, engraver) : undefined), [engraver]);
+  // Selecting notes moves the playhead there (play from selection) while nothing is playing.
+  useEffect(() => {
+    if (state.mode !== 'select' || playback.getState().status === 'playing') return;
+    const tick = playback.tickOfEvents(state.selection);
+    if (tick !== undefined) playback.seekTick(tick);
+  }, [state.mode, state.selection, state.score]);
+  // Each note entered is heard at once, on the instrument of the staff it was entered in.
+  useEffect(() => bindNotePreview(store), [store]);
+  // The audio engine is a lazy chunk: start fetching it at the first interaction (a user gesture,
+  // which is also what lets the audio context start).
+  useEffect(() => {
+    const warm = () => playback.warmUp();
+    const opts = { once: true, capture: true } as const;
+    document.addEventListener('pointerdown', warm, opts);
+    document.addEventListener('keydown', warm, opts);
+    return () => {
+      document.removeEventListener('pointerdown', warm, opts);
+      document.removeEventListener('keydown', warm, opts);
+    };
+  }, []);
   const { mode, setMode, toggle: toggleMode } = useUiMode();
   const overlay = useMediaQuery(OVERLAY_QUERY);
   const advanced = mode === 'advanced';
@@ -101,6 +144,24 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
         if (state.mode === 'note') return store.toggleInputMode();
         return false;
       },
+    },
+    {
+      id: 'playback.playPause',
+      keys: 'Space',
+      labelKey: 'shortcut.playPause',
+      handler: (event) => {
+        // A focused button or link takes Space itself (it activates on its own).
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest('button, a, summary, [role=button]'))
+          return false;
+        playback.toggle();
+      },
+    },
+    {
+      id: 'playback.home',
+      keys: 'Home',
+      labelKey: 'shortcut.playHome',
+      handler: () => playback.home(),
     },
     ...entryShortcuts(store),
   ];
@@ -164,6 +225,7 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
         </SidePanel>
 
         <main className="center">
+          <TransportBar controller={playback} selection={state.selection} />
           <div className="score-area">
             <Palette store={store} state={state} advanced={advanced} />
             <section className="paper" aria-label={t('paper.label')}>
@@ -172,6 +234,7 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
                 {...(fixture ? {} : { score: state.score })}
                 selection={highlighted}
                 liveMessage={liveMessage}
+                onEngraver={setEngraver}
                 onHit={(hit, event) => store.click(hit, event.shiftKey)}
               />
             </section>
@@ -189,6 +252,7 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
             onClose={() => setRightChoice(false)}
           >
             <p className="panel-empty">{t('inspector.empty')}</p>
+            <Mixer controller={playback} score={state.score} />
           </SidePanel>
         )}
         {showScrim && <div className="scrim" aria-hidden="true" onClick={closeOverlays} />}

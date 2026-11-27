@@ -12,6 +12,9 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: false,
+    // Samples are always separate hashed files (a data URL would defeat the immutable cache and
+    // the same-origin media policy); everything else keeps Vite's default 4 KB inlining.
+    assetsInlineLimit: (file) => (file.endsWith('.ogg') ? false : undefined),
   },
   test: {
     environment: 'jsdom',

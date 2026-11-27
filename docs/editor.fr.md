@@ -14,6 +14,8 @@ L'éditeur est à l'adresse `#/editor` (routage par hash, sans dépendance de ro
 | Panneau droit | Inspecteur, repliable, **mode Avancé uniquement** |
 | Barre d'état | Mode de saisie (`SAISIE` / `SÉLECTION`), durée courante, mesure et temps, niveau d'interface, état d'enregistrement |
 
+Le centre contient aussi une **barre de transport** au-dessus de la partition (lecture/pause, arrêt, retour au début, boucle, métronome, tempo) et, en mode Avancé, une console avec couper et isoler par portée dans l'inspecteur ; voir [lecture](playback.fr.md).
+
 Les composants sont dans `web/src/editor/`. La barre d'état est alimentée par le store de l'éditeur (mode, durée, mesure et temps du curseur) et affiche le dernier message.
 
 ### Simple et Avancé
@@ -33,6 +35,8 @@ Le choix est stocké dans `localStorage` (`polymnia.uiMode` ; les erreurs sont i
 | `Ctrl+I` (`Cmd+I` sur macOS) | Afficher ou masquer l'inspecteur (Avancé uniquement) |
 | `Alt+A` (`Option+A` sur macOS) | Basculer entre Simple et Avancé |
 | `Échap` | Fermer le panneau ouvert (écrans étroits), sinon quitter la saisie |
+| `Espace` | Lecture ou pause (comportement de MuseScore ; un bouton qui a le focus le garde) |
+| `Origine` (`Home`) | Retour au début de la partition |
 
 Les raccourcis ne se déclenchent pas pendant la saisie dans un champ texte. Les touches de saisie de notes sont listées dans la section suivante.
 
