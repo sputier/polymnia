@@ -3,7 +3,9 @@
 Polymnia itself is MIT licensed (see [LICENSE](LICENSE)). The following third-party components are
 shipped to browsers with the web application. Other dependencies (build and test tools, server
 libraries) are not redistributed in the served files and are listed in `web/package.json` and the
-`api/` project files.
+`api/` project files. The container image ships, besides the .NET runtime libraries, [MailKit](https://github.com/jstedfast/MailKit)
+4.18.2 and [MimeKit](https://github.com/jstedfast/MimeKit) 4.18.2 (MIT, copyright Jeffrey Stedfast; SMTP for the contact form, see
+`docs/contact.md`) and BouncyCastle.Cryptography (MIT, the Legion of the Bouncy Castle) that MimeKit uses.
 
 | Component                                                                                                                                                                     | Used for                                                 | Version                | License                              | Where it is served                                                                                                                                                                  |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

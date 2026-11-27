@@ -45,6 +45,72 @@ namespace Polymnia.Infrastructure.Migrations
                     b.ToTable("data_protection_keys", (string)null);
                 });
 
+            modelBuilder.Entity("Polymnia.Core.Contact.ContactMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset?>("LockedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("locked_until");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("message");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("ReplyTo")
+                        .HasColumnType("text")
+                        .HasColumnName("reply_to");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("topic");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "CreatedAt" }, "ix_contact_messages_created_at");
+
+                    b.HasIndex(new[] { "Status", "NextAttemptAt" }, "ix_contact_messages_status_next_attempt_at");
+
+                    b.ToTable("contact_messages", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_contact_messages_message_length", "char_length(message) <= 2000");
+
+                            t.HasCheckConstraint("ck_contact_messages_reply_to_length", "reply_to IS NULL OR char_length(reply_to) <= 254");
+                        });
+                });
+
             modelBuilder.Entity("Polymnia.Core.Scores.Score", b =>
                 {
                     b.Property<Guid>("Id")

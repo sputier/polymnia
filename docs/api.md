@@ -129,6 +129,17 @@ Read-only links to a score, documented in [sharing.md](sharing.md):
 
 The owner endpoints follow the rules above (session, antiforgery, per-owner `404`, per-user budgets). The public endpoint is limited per client address (IPv4, or IPv6 `/64`): 60 requests per minute (`RateLimiting:Shared:PermitLimit`, `WindowSeconds`) and 32 streaming at once (`MaxConcurrentReads`), `429` with `Retry-After` beyond. `share_links.score_id` is a foreign key to `scores.id` with `ON DELETE CASCADE`.
 
+## Contact form
+
+Public endpoints of the [contact form](contact.md), for signed-out visitors too:
+
+| Method and path               | What it does                                                                                                                                                                  | Success |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `GET /api/contact/form-token` | A signed, short-lived token and the minimum filling time: `{ token, minFillSeconds }`. `no-store`, never compressed. 60 per hour per client address (`429` beyond).             | `200`   |
+| `POST /api/contact`           | `{ topic, message, replyTo?, website?, token }` (JSON, 16 KiB). Stores the message and answers at once; a background service forwards it by e-mail. No answer body.            | `202`   |
+
+`POST /api/contact` is the **only** unsafe `/api` route without the antiforgery header: the form token plays that role (see [authentication.md](authentication.md)). Errors: `400` (a field in `errors`, or `code: "contact-token"`), `413`, `415`, `429` with `Retry-After` (5 messages per hour per client address, 200 in all). Details, limits and the rules for each field: [contact.md](contact.md).
+
 ## Account: export and deletion
 
 Three more endpoints concern the signed-in user's own data (GDPR, see [Privacy](privacy.md)). The user always comes from the session, never from the request.
@@ -136,7 +147,7 @@ Three more endpoints concern the signed-in user's own data (GDPR, see [Privacy](
 | Method and path      | What it does                                                                                                                                                                                                                                                                                                                                  | Success                              |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | `GET /api/me/export` | Streams a ZIP: `profile.json` (account data, active sessions and share links as dates only, never the token or its hash, list of the score files) and `scores/<title>-<id>.json`, one per score, exactly as stored. No credential is inside (no session key or hash, no ticket, no token). Never compressed again, `Cache-Control: no-store`. | `200` `application/zip` (attachment) |
-| `GET /api/legal`     | Public. The operator details and retention periods shown on the privacy page: `{ configured, operatorName, contact, contactKind, address, hostingProvider, hostingCountry, logRetentionDays, sessionIdleDays, sessionAbsoluteDays }`. `Cache-Control: public, max-age=300`.                                                                   | `200`                                |
+| `GET /api/legal`     | Public. The operator details and retention periods shown on the privacy page: `{ configured, operatorName, contact, contactKind, address, hostingProvider, hostingCountry, logRetentionDays, contactRetentionDays, sessionIdleDays, sessionAbsoluteDays }`. `Cache-Control: public, max-age=300`.                                                                   | `200`                                |
 | `DELETE /api/me`     | Delete the account: the user and, by `ON DELETE CASCADE`, every score, session and any other row that references them. Requires the antiforgery header and a sign-in younger than `Auth:RecentSignInWindow` (`403` with `code: "reauth-required"` otherwise). Clears the cookies.                                                             | `204`                                |
 
 **The export is streamed and memory-bounded.** The archive is written to the response as it is built, one score at a time: each document is read from PostgreSQL as bytes and copied through a small buffer (the same path as `GET /api/scores/{id}`), nothing is assembled in memory. If the stream breaks half way the connection is cut, so the client sees a failed download and never a truncated archive that looks complete. Measured by the test `Export_of_the_largest_library_streams_in_bounded_memory` (200 scores of about 1 MB, the quota): 208 MB of JSON become an 11 MB ZIP in about 4 s while the managed heap grows by about 3 MB. File names are the title reduced to `A-Z a-z 0-9 - _` (at most 60 characters) plus the score id, so they are unique and cannot leave `scores/`.

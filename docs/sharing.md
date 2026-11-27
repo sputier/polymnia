@@ -61,6 +61,10 @@ The link the user shares has the token in the **fragment**. A browser never send
 
 A crawler never sees the fragment either, and the viewer adds `<meta name="robots" content="noindex, nofollow">` while it is shown.
 
+### Report this page
+
+The footer of the public viewer has a **Report this page** link to the [contact form](contact.md) (`#/contact?topic=report&page=<token>`), so that anyone who finds a shared score that should not be public can tell the operator without an address being published. The form opens on the topic "Report a shared page" with the link of the page written in the message: the sender sees it and can edit or remove it, and it is stored and forwarded like the rest of the message (the link opens the score, so it is as sensitive as the message). Only a well-formed token becomes a link. The owner revokes a reported link like any other (**Stop sharing**).
+
 ## Owner endpoints
 
 Under `/api/scores/{id}/share`. They need the session and, for unsafe methods, the antiforgery header. A score owned by someone else answers `404`, like a missing score. Limits: the per-user read and write budgets of [api.md](api.md).

@@ -65,19 +65,22 @@ internal sealed class TestApp : WebApplicationFactory<Program>
     private readonly string _webRoot;
     private readonly bool _configureAuth;
     private readonly bool _fakeGoogle;
+    private readonly Action<IServiceCollection>? _configureServices;
 
     public TestApp(
         string environment = "Production",
         string? connectionString = null,
         Dictionary<string, string?>? settings = null,
         bool configureAuth = true,
-        bool fakeGoogle = true)
+        bool fakeGoogle = true,
+        Action<IServiceCollection>? configureServices = null)
     {
         _environment = environment;
         _connectionString = connectionString ?? UnreachableConnectionString;
         _settings = settings ?? [];
         _configureAuth = configureAuth;
         _fakeGoogle = fakeGoogle;
+        _configureServices = configureServices;
         _webRoot = Path.Combine(Path.GetTempPath(), "polymnia-tests-" + Guid.NewGuid().ToString("N"));
 
         Directory.CreateDirectory(Path.Combine(_webRoot, "assets"));
@@ -138,6 +141,7 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, ClientIpStartupFilter>();
+            _configureServices?.Invoke(services);
             if (!_configureAuth)
             {
                 return;

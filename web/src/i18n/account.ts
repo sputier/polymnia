@@ -27,6 +27,7 @@ export const accountEn = {
   'account.reauthButton': 'Sign in again',
   'auth.accountDeleted': 'Your account and all its data were deleted.',
   'auth.privacy': 'Privacy policy',
+  'auth.contact': 'Contact',
 } as const;
 
 export const accountFr = {
@@ -54,4 +55,5 @@ export const accountFr = {
   'account.reauthButton': 'Se reconnecter',
   'auth.accountDeleted': 'Votre compte et toutes ses données ont été supprimés.',
   'auth.privacy': 'Politique de confidentialité',
+  'auth.contact': 'Contact',
 } as const satisfies Record<keyof typeof accountEn, string>;

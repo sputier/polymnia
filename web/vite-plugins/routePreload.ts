@@ -19,6 +19,7 @@ export const PRELOAD_ENTRIES: Record<string, string> = {
   editor: 'src/editor/EditorLayout.tsx',
   shared: 'src/sharing/Viewer.tsx',
   privacy: 'src/privacy/Privacy.tsx',
+  contact: 'src/contact/Contact.tsx',
   en: 'src/i18n/en.ts',
   fr: 'src/i18n/fr.ts',
 };
@@ -48,6 +49,7 @@ if(/^#\\/scores\\/[^/]+\\/?$/.test(h))k='score';
 else if(/^#\\/s\\/[A-Za-z0-9_-]{1,128}\\/?$/.test(h))k='shared';
 else if(h.indexOf('#/editor')===0)k='editor';
 else if(/^#\\/privacy\\/?$/.test(h))k='privacy';
+else if(/^#\\/contact\\/?$/.test(h))k='contact';
 var l;try{l=localStorage.getItem('polymnia.lang')}catch(e){}
 if(l!=='en'&&l!=='fr'){l='en';var a=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language];
 for(var i=0;i<a.length;i++){var b=String(a[i]||'').toLowerCase().split('-')[0];if(b==='en'||b==='fr'){l=b;break}}}

@@ -94,3 +94,20 @@
     flex-direction: column;
   }
 }
+
+.viewer-footer {
+  flex: none;
+  padding: 10px 16px;
+  font-size: 13px;
+  text-align: right;
+  border-top: 1px solid var(--border);
+}
+
+.viewer-footer a {
+  color: var(--muted);
+}
+
+.viewer-footer a:hover,
+.viewer-footer a:focus-visible {
+  color: var(--ink);
+}

@@ -23,6 +23,8 @@ public sealed class PolymniaDbContext(DbContextOptions<PolymniaDbContext> option
 
     public DbSet<Polymnia.Core.Sharing.ShareLink> ShareLinks => Set<Polymnia.Core.Sharing.ShareLink>();
 
+    public DbSet<Polymnia.Core.Contact.ContactMessage> ContactMessages => Set<Polymnia.Core.Contact.ContactMessage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);

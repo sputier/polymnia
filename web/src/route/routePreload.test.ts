@@ -13,6 +13,7 @@ const MAP: Record<string, string[]> = {
   editor: ['assets/E.js'],
   shared: ['assets/V.js'],
   privacy: ['assets/P.js'],
+  contact: ['assets/C.js'],
   en: ['assets/en.js'],
   fr: ['assets/fr.js'],
 };
@@ -22,6 +23,7 @@ const FOR_ROUTE: Record<string, string> = {
   editor: 'assets/E.js',
   shared: 'assets/V.js',
   privacy: 'assets/P.js',
+  contact: 'assets/C.js',
 };
 
 function preloaded(hash: string, stored: string | null, languages: string[]): string[] {
@@ -51,6 +53,10 @@ describe('route-preload.js', () => {
     '#/s/bad token',
     '#/privacy',
     '#/privacy/',
+    '#/contact',
+    '#/contact/',
+    '#/contact?topic=report&page=AbC_-123',
+    '#/contacts',
     '#/unknown',
   ])('preloads the chunk the app will render for %s', (hash) => {
     const route = parseRoute(hash).name;

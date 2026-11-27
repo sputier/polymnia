@@ -54,6 +54,8 @@ Keys are stored in PostgreSQL (`data_protection_keys`) and the application name 
 
 Cookie + header pattern. Every `POST`, `PUT`, `PATCH` and `DELETE` (and any method other than `GET`, `HEAD`, `OPTIONS`, `TRACE`) under `/api` must carry the header `X-XSRF-TOKEN`, checked by a global middleware before routing, so no endpoint can forget it. Failure is `400` with a problem body whose `code` is `antiforgery`. Nothing is read from the request body.
 
+**One exception, on purpose:** `POST /api/contact` (the [contact form](contact.md)), because a signed-out visitor has no antiforgery cookie. The route is matched exactly (`/api/contact` and `/api/contact/`, never a sub-path), and a signed, encrypted, short-lived **form token** from `GET /api/contact/form-token` stands in for the antiforgery token: a page of another site cannot read it (same-origin policy, no CORS) nor send the JSON body without a preflight the API does not answer. A test pins that every other unsafe route, a sub-path of `/api/contact` included, still needs the header.
+
 1. The page calls `GET /api/auth/antiforgery`. The response has no body: the server sets the `HttpOnly` cookie token and the readable request-token cookie. The endpoint is never compressed and never cached (BREACH rule: a response carrying a token is not compressed).
 2. The API client copies the request token cookie into `X-XSRF-TOKEN` on unsafe methods. A token is bound to the current identity, so the page fetches a fresh one after it learns who the user is; a rejected token is replaced once and the request is retried.
 

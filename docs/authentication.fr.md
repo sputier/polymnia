@@ -54,6 +54,8 @@ Les clés sont stockées dans PostgreSQL (`data_protection_keys`) et le nom d'ap
 
 Motif cookie + en-tête. Toute requête `POST`, `PUT`, `PATCH` et `DELETE` (et toute méthode autre que `GET`, `HEAD`, `OPTIONS`, `TRACE`) sous `/api` doit porter l'en-tête `X-XSRF-TOKEN`, vérifié par un middleware global avant le routage : aucun endpoint ne peut l'oublier. L'échec est un `400` avec un corps problem dont le `code` vaut `antiforgery`. Rien n'est lu dans le corps de la requête.
 
+**Une exception, voulue :** `POST /api/contact` (le [formulaire de contact](contact.fr.md)), parce qu'un visiteur déconnecté n'a pas de cookie antiforgery. La route est reconnue exactement (`/api/contact` et `/api/contact/`, jamais un sous-chemin), et un **jeton de formulaire** signé, chiffré et de courte durée, obtenu par `GET /api/contact/form-token`, tient lieu de jeton antiforgery : une page d'un autre site ne peut ni le lire (politique de même origine, pas de CORS) ni envoyer le corps JSON sans une pré-requête que l'API ne satisfait pas. Un test vérifie que toute autre route non sûre, sous-chemin de `/api/contact` compris, exige toujours l'en-tête.
+
 1. La page appelle `GET /api/auth/antiforgery`. La réponse n'a pas de corps : le serveur pose le cookie `HttpOnly` du jeton cookie et le cookie lisible du jeton de requête. L'endpoint n'est jamais compressé ni mis en cache (règle BREACH : une réponse qui porte un jeton n'est pas compressée).
 2. Le client d'API recopie le cookie du jeton de requête dans `X-XSRF-TOKEN` sur les méthodes non sûres. Un jeton est lié à l'identité courante : la page en récupère un nouveau une fois l'utilisateur connu ; un jeton rejeté est remplacé une fois et la requête est rejouée.
 

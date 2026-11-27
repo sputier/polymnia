@@ -20,6 +20,8 @@ export interface PolicyText {
   placeholderBody: string;
   operatorLabel: string;
   contactLabel: string;
+  /** Text of the link when the contact is the instance's own form. */
+  contactFormLabel: string;
   addressLabel: string;
   hostingLabel: string;
   loading: string;
@@ -49,6 +51,7 @@ function english(legal: LegalInfo): PolicyText {
       'This instance has no operator information yet (development mode). A real deployment must set the Legal settings: the application refuses to start without them.',
     operatorLabel: 'Operator',
     contactLabel: 'Contact',
+    contactFormLabel: 'Contact form',
     addressLabel: 'Address',
     hostingLabel: 'Hosting',
     loading: 'Loading…',
@@ -69,6 +72,7 @@ function english(legal: LegalInfo): PolicyText {
         items: [
           'Your Google account identifier (an opaque number, not your e-mail address), your display name and your avatar address, as given by Google when you sign in.',
           'Your language preference.',
+          'Messages you send through the contact form: the text, the topic and, only if you give one, the address to answer you at. Nothing else is stored with a message: no account, no IP address.',
           'The scores you create (title, content, dates) and the share links you create.',
           'Your sessions: a random key (stored hashed) and its dates, so that you stay signed in.',
           'Security logs: the date, the type of event (sign-in, sign-out, export, deletion, too many requests) and your internal user identifier. No name, no e-mail address, no Google identifier, no password (there is none) and no score content.',
@@ -99,6 +103,7 @@ function english(legal: LegalInfo): PolicyText {
           'Your account, scores and share links: until you delete them, or delete your account.',
           `Sessions: a session ends after ${d(legal.sessionIdleDays)} without use, and never lasts more than ${d(legal.sessionAbsoluteDays)}. Ended sessions are removed.`,
           `Security logs: ${d(legal.logRetentionDays)}.`,
+          `Contact messages: ${d(legal.contactRetentionDays)}, then they are deleted.`,
           'Deleting your account removes your data from the database immediately. Backups made by the operator may still hold it until they are replaced in their normal rotation.',
         ],
       },
@@ -125,7 +130,7 @@ function english(legal: LegalInfo): PolicyText {
           'Access and portability: in the account menu, "Export my data" downloads a ZIP archive with a profile file and every score as a JSON file. It is limited to a few requests every ten minutes.',
           'Erasure: in the account menu, "Delete my account" removes your account, scores, share links and sessions at once. You are asked to sign in with Google again first, and to type a confirmation. It cannot be undone.',
           'Correction: your name and avatar come from your Google account. Change them there; they are updated at your next sign-in.',
-          'Anything else (restriction, objection, a question): write to the contact above. You will get an answer within one month.',
+          'Anything else (restriction, objection, a question): use the contact above. You will get an answer within one month. If it is the contact form, choose the topic "Personal data" and leave an address to answer you at.',
           'You may also lodge a complaint with your data protection authority (for example the CNIL in France).',
         ],
       },
@@ -152,6 +157,7 @@ function french(legal: LegalInfo): PolicyText {
       "Cette instance n'a pas encore d'informations d'exploitant (mode développement). Un vrai déploiement doit renseigner les paramètres Legal : l'application refuse de démarrer sans eux.",
     operatorLabel: 'Exploitant',
     contactLabel: 'Contact',
+    contactFormLabel: 'Formulaire de contact',
     addressLabel: 'Adresse',
     hostingLabel: 'Hébergement',
     loading: 'Chargement…',
@@ -174,6 +180,7 @@ function french(legal: LegalInfo): PolicyText {
         items: [
           "L'identifiant de votre compte Google (un numéro opaque, pas votre adresse e-mail), votre nom affiché et l'adresse de votre avatar, tels que Google les transmet à la connexion.",
           'Votre préférence de langue.',
+          "Les messages envoyés par le formulaire de contact : le texte, le sujet et, seulement si vous en donnez une, l'adresse où vous répondre. Rien d'autre n'est conservé avec un message : ni compte, ni adresse IP.",
           'Les partitions que vous créez (titre, contenu, dates) et les liens de partage que vous créez.',
           'Vos sessions : une clé aléatoire (conservée sous forme hachée) et ses dates, pour que vous restiez connecté.',
           "Des journaux de sécurité : la date, le type d'événement (connexion, déconnexion, export, suppression, trop de requêtes) et votre identifiant interne. Ni nom, ni e-mail, ni identifiant Google, ni mot de passe (il n'y en a pas), ni contenu de partition.",
@@ -204,6 +211,7 @@ function french(legal: LegalInfo): PolicyText {
           "Votre compte, vos partitions et vos liens de partage : jusqu'à ce que vous les supprimiez, ou que vous supprimiez votre compte.",
           `Sessions : une session prend fin après ${d(legal.sessionIdleDays)} sans utilisation, et ne dure jamais plus de ${d(legal.sessionAbsoluteDays)}. Les sessions terminées sont supprimées.`,
           `Journaux de sécurité : ${d(legal.logRetentionDays)}.`,
+          `Messages du formulaire de contact : ${d(legal.contactRetentionDays)}, puis ils sont supprimés.`,
           "La suppression de votre compte retire immédiatement vos données de la base. Les sauvegardes de l'exploitant peuvent encore les contenir jusqu'à leur remplacement par la rotation normale.",
         ],
       },
@@ -230,7 +238,7 @@ function french(legal: LegalInfo): PolicyText {
           'Accès et portabilité : dans le menu du compte, « Exporter mes données » télécharge une archive ZIP avec un fichier de profil et chaque partition en JSON. Le nombre de demandes est limité à quelques-unes toutes les dix minutes.',
           "Effacement : dans le menu du compte, « Supprimer mon compte » supprime d'un coup votre compte, vos partitions, vos liens de partage et vos sessions. On vous demande d'abord de vous reconnecter avec Google puis de saisir une confirmation. C'est irréversible.",
           'Rectification : votre nom et votre avatar viennent de votre compte Google. Modifiez-les là-bas ; ils sont mis à jour à votre prochaine connexion.',
-          'Tout le reste (limitation, opposition, une question) : écrivez au contact indiqué ci-dessus. Vous recevrez une réponse sous un mois.',
+          'Tout le reste (limitation, opposition, une question) : utilisez le contact indiqué ci-dessus. Vous recevrez une réponse sous un mois. Si c’est le formulaire de contact, choisissez le sujet « Données personnelles » et laissez une adresse où vous répondre.',
           'Vous pouvez aussi introduire une réclamation auprès de votre autorité de protection des données (par exemple la CNIL en France).',
         ],
       },

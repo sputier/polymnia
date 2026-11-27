@@ -7,7 +7,7 @@ import { App } from './App';
 import { SessionProvider } from './auth/session';
 import { SessionGate } from './auth/SessionGate';
 import { detectLanguage, loadCatalog } from './i18n/i18n';
-import { preloadRoute, SharedViewer } from './route/chunks';
+import { ContactPage, preloadRoute, SharedViewer } from './route/chunks';
 import { parseRoute, useRoute } from './route/useRoute';
 import './styles/tokens.css';
 import './styles/app.css';
@@ -29,6 +29,13 @@ function Root() {
     return (
       <Suspense fallback={null}>
         <SharedViewer key={route.token} token={route.token} />
+      </Suspense>
+    );
+  // The contact form is public too, and needs no session: no session request, no sign-in screen.
+  if (route.name === 'contact')
+    return (
+      <Suspense fallback={null}>
+        <ContactPage />
       </Suspense>
     );
   return (

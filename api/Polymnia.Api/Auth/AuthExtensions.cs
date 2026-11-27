@@ -475,6 +475,8 @@ internal sealed class ApiAntiforgeryMiddleware(RequestDelegate next, IAntiforger
 
     private static bool RequiresToken(HttpRequest request) =>
         request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+        // The contact form is for signed-out visitors, who have no antiforgery cookie: its signed form token plays that role.
+        && !Polymnia.Api.Contact.ContactEndpoints.IsSubmitPath(request.Path)
         && !HttpMethods.IsGet(request.Method)
         && !HttpMethods.IsHead(request.Method)
         && !HttpMethods.IsOptions(request.Method)

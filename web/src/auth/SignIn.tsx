@@ -92,6 +92,7 @@ export function SignIn() {
           </span>
           <span>{t('auth.free')}</span>
           <a href="#/privacy">{t('auth.privacy')}</a>
+          <a href="#/contact">{t('auth.contact')}</a>
         </p>
       </main>
     </div>
