@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
+import { expectBudget } from './perf-stats';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 900 } });
 
@@ -19,60 +20,58 @@ function measure(n: number): string {
   return `<measure number="${n}">${n === 1 ? MEASURE_1_ATTRIBUTES : ''}${treble}<backup><duration>4</duration></backup>${bass}</measure>`;
 }
 
-test('a 500-measure score imports and exports in under 500 ms (real browser)', async ({ page }) => {
-  test.setTimeout(120_000);
-  await mockSignedIn(page);
-  const body = Array.from({ length: 500 }, (_, i) => measure(i + 1)).join('');
-  const xml =
-    '<?xml version="1.0"?><score-partwise version="4.0"><part-list>' +
-    '<score-part id="P1"><part-name>Piano</part-name></score-part></part-list>' +
-    `<part id="P1">${body}</part></score-partwise>`;
-  const file = { name: 'big.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) };
+test(
+  'a 500-measure score imports and exports in under 500 ms (real browser)',
+  { tag: '@perf' },
+  async ({ page }) => {
+    test.setTimeout(180_000);
+    await mockSignedIn(page);
+    const body = Array.from({ length: 500 }, (_, i) => measure(i + 1)).join('');
+    const xml =
+      '<?xml version="1.0"?><score-partwise version="4.0"><part-list>' +
+      '<score-part id="P1"><part-name>Piano</part-name></score-part></part-list>' +
+      `<part id="P1">${body}</part></score-partwise>`;
+    const file = { name: 'big.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) };
 
-  await page.goto('/#/editor');
-  const confirm = page.getByRole('alertdialog', { name: 'Replace the current score?' });
-  const replace = confirm.getByRole('button', { name: 'Replace the score' });
-  // The first run loads the lazy chunk; the second one is measured.
-  await page.setInputFiles('input[type="file"]', file);
-  await expect(confirm).toBeVisible();
-  await replace.click();
-  await expect(confirm).toHaveCount(0);
-  // Let the engraver finish the big score so that it does not compete with what is measured.
-  await page.waitForFunction(
-    () =>
-      (window as unknown as { __polymnia?: { engraver?: { stats?: { complete?: boolean } } } })
-        .__polymnia?.engraver?.stats?.complete === true,
-    undefined,
-    { timeout: 90_000 },
-  );
+    await page.goto('/#/editor');
+    const confirm = page.getByRole('alertdialog', { name: 'Replace the current score?' });
+    const replace = confirm.getByRole('button', { name: 'Replace the score' });
+    // The first run loads the lazy chunk; the second one is measured.
+    await page.setInputFiles('input[type="file"]', file);
+    await expect(confirm).toBeVisible();
+    await replace.click();
+    await expect(confirm).toHaveCount(0);
+    // Let the engraver finish the big score so that it does not compete with what is measured.
+    await page.waitForFunction(
+      () =>
+        (window as unknown as { __polymnia?: { engraver?: { stats?: { complete?: boolean } } } })
+          .__polymnia?.engraver?.stats?.complete === true,
+      undefined,
+      { timeout: 90_000 },
+    );
 
-  const start = Date.now();
-  await page.setInputFiles('input[type="file"]', file);
-  await expect(confirm).toBeVisible();
-  const importMs = Date.now() - start;
-  await confirm.getByRole('button', { name: 'Cancel' }).click();
+    const lastDuration = (name: string) =>
+      page.evaluate((n) => performance.getEntriesByName(n).at(-1)?.duration ?? -1, name);
+    // 2 warm-up rounds (discarded) then 6 samples of import and of export (User Timing measures
+    // recorded by the editor around the MusicXML code itself).
+    const imports: number[] = [];
+    const exports: number[] = [];
+    for (let i = 0; i < 8; i++) {
+      await page.setInputFiles('input[type="file"]', file);
+      await expect(confirm).toBeVisible();
+      if (i >= 2) imports.push(await lastDuration('musicxml:import'));
+      await confirm.getByRole('button', { name: 'Cancel' }).click();
+      await expect(confirm).toHaveCount(0);
 
-  const exportStart = Date.now();
-  const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'MusicXML (.musicxml)' }).click();
-  await download;
-  const exportWall = Date.now() - exportStart;
-  // Time spent in the MusicXML code itself (User Timing measures recorded by the editor).
-  const ms = await page.evaluate((name) => {
-    const entries = performance.getEntriesByName(name);
-    return entries[entries.length - 1]?.duration ?? -1;
-  }, 'musicxml:import');
-  const exportMs = await page.evaluate((name) => {
-    const entries = performance.getEntriesByName(name);
-    return entries[entries.length - 1]?.duration ?? -1;
-  }, 'musicxml:export');
-  console.log(
-    `PERF musicxml 500 measures: import ${ms.toFixed(0)} ms (${importMs} ms with the file hand-off), ` +
-      `export ${exportMs.toFixed(0)} ms (${exportWall} ms to the download)`,
-  );
-  expect(ms).toBeGreaterThan(0);
-  expect(ms).toBeLessThan(500);
-  expect(exportMs).toBeGreaterThan(0);
-  expect(exportMs).toBeLessThan(500);
-});
+      const download = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'Export', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'MusicXML (.musicxml)' }).click();
+      await download;
+      if (i >= 2) exports.push(await lastDuration('musicxml:export'));
+    }
+    expect(Math.min(...imports)).toBeGreaterThan(0);
+    expect(Math.min(...exports)).toBeGreaterThan(0);
+    expectBudget('musicxml import (500 measures)', imports, { medianMs: 500 });
+    expectBudget('musicxml export (500 measures)', exports, { medianMs: 500 });
+  },
+);

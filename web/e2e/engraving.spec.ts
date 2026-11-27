@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { FIXTURE_NAMES, openFixture, type EngravingStats } from './engraving-helpers';
+import { CI_FACTOR, expectBudget } from './perf-stats';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 900 } });
 
@@ -127,10 +128,8 @@ test.describe('engraving', () => {
       const ids = score.parts[0]!.staves[0]!.measures[0]!.voices[0]!.events.map((e) => e.id);
       const group = engraver.svg.querySelector('.vf-pm-system');
       const statsBefore = engraver.stats;
-      const t0 = performance.now();
       engraver.setSelection([ids[0]!]);
       engraver.setPlaying([ids[1]!]);
-      const ms = performance.now() - t0;
       const color = (id: string) =>
         getComputedStyle(engraver.svg.querySelector(`[data-event-id="${id}"] .vf-notehead text`)!)
           .color;
@@ -141,7 +140,6 @@ test.describe('engraving', () => {
         sameGroup: group === engraver.svg.querySelector('.vf-pm-system'),
         sameStats: statsBefore === engraver.stats,
         background: engraver.svg.querySelectorAll('.pm-sel-bg').length,
-        ms,
         accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
         play: getComputedStyle(document.documentElement).getPropertyValue('--play').trim(),
         ink: getComputedStyle(document.documentElement).getPropertyValue('--score-ink').trim(),
@@ -157,7 +155,6 @@ test.describe('engraving', () => {
     expect(out.sameGroup).toBe(true);
     expect(out.sameStats).toBe(true);
     expect(out.background).toBe(1);
-    expect(out.ms).toBeLessThan(8);
   });
 
   test('follows the dark theme through the tokens', async ({ browser }) => {
@@ -237,10 +234,9 @@ test.describe('re-flow, progressive (100 measures, grand staff)', () => {
       };
     });
     expect(r.total).toBeGreaterThan(20);
-    // Only what is on screen is engraved by the call, within a keystroke's budget; the rest is pending.
+    // Only what is on screen is engraved by the call (its time is a perf test below); the rest is pending.
     expect(r.stats.complete).toBe(false);
     expect(r.atOnce).toBeLessThan(r.total);
-    expect(r.stats.ms).toBeLessThan(40);
     // The layout is complete at once: the last system answers hit tests before it is drawn.
     expect(r.hitSystem).toBe(r.total - 1);
     expect(r.after).toBe(r.total);
@@ -249,8 +245,8 @@ test.describe('re-flow, progressive (100 measures, grand staff)', () => {
   });
 });
 
-test.describe('engraving performance (100 measures, grand staff)', () => {
-  test('full render under 200 ms, one edit under 16 ms, only the touched system is engraved', async ({
+test.describe('engraving performance (100 measures, grand staff)', { tag: '@perf' }, () => {
+  test('full render, one edit, progressive re-flow and highlight toggles stay under budget, only the touched system is engraved', async ({
     page,
   }) => {
     await openFixture(page, 'benchmark100', 1100);
@@ -263,27 +259,35 @@ test.describe('engraving performance (100 measures, grand staff)', () => {
         __polymnia: {
           score: {
             parts: {
-              staves: { measures: { voices: { events: Ev[] }[] }[] }[];
+              staves: { id: string; measures: { voices: { events: Ev[] }[] }[] }[];
             }[];
           };
           engraver: {
             stats: EngravingStats;
             svg: SVGSVGElement;
-            render(score: unknown, width: number): EngravingStats;
+            render(score: unknown, width: number, o?: { progressive: boolean }): EngravingStats;
+            settled(): Promise<void>;
+            setSelection(ids: string[]): void;
+            setPlaying(ids: string[]): void;
           };
         };
       };
       const { score, engraver } = w.__polymnia;
       const cold = engraver.stats.ms;
       // Warm full renders: a different width forces every system to be engraved again.
+      // 4 warm-up renders (JIT, glyph caches) are discarded, then 15 samples.
       const full: number[] = [];
-      for (let i = 0; i < 7; i++) full.push(engraver.render(score, 1101 + (i % 2) * 37).ms);
+      for (let i = 0; i < 19; i++) {
+        const ms = engraver.render(score, 1101 + (i % 2) * 37).ms;
+        if (i >= 4) full.push(ms);
+      }
       engraver.render(score, 1100);
       const before = [...engraver.svg.querySelectorAll('.vf-pm-system')];
 
       const edits: { ms: number; drawn: number; reused: number }[] = [];
       let cur = score;
-      for (let i = 0; i < 25; i++) {
+      // 8 warm-up edits then 60 samples.
+      for (let i = 0; i < 68; i++) {
         const mi = 40 + (i % 12);
         const part = cur.parts[0]!;
         const staff = part.staves[0]!;
@@ -309,26 +313,61 @@ test.describe('engraving performance (100 measures, grand staff)', () => {
         } as typeof cur;
         const t0 = performance.now();
         const st = engraver.render(cur, 1100);
-        edits.push({ ms: performance.now() - t0, drawn: st.drawn, reused: st.reused });
+        if (i >= 8) edits.push({ ms: performance.now() - t0, drawn: st.drawn, reused: st.reused });
       }
       const after = [...engraver.svg.querySelectorAll('.vf-pm-system')];
       const kept = before.filter((el) => after.includes(el)).length;
       return { cold, full, edits, systems: after.length, kept };
     });
-    const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
-    const fullMedian = median(r.full);
-    const editMedian = median(r.edits.map((e) => e.ms));
-    const editMax = Math.max(...r.edits.map((e) => e.ms));
-    console.log(
-      `PERF 100 measures: cold ${r.cold.toFixed(0)} ms, warm full median ${fullMedian.toFixed(0)} ms, ` +
-        `edit median ${editMedian.toFixed(1)} ms, edit max ${editMax.toFixed(1)} ms, ${r.systems} systems`,
-    );
-    expect(fullMedian).toBeLessThan(200);
-    expect(r.cold).toBeLessThan(600);
-    expect(editMedian).toBeLessThan(16);
+    const editMs = r.edits.map((e) => e.ms);
+    console.log(`PERF 100 measures: cold ${r.cold.toFixed(0)} ms, ${r.systems} systems`);
+    expectBudget('engraving full render', r.full, { medianMs: 200 });
+    // Cold (JIT, first use) is a single sample by nature: a generous budget with the CI factor.
+    expect(r.cold, 'cold render').toBeLessThan(600 * CI_FACTOR);
+    expectBudget('engraving one edit', editMs, { medianMs: 16 });
     // Every edit engraves at most two systems (the edited one and, on reflow, the next).
     expect(Math.max(...r.edits.map((e) => e.drawn))).toBeLessThanOrEqual(3);
     // The edits touch about 12 measures: the other systems keep their DOM nodes.
     expect(r.kept).toBeGreaterThanOrEqual(r.systems - 10);
+  });
+
+  test('a progressive re-flow engraves the screen within a keystroke budget, highlight toggles are cheap', async ({
+    page,
+  }) => {
+    await openFixture(page, 'benchmark100', 1100);
+    const r = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __polymnia: {
+          score: {
+            parts: { staves: { measures: { voices: { events: { id: string }[] }[] }[] }[] }[];
+          };
+          engraver: {
+            render(score: unknown, width: number, o: { progressive: boolean }): { ms: number };
+            settled(): Promise<void>;
+            setSelection(ids: string[]): void;
+            setPlaying(ids: string[]): void;
+          };
+        };
+      };
+      const { score, engraver } = w.__polymnia;
+      // A narrower page, then back: every line break moves. 3 warm-up calls, then 15 samples.
+      const reflow: number[] = [];
+      for (let i = 0; i < 18; i++) {
+        const ms = engraver.render(score, i % 2 ? 1100 : 760, { progressive: true }).ms;
+        if (i >= 3) reflow.push(ms);
+        await engraver.settled();
+      }
+      const ids = score.parts[0]!.staves[0]!.measures[0]!.voices[0]!.events.map((e) => e.id);
+      const toggles: number[] = [];
+      for (let i = 0; i < 40; i++) {
+        const t0 = performance.now();
+        engraver.setSelection([ids[i % 2]!]);
+        engraver.setPlaying([ids[2 + (i % 2)]!]);
+        if (i >= 8) toggles.push(performance.now() - t0);
+      }
+      return { reflow, toggles };
+    });
+    expectBudget('progressive re-flow (first systems)', r.reflow, { medianMs: 40 });
+    expectBudget('selection and playback toggles', r.toggles, { medianMs: 8 });
   });
 });

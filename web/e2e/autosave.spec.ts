@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
 import { emptyScoreDoc, FakeApi } from './fake-api';
+import { expectBudget } from './perf-stats';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 800 } });
 
@@ -235,7 +236,7 @@ test.describe('autosave', () => {
   });
 });
 
-test.describe('open performance', () => {
+test.describe('open performance', { tag: '@perf' }, () => {
   test('opens a 500-measure score: fetch, deserialize, first system', async ({ page }) => {
     const doc = JSON.parse(
       readFileSync(
@@ -254,24 +255,31 @@ test.describe('open performance', () => {
     await page.goto('/#/');
     await expect(page.getByRole('heading', { name: 'My scores' })).toBeVisible();
 
-    const start = Date.now();
-    await page.evaluate((hash) => {
-      performance.clearMeasures('score-open');
-      window.location.hash = hash;
-    }, `/scores/${id}`);
-    await page.waitForSelector('svg.pm-score .vf-pm-system', { state: 'attached' });
-    const totalMs = Date.now() - start;
-    const openMs = await page.evaluate(
-      () => performance.getEntriesByName('score-open').at(-1)?.duration ?? -1,
-    );
-    test.info().annotations.push({
-      type: 'open-500-measures',
-      description: `fetch+deserialize ${openMs.toFixed(0)} ms, until first system ${totalMs} ms`,
-    });
-    console.log(
-      `500-measure score: fetch+deserialize ${openMs.toFixed(0)} ms, until first system in the DOM ${totalMs} ms`,
-    );
-    expect(openMs).toBeGreaterThan(0);
-    expect(totalMs).toBeLessThan(3000);
+    // 2 warm-up opens (discarded) then 6 samples: back to the library, open the score again.
+    const opens: number[] = [];
+    const totals: number[] = [];
+    for (let k = 0; k < 8; k++) {
+      // A fresh document each time, with the HTTP cache of the app code warm.
+      await page.goto('about:blank');
+      await page.goto('/#/');
+      await expect(page.getByRole('heading', { name: 'My scores' })).toBeVisible();
+      const start = Date.now();
+      await page.evaluate((hash) => {
+        performance.clearMeasures('score-open');
+        window.location.hash = hash;
+      }, `/scores/${id}`);
+      await page.waitForSelector('svg.pm-score .vf-pm-system', { state: 'attached' });
+      const totalMs = Date.now() - start;
+      const openMs = await page.evaluate(
+        () => performance.getEntriesByName('score-open').at(-1)?.duration ?? -1,
+      );
+      expect(openMs).toBeGreaterThan(0);
+      if (k >= 2) {
+        opens.push(openMs);
+        totals.push(totalMs);
+      }
+    }
+    expectBudget('open 500 measures: fetch + deserialize', opens, { medianMs: 1500 });
+    expectBudget('open 500 measures: until first system', totals, { medianMs: 3000 });
   });
 });

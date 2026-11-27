@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
+import { expectBudget } from './perf-stats';
 
 test.use({ colorScheme: 'light', viewport: { width: 1280, height: 900 } });
 
@@ -106,53 +107,69 @@ test.describe('command palette (English)', () => {
     await expect(sheet).toBeVisible();
   });
 
-  test('opens in under 50 ms and filters a keystroke in under 5 ms', async ({ page }) => {
-    await openEditor(page);
-    // Warm up: the dialogs chunk is fetched in idle time.
-    await page.keyboard.press('Control+k');
-    await expect(palette(page)).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(palette(page)).toBeHidden();
+  test(
+    'opens in under 50 ms and filters a keystroke in under 5 ms',
+    { tag: '@perf' },
+    async ({ page }) => {
+      await openEditor(page);
+      // Warm up: the dialogs chunk is fetched in idle time.
+      await page.keyboard.press('Control+k');
+      await expect(palette(page)).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(palette(page)).toBeHidden();
 
-    const result = await page.evaluate(async () => {
-      const open = await new Promise<number>((resolve) => {
-        const start = performance.now();
-        const observer = new MutationObserver(() => {
-          if (document.querySelector('[role="dialog"]')) {
-            observer.disconnect();
-            resolve(performance.now() - start);
+      const round = () =>
+        page.evaluate(async () => {
+          const dialog = () => document.querySelector('[role="dialog"]');
+          const open = await new Promise<number>((resolve) => {
+            const start = performance.now();
+            const observer = new MutationObserver(() => {
+              if (dialog()) {
+                observer.disconnect();
+                resolve(performance.now() - start);
+              }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            document.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: 'k',
+                code: 'KeyK',
+                ctrlKey: true,
+                bubbles: true,
+              }),
+            );
+          });
+          const input = document.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+          const keystrokes: number[] = [];
+          let text = '';
+          for (const ch of 'enter a rest') {
+            text += ch;
+            const start = performance.now();
+            setter.call(input, text);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            // React flushes a discrete event in a microtask.
+            await Promise.resolve();
+            keystrokes.push(performance.now() - start);
           }
+          return { open, keystrokes };
         });
-        observer.observe(document.body, { childList: true, subtree: true });
-        document.dispatchEvent(
-          new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', ctrlKey: true, bubbles: true }),
-        );
-      });
-      const input = document.querySelector<HTMLInputElement>('input[role="combobox"]')!;
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-      const times: number[] = [];
-      let text = '';
-      for (const ch of 'enter a rest') {
-        text += ch;
-        const start = performance.now();
-        setter.call(input, text);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        // React flushes a discrete event in a microtask.
-        await Promise.resolve();
-        times.push(performance.now() - start);
+      // 3 warm-up rounds (discarded), then 12 samples of the open and of 12 keystrokes each.
+      const opens: number[] = [];
+      const keystrokes: number[] = [];
+      for (let i = 0; i < 15; i++) {
+        const r = await round();
+        if (i >= 3) {
+          opens.push(r.open);
+          keystrokes.push(...r.keystrokes);
+        }
+        await page.keyboard.press('Escape');
+        await expect(palette(page)).toBeHidden();
       }
-      return {
-        open,
-        keystroke: times.sort((a, b) => a - b)[Math.floor(times.length / 2)]!,
-        max: Math.max(...times),
-      };
-    });
-    console.log(
-      `palette open ${result.open.toFixed(1)} ms, keystroke median ${result.keystroke.toFixed(1)} ms, max ${result.max.toFixed(1)} ms`,
-    );
-    expect(result.open).toBeLessThan(50);
-    expect(result.keystroke).toBeLessThan(5);
-  });
+      expectBudget('palette open', opens, { medianMs: 50 });
+      expectBudget('palette keystroke', keystrokes, { medianMs: 5 });
+    },
+  );
 });
 
 test.describe('command palette (French)', () => {
