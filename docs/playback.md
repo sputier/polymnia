@@ -6,17 +6,17 @@ Hear the score while a cursor follows it. Code in [`web/src/playback/`](../web/s
 
 ## Using it
 
-| Action | How |
-| --- | --- |
-| Play / pause | `Space` or the Play button (MuseScore behavior). A focused button or text field keeps `Space` for itself |
-| Back to the start | `Home` or the first transport button |
-| Stop (and back to the start) | Stop button |
-| Play from a note | Select it (the playhead moves there), then play |
-| Loop | Loop button: loops the selected notes, or the whole score without a selection |
-| Tempo | Slider, 25 % to 200 % of the written tempo; `♩ = n` shows the effective tempo |
-| Metronome | Metronome button: a click on every beat, accented on the first beat of the bar (dotted beat in 6/8, 9/8, 12/8; the pickup counts as the end of a bar) |
-| Mute / solo a staff | Mixer in the inspector (Advanced mode). A solo silences every other staff and wins over mute |
-| Hear each entered note | Automatic: note entry calls `previewNote` |
+| Action                       | How                                                                                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Play / pause                 | `Space` or the Play button (MuseScore behavior). A focused button or text field keeps `Space` for itself                                              |
+| Back to the start            | `Home` or the first transport button                                                                                                                  |
+| Stop (and back to the start) | Stop button                                                                                                                                           |
+| Play from a note             | Select it (the playhead moves there), then play                                                                                                       |
+| Loop                         | Loop button: loops the selected notes, or the whole score without a selection                                                                         |
+| Tempo                        | Slider, 25 % to 200 % of the written tempo; `♩ = n` shows the effective tempo                                                                         |
+| Metronome                    | Metronome button: a click on every beat, accented on the first beat of the bar (dotted beat in 6/8, 9/8, 12/8; the pickup counts as the end of a bar) |
+| Mute / solo a staff          | Mixer in the inspector (Advanced mode). A solo silences every other staff and wins over mute                                                          |
+| Hear each entered note       | Automatic: note entry calls `previewNote`                                                                                                             |
 
 The audio starts after a user gesture (browser autoplay policies): the engine is fetched at the first click or key press in the editor, and the context starts when you press play.
 
@@ -33,7 +33,7 @@ score ──buildTimeline──▶ Timeline (notes, spans, tempo, beats)        
                      └── MockBackend  silent, for the browser tests   mockBackend.ts
 ```
 
-- **Score to events** (`timeline.ts`, pure and unit tested). Ticks stay the unit (960 per quarter). A note carries its *sounding* MIDI number: written pitch plus the part transposition (`soundingMidi`). A capo is already part of the written pitch (the validator checks `string + capo + fret = written + transposition`), so it is **not** added again. Tied notes (across beats, barlines, chords pitch by pitch) become **one** sounding note; each tied event keeps its own span so it lights up for its own duration. Tuplets use their scaled durations, pickup measures their real `length`, every voice of every staff is played. The tempo map follows `tempoBpm` changes.
+- **Score to events** (`timeline.ts`, pure and unit tested). Ticks stay the unit (960 per quarter). A note carries its _sounding_ MIDI number: written pitch plus the part transposition (`soundingMidi`). A capo is already part of the written pitch (the validator checks `string + capo + fret = written + transposition`), so it is **not** added again. Tied notes (across beats, barlines, chords pitch by pitch) become **one** sounding note; each tied event keeps its own span so it lights up for its own duration. Tuplets use their scaled durations, pickup measures their real `length`, every voice of every staff is played. The tempo map follows `tempoBpm` changes.
 - **Time maths** (`clock.ts`, pure). Tempo map ticks ⇄ seconds, loop wrapping (`scoreSecondsAt`, `legsBetween`), mute/solo (`audibleStaves`).
 - **Scheduling** (`controller.ts`). A 100 ms timer schedules every note starting in the next **1.2 s** of the audio clock (`LOOKAHEAD_SECONDS`) with absolute audio times, and Tone's context uses `latencyHint: 'playback'` with a 0.2 s look-ahead, so a busy UI thread (a re-engrave, a long task) does not make notes stutter: the sound is already in the audio graph. Changing the tempo, the loop or seeking restarts the scheduling from the playhead.
 - **Cursor and highlight** (`follow.ts`). `requestAnimationFrame` reads the audio clock (minus the output latency), finds the notes under the playhead and, only when they change, calls `engraver.setPlaying(ids)` (CSS class `pm-playing`, color `--play`) and `engraver.setPlayCursor(ids)` (one `<rect class="pm-cursor">` that is moved). No React state changes per frame, no re-engraving. The page scrolls (`.score-area`) only when the cursor leaves the visible area, with `prefers-reduced-motion` respected.
@@ -44,18 +44,18 @@ score ──buildTimeline──▶ Timeline (notes, spans, tempo, beats)        
 
 Samples are short Ogg Opus excerpts, a few pitches per instrument; Tone's `Sampler` repitches the nearest one. Only the sets used by the staves of the score are downloaded, and only when you play or enter a note.
 
-| Instrument | Set | Download | Source (all CC0 1.0) |
-| --- | --- | --- | --- |
-| Classical guitar | `guitar-nylon` | 172 KB | FreePats, Spanish classical guitar |
-| Steel-string guitar | `guitar-nylon` (**stand-in**) | same | no permissive recording found, see below |
-| Ukulele (all sizes) | `ukulele` | 85 KB | FreePats, tenor ukulele |
-| Cello | `cello` | 208 KB | VSCO 2 CE, *Cello Section* (no solo cello in the CC0 sets) |
-| Piano, unknown instruments | `piano` | 180 KB | FreePats, Upright Piano KW |
-| Voice | `flute` (**stand-in**) | same | no permissive recording found, see below |
-| Flute | `flute` | 182 KB | VSCO 2 CE |
-| Violin | `violin` | 208 KB | VSCO 2 CE, solo violin |
-| Clarinet | `clarinet` | 164 KB | FreePats |
-| Double bass | `double-bass` | 145 KB | VSCO 2 CE, solo contrabass |
+| Instrument                 | Set                           | Download | Source (all CC0 1.0)                                       |
+| -------------------------- | ----------------------------- | -------- | ---------------------------------------------------------- |
+| Classical guitar           | `guitar-nylon`                | 172 KB   | FreePats, Spanish classical guitar                         |
+| Steel-string guitar        | `guitar-nylon` (**stand-in**) | same     | no permissive recording found, see below                   |
+| Ukulele (all sizes)        | `ukulele`                     | 85 KB    | FreePats, tenor ukulele                                    |
+| Cello                      | `cello`                       | 208 KB   | VSCO 2 CE, _Cello Section_ (no solo cello in the CC0 sets) |
+| Piano, unknown instruments | `piano`                       | 180 KB   | FreePats, Upright Piano KW                                 |
+| Voice                      | `flute` (**stand-in**)        | same     | no permissive recording found, see below                   |
+| Flute                      | `flute`                       | 182 KB   | VSCO 2 CE                                                  |
+| Violin                     | `violin`                      | 208 KB   | VSCO 2 CE, solo violin                                     |
+| Clarinet                   | `clarinet`                    | 164 KB   | FreePats                                                   |
+| Double bass                | `double-bass`                 | 145 KB   | VSCO 2 CE, solo contrabass                                 |
 
 Authors, URLs and license texts are in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). The whole set is 1.34 MB in the repository.
 
@@ -77,14 +77,14 @@ Authors, URLs and license texts are in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY
 
 Measured in Chromium (Windows 11 laptop, production build, local server, no network throttling; the figure is dominated by decoding and scheduling, the download is about 60 KB gzip of Tone plus the set).
 
-| What | Budget | Measured |
-| --- | --- | --- |
-| Time to first note, cold (engine + piano set + decode) | < 3 s | 120 to 330 ms (local) |
-| Time to first note, cached | < 1 s | 55 to 100 ms |
-| Playback chunk (Tone.js + engine) | ≤ 80 KB gzip, lazy | 57.7 KB gzip, not in the initial bundle |
-| Sample sets | ≤ 3 MB in total | 1.34 MB total, 85 to 208 KB per instrument |
-| Initial JS | ≤ 150 KB gzip | 94.7 KB (the controller is a few KB of it) |
-| Keystroke in note entry (100 measures) | < 16 ms | about 9 ms (the preview does not rebuild the timeline) |
+| What                                                   | Budget             | Measured                                               |
+| ------------------------------------------------------ | ------------------ | ------------------------------------------------------ |
+| Time to first note, cold (engine + piano set + decode) | < 3 s              | 120 to 330 ms (local)                                  |
+| Time to first note, cached                             | < 1 s              | 55 to 100 ms                                           |
+| Playback chunk (Tone.js + engine)                      | ≤ 80 KB gzip, lazy | 57.7 KB gzip, not in the initial bundle                |
+| Sample sets                                            | ≤ 3 MB in total    | 1.34 MB total, 85 to 208 KB per instrument             |
+| Initial JS                                             | ≤ 150 KB gzip      | 94.7 KB (the controller is a few KB of it)             |
+| Keystroke in note entry (100 measures)                 | < 16 ms            | about 9 ms (the preview does not rebuild the timeline) |
 
 On a real network the first note adds the download of the Tone chunk and of the instrument (about 250 to 270 KB), a second or so on a 2 Mbit/s connection, nothing once cached (hashed files, `immutable`).
 

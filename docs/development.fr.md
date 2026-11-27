@@ -15,20 +15,20 @@ Le front end se trouve dans [`web/`](../web) : Vite, React et TypeScript (`stric
 
 À lancer depuis `web/`.
 
-| Commande               | Rôle                                                         |
-| ---------------------- | ------------------------------------------------------------ |
-| `npm ci`               | Installe exactement les dépendances verrouillées             |
-| `npm run dev`          | Démarre le serveur de développement                          |
-| `npm run lint`         | Vérifie ESLint et Prettier                                   |
-| `npm run format`       | Formate le code avec Prettier                                |
-| `npm run typecheck`    | Vérification des types TypeScript                            |
-| `npm test`             | Tests unitaires (Vitest et Testing Library)                  |
-| `npm run build`        | Vérifie les types et construit la version de production dans `dist/` |
-| `npm run size`         | Vérifie le budget de poids (à lancer après `build`)          |
-| `npm run bench`        | Benchmarks du modèle de partition (échoue au-delà du budget) |
+| Commande                     | Rôle                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `npm ci`                     | Installe exactement les dépendances verrouillées                                                              |
+| `npm run dev`                | Démarre le serveur de développement                                                                           |
+| `npm run lint`               | Vérifie ESLint et Prettier                                                                                    |
+| `npm run format`             | Formate le code avec Prettier                                                                                 |
+| `npm run typecheck`          | Vérification des types TypeScript                                                                             |
+| `npm test`                   | Tests unitaires (Vitest et Testing Library)                                                                   |
+| `npm run build`              | Vérifie les types et construit la version de production dans `dist/`                                          |
+| `npm run size`               | Vérifie le budget de poids (à lancer après `build`)                                                           |
+| `npm run bench`              | Benchmarks du modèle de partition (échoue au-delà du budget)                                                  |
 | `npm run test:visual:update` | Régénère les références visuelles dans l'image Docker de Playwright (voir [engraving.fr.md](engraving.fr.md)) |
-| `npm run test:visual:docker` | Vérifie les références visuelles dans cette même image |
-| `npm run test:e2e`     | Tests de fumée Playwright (Chromium, construit et sert l'application) |
+| `npm run test:visual:docker` | Vérifie les références visuelles dans cette même image                                                        |
+| `npm run test:e2e`           | Tests de fumée Playwright (Chromium, construit et sert l'application)                                         |
 
 Première exécution des tests de bout en bout : `npx playwright install chromium`.
 
@@ -52,12 +52,12 @@ Français et anglais, dans `web/src/i18n/` (`en.ts` fait référence, `fr.ts` do
 
 Le back end est dans `api/` (.NET 10, ASP.NET Core, EF Core, PostgreSQL). Il sert l'API sous `/api` et le front end compilé depuis `wwwroot`, sur une seule origine (pas de CORS).
 
-| Projet | Rôle |
-| --- | --- |
-| `Polymnia.Api` | Hébergement, endpoints, en-têtes de sécurité, fichiers statiques |
-| `Polymnia.Core` | Domaine, sans dépendance |
-| `Polymnia.Infrastructure` | EF Core + Npgsql (`PolymniaDbContext`, migrations) |
-| `Polymnia.Tests` | Tests xUnit v3 |
+| Projet                    | Rôle                                                             |
+| ------------------------- | ---------------------------------------------------------------- |
+| `Polymnia.Api`            | Hébergement, endpoints, en-têtes de sécurité, fichiers statiques |
+| `Polymnia.Core`           | Domaine, sans dépendance                                         |
+| `Polymnia.Infrastructure` | EF Core + Npgsql (`PolymniaDbContext`, migrations)               |
+| `Polymnia.Tests`          | Tests xUnit v3                                                   |
 
 ### Prérequis
 
@@ -133,10 +133,10 @@ Les tests d'intégration PostgreSQL utilisent Testcontainers et nécessitent Doc
 
 Chaque pull request et chaque push sur `main` lance [`ci.yml`](../.github/workflows/ci.yml) (jobs `web` et `api`) et [`codeql.yml`](../.github/workflows/codeql.yml) (analyse statique, aussi chaque semaine). Dependabot propose chaque semaine des mises à jour groupées pour npm, NuGet, GitHub Actions et Docker.
 
-| Job   | Ce qu'il lance                                                                                              | En local                                                                                                       |
-| ----- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `web` | lint, types, tests unitaires, build, budget de poids, `npm audit` (dépendances de production), Playwright | depuis `web/` : `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e` |
-| `docker` | construit l'image de production (amd64), démarre `docker-compose.yml` dessus et sonde l'application, scan Trivy (échoue sur CRITICAL/HIGH corrigeables) | la « Procédure de test » de [`self-hosting.fr.md`](self-hosting.fr.md) |
-| `api` | restauration, build avec avertissements en erreurs, tests, audit des vulnérabilités NuGet                  | depuis la racine du dépôt : `dotnet build api/Polymnia.slnx -warnaserror`, `dotnet test --solution api/Polymnia.slnx` (les tests d'intégration demandent Docker), `dotnet list api/Polymnia.slnx package --vulnerable --include-transitive` |
+| Job      | Ce qu'il lance                                                                                                                                          | En local                                                                                                                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web`    | lint, types, tests unitaires, build, budget de poids, `npm audit` (dépendances de production), Playwright                                               | depuis `web/` : `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e`                                                                   |
+| `docker` | construit l'image de production (amd64), démarre `docker-compose.yml` dessus et sonde l'application, scan Trivy (échoue sur CRITICAL/HIGH corrigeables) | la « Procédure de test » de [`self-hosting.fr.md`](self-hosting.fr.md)                                                                                                                                                                      |
+| `api`    | restauration, build avec avertissements en erreurs, tests, audit des vulnérabilités NuGet                                                               | depuis la racine du dépôt : `dotnet build api/Polymnia.slnx -warnaserror`, `dotnet test --solution api/Polymnia.slnx` (les tests d'intégration demandent Docker), `dotnet list api/Polymnia.slnx package --vulnerable --include-transitive` |
 
 Le job `api` installe le SDK depuis `global.json` et tourne avec `CI=true` : les tests d'intégration PostgreSQL doivent s'exécuter (un Docker absent fait échouer le job au lieu d'ignorer les tests). Les workflows épinglent les actions par SHA de commit complet, n'ont que des droits en lecture et ne publient aucun artefact, sauf si les tests de bout en bout échouent.

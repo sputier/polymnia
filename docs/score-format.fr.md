@@ -28,14 +28,14 @@ Score { schemaVersion: 1, id?, meta, measures[], parts[], slurs[] }
 
 `TICKS_PER_QUARTER = 960`, divisible par 2^n, 3 et 5 : les triolets et quintolets sont exacts. Aucun nombre flottant dans le modèle.
 
-| Durée | Ticks |
-| ----- | ----- |
-| ronde | 3840 |
-| blanche | 1920 |
-| noire | 960 |
-| croche | 480 |
-| double croche (16th) | 240 |
-| triple croche (32nd) | 120 |
+| Durée                | Ticks |
+| -------------------- | ----- |
+| ronde                | 3840  |
+| blanche              | 1920  |
+| noire                | 960   |
+| croche               | 480   |
+| double croche (16th) | 240   |
+| triple croche (32nd) | 120   |
 
 Une durée est `{ base, dots }` (`dots` de 0 à 2) : ticks = base x (2 - 1/2^dots). L'interface V1 propose de la ronde à la double croche ; le modèle accepte la triple croche. Les positions dans une mesure et les longueurs de mesure sont des multiples de 120 (une triple croche). Une triple croche pointée ou doublement pointée (180 et 210 ticks) sort de cette grille : les commandes la refusent (`invalid-argument`).
 
@@ -70,19 +70,19 @@ Chaque modification est une commande (`commands/`) : `interface Command { name; 
 
 **Partage structurel.** Une commande ne copie que le chemin de la racine jusqu'au changement (partition, partie, portée, tableau de mesures, mesure de portée, voix). Tout le reste garde son identité de référence : le rendu et React peuvent ignorer les mesures inchangées avec `===`.
 
-| Commande | Comportement |
-| -------- | ------------ |
-| `setPitch`, `setAccidental` | change une hauteur (accords triés) ; les doublons dans un accord sont refusés ; liaison et doigté de cette hauteur sont supprimés |
-| `addPitch`, `removePitch` | modifie un accord ; la dernière hauteur ne peut pas être retirée (utiliser `deleteEvent`) |
-| `setFretting` | fixe corde et case et déduit la hauteur écrite |
-| `putEvent` | écrit une note, un accord ou un silence à un tick d'une voix (règle d'écrasement) |
-| `deleteEvent` | remplace par un silence de même durée (même id) ; les liaisons de phrase dessus sont supprimées |
-| `changeDuration`, `toggleDot` | redimensionnent un événement (règle de débordement) |
-| `toggleTie`, `addSlur`, `removeSlur` | liaisons de prolongation et de phrase |
-| `createTriplet` | transforme un événement non pointé en triolet 3:2 (le premier emplacement garde la note, deux silences) |
-| `transpose` | en demi-tons (12 = octave), tout ou rien ; le doigté est supprimé |
-| `insertMeasure`, `deleteMeasure` | structure |
-| `setTimeSignature`, `setKeySignature`, `setMeasureLength`, `setClef` | attributs à partir d'une mesure |
+| Commande                                                             | Comportement                                                                                                                      |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `setPitch`, `setAccidental`                                          | change une hauteur (accords triés) ; les doublons dans un accord sont refusés ; liaison et doigté de cette hauteur sont supprimés |
+| `addPitch`, `removePitch`                                            | modifie un accord ; la dernière hauteur ne peut pas être retirée (utiliser `deleteEvent`)                                         |
+| `setFretting`                                                        | fixe corde et case et déduit la hauteur écrite                                                                                    |
+| `putEvent`                                                           | écrit une note, un accord ou un silence à un tick d'une voix (règle d'écrasement)                                                 |
+| `deleteEvent`                                                        | remplace par un silence de même durée (même id) ; les liaisons de phrase dessus sont supprimées                                   |
+| `changeDuration`, `toggleDot`                                        | redimensionnent un événement (règle de débordement)                                                                               |
+| `toggleTie`, `addSlur`, `removeSlur`                                 | liaisons de prolongation et de phrase                                                                                             |
+| `createTriplet`                                                      | transforme un événement non pointé en triolet 3:2 (le premier emplacement garde la note, deux silences)                           |
+| `transpose`                                                          | en demi-tons (12 = octave), tout ou rien ; le doigté est supprimé                                                                 |
+| `insertMeasure`, `deleteMeasure`                                     | structure                                                                                                                         |
+| `setTimeSignature`, `setKeySignature`, `setMeasureLength`, `setClef` | attributs à partir d'une mesure                                                                                                   |
 
 **Règles de remplissage et de débordement (façon MuseScore).**
 
@@ -110,19 +110,19 @@ Chaque modification est une commande (`commands/`) : `interface Command { name; 
 
 `schema/score.v1.schema.json` couvre la structure et les limites de taille que le serveur utilise pour rejeter les abus. Un test valide toutes les partitions d'exemple contre lui et vérifie que `deserialize` et le schéma s'accordent sur une liste d'échantillons invalides. Le schéma ne peut pas exprimer les règles sémantiques (voix qui remplissent les mesures, ids uniques, liaisons, nolets et doigtés valides) : le serveur applique les mêmes règles que `validateScore`.
 
-| Limite | Valeur |
-| ------ | ------ |
-| parties / portées par partie | 32 / 4 |
-| mesures | 2000 |
-| voix par mesure / événements par voix | 4 / 512 |
-| hauteurs par accord | 12 |
-| nolets par voix / événements par nolet | 128 / 16 |
-| liaisons de phrase | 20000 |
-| cordes d'accordage / frettes | 12 / 36 |
-| titre, compositeur | 200 caractères |
-| nom de partie / id d'instrument | 100 / 64 caractères |
-| id | 64 caractères |
-| texte JSON (`deserialize`) | 16 000 000 caractères |
+| Limite                                 | Valeur                |
+| -------------------------------------- | --------------------- |
+| parties / portées par partie           | 32 / 4                |
+| mesures                                | 2000                  |
+| voix par mesure / événements par voix  | 4 / 512               |
+| hauteurs par accord                    | 12                    |
+| nolets par voix / événements par nolet | 128 / 16              |
+| liaisons de phrase                     | 20000                 |
+| cordes d'accordage / frettes           | 12 / 36               |
+| titre, compositeur                     | 200 caractères        |
+| nom de partie / id d'instrument        | 100 / 64 caractères   |
+| id                                     | 64 caractères         |
+| texte JSON (`deserialize`)             | 16 000 000 caractères |
 
 ## Performance
 

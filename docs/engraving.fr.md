@@ -6,16 +6,16 @@ Le graveur transforme une partition (voir [score-format.fr.md](score-format.fr.m
 
 ## Modules
 
-| Fichier | Rôle | VexFlow |
-| ------- | ---- | ------- |
-| `notation.ts` | Géométrie de la portée (clé vers y), état des altérations, groupes de ligatures, utilitaires de ticks | non |
-| `layout.ts` | Largeurs de mesures, découpage en systèmes, justification, positions x des événements | non |
-| `hitTest.ts` | Point vers `{partId, staffId, measureIndex, eventId, pitch}`, boîtes englobantes des événements | non |
-| `draw.ts` | Dessine un système (portées, notes, ligatures, tuplets, liaisons, accolades, noms) | oui |
-| `vexflowSetup.ts` | Configure VexFlow (polices) et charge Bravura | oui |
-| `fonts.ts` | URL du fichier Bravura haché, `<link rel="preload">` | non (bundle initial) |
-| `engraver.ts` | Possède le SVG, re-rendu incrémental, surbrillance | oui |
-| `ScoreView.tsx` | Composant React : chargement différé, redimensionnement, props vers le graveur | non (différé) |
+| Fichier           | Rôle                                                                                                  | VexFlow              |
+| ----------------- | ----------------------------------------------------------------------------------------------------- | -------------------- |
+| `notation.ts`     | Géométrie de la portée (clé vers y), état des altérations, groupes de ligatures, utilitaires de ticks | non                  |
+| `layout.ts`       | Largeurs de mesures, découpage en systèmes, justification, positions x des événements                 | non                  |
+| `hitTest.ts`      | Point vers `{partId, staffId, measureIndex, eventId, pitch}`, boîtes englobantes des événements       | non                  |
+| `draw.ts`         | Dessine un système (portées, notes, ligatures, tuplets, liaisons, accolades, noms)                    | oui                  |
+| `vexflowSetup.ts` | Configure VexFlow (polices) et charge Bravura                                                         | oui                  |
+| `fonts.ts`        | URL du fichier Bravura haché, `<link rel="preload">`                                                  | non (bundle initial) |
+| `engraver.ts`     | Possède le SVG, re-rendu incrémental, surbrillance                                                    | oui                  |
+| `ScoreView.tsx`   | Composant React : chargement différé, redimensionnement, props vers le graveur                        | non (différé)        |
 
 Tout ce qui n'a pas besoin de VexFlow est du TypeScript pur, testé sous jsdom. `ScoreView` charge `engraver.ts` (donc VexFlow) par un `import()` dynamique après le premier affichage : **VexFlow n'est pas dans le bundle initial**. VexFlow est sous licence MIT (voir [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). Le point d'entrée `vexflow/core` est utilisé : il ne contient **aucune police**. Il ne se tree-shake pas en pratique (la bibliothèque enregistre ses classes globalement) : le chunk de l'éditeur reste à environ 180 Ko gzip (voir « Chiffres »).
 
@@ -32,11 +32,11 @@ Tout ce qui n'a pas besoin de VexFlow est du TypeScript pur, testé sous jsdom. 
 
 Toutes les tailles sont en px ; un interligne vaut 10 px (13 px sur les tablatures).
 
-1. **Forme d'une mesure** (en cache par mesure). Toutes les portées d'une mesure sont analysées ensemble pour que les notes de portées différentes soient alignées. Les événements sont regroupés en *colonnes*, une par départ distinct (tick). Chaque colonne reçoit :
+1. **Forme d'une mesure** (en cache par mesure). Toutes les portées d'une mesure sont analysées ensemble pour que les notes de portées différentes soient alignées. Les événements sont regroupés en _colonnes_, une par départ distinct (tick). Chaque colonne reçoit :
    - `lead` : place avant la tête de note pour les altérations (4 + 11 px par altération empilée, jusqu'à 3),
    - `glyph` : tête de note, points (7 px chacun), seconde décalée d'un accord, crochet,
    - `stretch` : espace proportionnel après la colonne, `4 + 12 x log2(écart / 120 + 1)` où `écart` est le temps (en ticks) jusqu'à la colonne suivante ou la fin de la mesure. Une noire reçoit environ 43 px, une blanche environ 54 px, une double-croche environ 23 px : la largeur croît avec la durée, mais moins vite qu'elle.
-   La zone de notes minimale d'une mesure est `padLeft + somme(lead + glyph + stretch) + padRight`. Les altérations suivent l'armure et l'état local à la mesure (toutes voix, dans l'ordre du temps ; une note liée depuis la mesure précédente ne répète pas son altération).
+     La zone de notes minimale d'une mesure est `padLeft + somme(lead + glyph + stretch) + padRight`. Les altérations suivent l'armure et l'état local à la mesure (toutes voix, dans l'ordre du temps ; une note liée depuis la mesure précédente ne répète pas son altération).
 2. **Éléments de début.** La première mesure d'un système reçoit une clé pleine, l'armure (si ce n'est pas do majeur) et, au début de la partition ou quand il change, le chiffrage. Une mesure en milieu de système n'affiche que ce qui change : petite clé, armure avec bécarres annulant l'ancienne, chiffrage.
 3. **Remplissage.** Les systèmes sont remplis de façon gloutonne : une mesure rejoint le système tant que la somme des largeurs (éléments de début inclus) tient dans la largeur disponible. Si la mesure suivante annonce un changement d'armure, de chiffrage ou de clé, la fin du système doit contenir les signes de **précaution** ; on retire des mesures jusqu'à ce que cela tienne.
 4. **Justification.** L'espace libre d'un système est réparti entre ses mesures proportionnellement à leur zone de notes, puis dans chaque mesure sur le `stretch` de chaque colonne : l'espacement reste proportionnel. Le dernier système est étiré d'un facteur 1,35 au plus. Une mesure seule plus large que la page garde la place de ses glyphes et abandonne l'espace proportionnel.
@@ -64,7 +64,7 @@ Le SVG définit `color: var(--score-ink)` et VexFlow dessine en `currentColor` ;
 Le modèle partage les objets inchangés entre versions : les références détectent les changements.
 
 - Les formes de mesures sont en cache par indice de mesure et invalidées quand les mesures de portée (ou la précédente, pour les liaisons) ou le contexte clé/armure/chiffrage changent par référence ou par valeur.
-- Chaque système est dessiné dans son propre `<g>`, en coordonnées locales au système, et positionné par `transform`. Un système garde son nœud DOM quand sa *signature* est inchangée : le placement (chaque x, largeur et élément de début), les références des mesures de portée qu'il utilise (et celle d'avant), les liaisons qui le touchent et les noms de parties. Une édition ne regrave donc que le ou les systèmes touchés ; les systèmes suivants sont seulement translatés si la hauteur au-dessus a changé. Un changement de largeur (redimensionnement) regrave tout, avec un anti-rebond de 120 ms dans `ScoreView`.
+- Chaque système est dessiné dans son propre `<g>`, en coordonnées locales au système, et positionné par `transform`. Un système garde son nœud DOM quand sa _signature_ est inchangée : le placement (chaque x, largeur et élément de début), les références des mesures de portée qu'il utilise (et celle d'avant), les liaisons qui le touchent et les noms de parties. Une édition ne regrave donc que le ou les systèmes touchés ; les systèmes suivants sont seulement translatés si la hauteur au-dessus a changé. Un changement de largeur (redimensionnement) regrave tout, avec un anti-rebond de 120 ms dans `ScoreView`.
 - `engraver.render(score, width)` renvoie `{ms, systems, drawn, reused, overflow}`. `overflow` compte les systèmes dont les éléments de début dépassaient la place réservée par le layout : doit rester 0 (vérifié sur chaque fixture par les tests navigateur).
 
 ## Rendu progressif
@@ -83,9 +83,9 @@ Le SVG a `role="img"` et un résumé `aria-label` (titre, nombre d'instruments e
 
 ```tsx
 <ScoreView
-  score={score}              // optionnel : par défaut la fixture « Au clair de la lune »
-  selection={['e12']}        // identifiants d'événements, bascule de classe
-  playing={['e13']}          // identifiants d'événements, bascule de classe
+  score={score} // optionnel : par défaut la fixture « Au clair de la lune »
+  selection={["e12"]} // identifiants d'événements, bascule de classe
+  playing={["e13"]} // identifiants d'événements, bascule de classe
   onHit={(hit, event) => {}} // pointer down : ce qui est sous le pointeur
   liveMessage="Do 4, noire"
 />
@@ -131,19 +131,19 @@ Versionnez les PNG modifiés avec le code qui a changé le rendu, et expliquez p
 
 Mesurés dans Chromium (portable Windows 11, build de production), `benchmark100` : 100 mesures, deux portées, 34 systèmes à 1100 px, surtout des croches avec altérations et liaisons.
 
-| Quoi | Budget | Mesuré |
-| ---- | ------ | ------ |
-| Premier système affiché (après chargement du chunk) | < 100 ms | environ 45 ms (230 ms avant : tout le rendu) |
-| Rendu complet, tout premier (JIT froid), tous les systèmes | n/a | 230 à 320 ms (le travail de dessin est inchangé ; il s'exécute désormais par tranches en temps libre) |
-| Rendu complet, à chaud (médiane de 7) | < 200 ms | environ 120 ms |
-| Une édition, médiane / max de 25 | < 16 ms | environ 6 ms / 10 ms |
-| Frappe, partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 8,6 / 11,8 / 12,1 ms (édition à l'écran) |
-| Frappe avec re-flow en haut d'une partition remplie, médiane / p95 / max de 40 | p95 < 16 ms | 7,1 / 11,2 / 11,6 ms, 2 systèmes au plus (avant : 9,5 / 16,2 / 16,5 ms) |
-| Frappe en remplissant une partition vide, médiane / p95 / max de 400 | p95 < 16 ms | 3,8 / 7,2 / 11,3 ms (avant : 3,3 / 6,6 / 24,5 ms) |
-| Surbrillance (sélection + lecture) | bascule de classe | < 1 ms |
-| Layout seul (jsdom) | n/a | quelques ms |
-| JS initial | <= 150 Ko gzip | 72,7 Ko |
-| Chunk de l'éditeur (VexFlow + gravure, sans police) | <= 200 Ko gzip | 180 Ko (468 Ko avec les polices avant) |
-| Fichier de police Bravura | <= 250 Ko woff2 | 247 Ko, fichier séparé, cache immuable |
+| Quoi                                                                           | Budget            | Mesuré                                                                                                |
+| ------------------------------------------------------------------------------ | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| Premier système affiché (après chargement du chunk)                            | < 100 ms          | environ 45 ms (230 ms avant : tout le rendu)                                                          |
+| Rendu complet, tout premier (JIT froid), tous les systèmes                     | n/a               | 230 à 320 ms (le travail de dessin est inchangé ; il s'exécute désormais par tranches en temps libre) |
+| Rendu complet, à chaud (médiane de 7)                                          | < 200 ms          | environ 120 ms                                                                                        |
+| Une édition, médiane / max de 25                                               | < 16 ms           | environ 6 ms / 10 ms                                                                                  |
+| Frappe, partition remplie, médiane / p95 / max de 40                           | p95 < 16 ms       | 8,6 / 11,8 / 12,1 ms (édition à l'écran)                                                              |
+| Frappe avec re-flow en haut d'une partition remplie, médiane / p95 / max de 40 | p95 < 16 ms       | 7,1 / 11,2 / 11,6 ms, 2 systèmes au plus (avant : 9,5 / 16,2 / 16,5 ms)                               |
+| Frappe en remplissant une partition vide, médiane / p95 / max de 400           | p95 < 16 ms       | 3,8 / 7,2 / 11,3 ms (avant : 3,3 / 6,6 / 24,5 ms)                                                     |
+| Surbrillance (sélection + lecture)                                             | bascule de classe | < 1 ms                                                                                                |
+| Layout seul (jsdom)                                                            | n/a               | quelques ms                                                                                           |
+| JS initial                                                                     | <= 150 Ko gzip    | 72,7 Ko                                                                                               |
+| Chunk de l'éditeur (VexFlow + gravure, sans police)                            | <= 200 Ko gzip    | 180 Ko (468 Ko avec les polices avant)                                                                |
+| Fichier de police Bravura                                                      | <= 250 Ko woff2   | 247 Ko, fichier séparé, cache immuable                                                                |
 
 Le test navigateur vérifie : rendu complet à chaud < 200 ms, à froid < 600 ms (JIT, workers parallèles, CI plus lente), médiane d'édition < 16 ms, p95 de frappe < 16 ms dans les trois scénarios ci-dessus (32 ms sur les runners CI, environ deux fois plus lents que le portable de référence).

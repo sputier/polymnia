@@ -30,12 +30,12 @@ Score { schemaVersion: 1, id?, meta, measures[], parts[], slurs[] }
 
 | Duration | Ticks |
 | -------- | ----- |
-| whole | 3840 |
-| half | 1920 |
-| quarter | 960 |
-| eighth | 480 |
-| 16th | 240 |
-| 32nd | 120 |
+| whole    | 3840  |
+| half     | 1920  |
+| quarter  | 960   |
+| eighth   | 480   |
+| 16th     | 240   |
+| 32nd     | 120   |
 
 A duration is `{ base, dots }` (`dots` 0 to 2): ticks = base x (2 - 1/2^dots). The V1 interface exposes whole to 16th; the model accepts the 32nd. Positions inside a measure and measure lengths are multiples of 120 (a 32nd). A dotted or double-dotted 32nd (180 and 210 ticks) is off that grid: commands refuse it (`invalid-argument`).
 
@@ -70,19 +70,19 @@ Every edit is a command (`commands/`): `interface Command { name; apply(score): 
 
 **Structural sharing.** A command copies only the path from the root to the change (score, part, staff, measure array, staff measure, voice). Everything else keeps its reference identity, so renderers and React can skip unchanged measures with `===`.
 
-| Command | Behavior |
-| ------- | -------- |
-| `setPitch`, `setAccidental` | change a pitch (chords stay sorted); duplicates in a chord are refused; tie and fretting of that pitch are dropped |
-| `addPitch`, `removePitch` | edit a chord; the last pitch cannot be removed (use `deleteEvent`) |
-| `setFretting` | sets string and fret and derives the written pitch |
-| `putEvent` | writes a note, chord or rest at a tick of a voice (overwrite rule) |
-| `deleteEvent` | replaces by a rest of the same duration (same id); slurs on it are removed |
-| `changeDuration`, `toggleDot` | resize an event (overflow rule) |
-| `toggleTie`, `addSlur`, `removeSlur` | ties and slurs |
-| `createTriplet` | turns an undotted event into a 3:2 triplet (first slot keeps the note, two rests) |
-| `transpose` | by semitones (12 = octave), all or nothing; fretting is dropped |
-| `insertMeasure`, `deleteMeasure` | structure |
-| `setTimeSignature`, `setKeySignature`, `setMeasureLength`, `setClef` | attributes from a measure on |
+| Command                                                              | Behavior                                                                                                           |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `setPitch`, `setAccidental`                                          | change a pitch (chords stay sorted); duplicates in a chord are refused; tie and fretting of that pitch are dropped |
+| `addPitch`, `removePitch`                                            | edit a chord; the last pitch cannot be removed (use `deleteEvent`)                                                 |
+| `setFretting`                                                        | sets string and fret and derives the written pitch                                                                 |
+| `putEvent`                                                           | writes a note, chord or rest at a tick of a voice (overwrite rule)                                                 |
+| `deleteEvent`                                                        | replaces by a rest of the same duration (same id); slurs on it are removed                                         |
+| `changeDuration`, `toggleDot`                                        | resize an event (overflow rule)                                                                                    |
+| `toggleTie`, `addSlur`, `removeSlur`                                 | ties and slurs                                                                                                     |
+| `createTriplet`                                                      | turns an undotted event into a 3:2 triplet (first slot keeps the note, two rests)                                  |
+| `transpose`                                                          | by semitones (12 = octave), all or nothing; fretting is dropped                                                    |
+| `insertMeasure`, `deleteMeasure`                                     | structure                                                                                                          |
+| `setTimeSignature`, `setKeySignature`, `setMeasureLength`, `setClef` | attributes from a measure on                                                                                       |
 
 **Filling and overflow rules (MuseScore-like).**
 
@@ -110,19 +110,19 @@ Every edit is a command (`commands/`): `interface Command { name; apply(score): 
 
 `schema/score.v1.schema.json` covers the structure and the size limits the server uses to reject abuse. A test validates all fixtures against it and checks that `deserialize` and the schema agree on a list of invalid samples. The schema cannot express the semantic rules (voices filling measures, unique ids, valid ties, slurs, tuplets and frettings): the server runs the same `validateScore` rules.
 
-| Limit | Value |
-| ----- | ----- |
-| parts / staves per part | 32 / 4 |
-| measures | 2000 |
-| voices per measure / events per voice | 4 / 512 |
-| pitches per chord | 12 |
-| tuplets per voice / events per tuplet | 128 / 16 |
-| slurs | 20000 |
-| tuning strings / frets | 12 / 36 |
-| title, composer | 200 characters |
-| part name / instrument id | 100 / 64 characters |
-| id | 64 characters |
-| JSON text (`deserialize`) | 16 000 000 characters |
+| Limit                                 | Value                 |
+| ------------------------------------- | --------------------- |
+| parts / staves per part               | 32 / 4                |
+| measures                              | 2000                  |
+| voices per measure / events per voice | 4 / 512               |
+| pitches per chord                     | 12                    |
+| tuplets per voice / events per tuplet | 128 / 16              |
+| slurs                                 | 20000                 |
+| tuning strings / frets                | 12 / 36               |
+| title, composer                       | 200 characters        |
+| part name / instrument id             | 100 / 64 characters   |
+| id                                    | 64 characters         |
+| JSON text (`deserialize`)             | 16 000 000 characters |
 
 ## Performance
 

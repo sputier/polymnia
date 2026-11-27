@@ -6,17 +6,17 @@ Entendre la partition pendant qu'un curseur la suit. Code dans [`web/src/playbac
 
 ## Utilisation
 
-| Action | Comment |
-| --- | --- |
-| Lecture / pause | `Espace` ou le bouton Lecture (comportement de MuseScore). Un bouton ou un champ texte qui a le focus garde `Espace` pour lui |
-| Retour au début | `Origine` (`Home`) ou le premier bouton du transport |
-| Arrêt (et retour au début) | Bouton Arrêt |
-| Jouer à partir d'une note | La sélectionner (la tête de lecture s'y place), puis lancer la lecture |
-| Boucle | Bouton Boucle : boucle sur les notes sélectionnées, ou sur toute la partition sans sélection |
-| Tempo | Curseur de 25 % à 200 % du tempo écrit ; `♩ = n` donne le tempo effectif |
-| Métronome | Bouton Métronome : un clic à chaque temps, accentué sur le premier temps de la mesure (temps pointé en 6/8, 9/8, 12/8 ; la levée compte comme la fin d'une mesure) |
-| Couper / isoler une portée | Console dans l'inspecteur (mode Avancé). Un solo coupe toutes les autres portées et l'emporte sur « couper » |
-| Entendre chaque note saisie | Automatique : la saisie appelle `previewNote` |
+| Action                      | Comment                                                                                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Lecture / pause             | `Espace` ou le bouton Lecture (comportement de MuseScore). Un bouton ou un champ texte qui a le focus garde `Espace` pour lui                                      |
+| Retour au début             | `Origine` (`Home`) ou le premier bouton du transport                                                                                                               |
+| Arrêt (et retour au début)  | Bouton Arrêt                                                                                                                                                       |
+| Jouer à partir d'une note   | La sélectionner (la tête de lecture s'y place), puis lancer la lecture                                                                                             |
+| Boucle                      | Bouton Boucle : boucle sur les notes sélectionnées, ou sur toute la partition sans sélection                                                                       |
+| Tempo                       | Curseur de 25 % à 200 % du tempo écrit ; `♩ = n` donne le tempo effectif                                                                                           |
+| Métronome                   | Bouton Métronome : un clic à chaque temps, accentué sur le premier temps de la mesure (temps pointé en 6/8, 9/8, 12/8 ; la levée compte comme la fin d'une mesure) |
+| Couper / isoler une portée  | Console dans l'inspecteur (mode Avancé). Un solo coupe toutes les autres portées et l'emporte sur « couper »                                                       |
+| Entendre chaque note saisie | Automatique : la saisie appelle `previewNote`                                                                                                                      |
 
 Le son démarre après un geste de l'utilisateur (politiques de lecture automatique des navigateurs) : le moteur est téléchargé au premier clic ou à la première touche dans l'éditeur, et le contexte audio démarre quand on lance la lecture.
 
@@ -33,7 +33,7 @@ partition ──buildTimeline──▶ Timeline (notes, spans, tempo, temps)    
                      └── MockBackend  silencieux, pour les tests navigateur    mockBackend.ts
 ```
 
-- **Partition vers événements** (`timeline.ts`, pur et testé). Les ticks restent l'unité (960 par noire). Une note porte son numéro MIDI *sonnant* : hauteur écrite plus la transposition de la partie (`soundingMidi`). Un capodastre est déjà inclus dans la hauteur écrite (le validateur vérifie `corde + capo + case = écrit + transposition`) : il n'est **pas** ajouté une seconde fois. Les notes liées (sur un temps, une barre de mesure, accords hauteur par hauteur) deviennent **une seule** note sonnante ; chaque événement lié garde sa propre durée pour sa surbrillance. Les nolets utilisent leurs durées réduites, les mesures de levée leur `length` réel, toutes les voix de toutes les portées sont jouées. La table des tempos suit les changements de `tempoBpm`.
+- **Partition vers événements** (`timeline.ts`, pur et testé). Les ticks restent l'unité (960 par noire). Une note porte son numéro MIDI _sonnant_ : hauteur écrite plus la transposition de la partie (`soundingMidi`). Un capodastre est déjà inclus dans la hauteur écrite (le validateur vérifie `corde + capo + case = écrit + transposition`) : il n'est **pas** ajouté une seconde fois. Les notes liées (sur un temps, une barre de mesure, accords hauteur par hauteur) deviennent **une seule** note sonnante ; chaque événement lié garde sa propre durée pour sa surbrillance. Les nolets utilisent leurs durées réduites, les mesures de levée leur `length` réel, toutes les voix de toutes les portées sont jouées. La table des tempos suit les changements de `tempoBpm`.
 - **Calculs de temps** (`clock.ts`, pur). Table de tempo ticks ⇄ secondes, bouclage (`scoreSecondsAt`, `legsBetween`), mute/solo (`audibleStaves`).
 - **Planification** (`controller.ts`). Un minuteur de 100 ms programme toutes les notes qui commencent dans les **1,2 s** suivantes de l'horloge audio (`LOOKAHEAD_SECONDS`) avec des instants audio absolus, et le contexte Tone utilise `latencyHint: 'playback'` avec 0,2 s d'anticipation : si le fil de l'interface est occupé (un re-gravage, une tâche longue), les notes ne saccadent pas, le son est déjà dans le graphe audio. Changer le tempo, la boucle ou se déplacer relance la planification depuis la tête de lecture.
 - **Curseur et surbrillance** (`follow.ts`). `requestAnimationFrame` lit l'horloge audio (moins la latence de sortie), trouve les notes sous la tête de lecture et, seulement quand elles changent, appelle `engraver.setPlaying(ids)` (classe CSS `pm-playing`, couleur `--play`) et `engraver.setPlayCursor(ids)` (un seul `<rect class="pm-cursor">` déplacé). Aucun état React ne change par image, aucun re-gravage. La page défile (`.score-area`) seulement quand le curseur sort de la zone visible, en respectant `prefers-reduced-motion`.
@@ -44,18 +44,18 @@ partition ──buildTimeline──▶ Timeline (notes, spans, tempo, temps)    
 
 Les échantillons sont de courts extraits Ogg Opus, quelques hauteurs par instrument ; le `Sampler` de Tone transpose le plus proche. Seuls les jeux utilisés par les portées de la partition sont téléchargés, et seulement quand on joue ou qu'on saisit une note.
 
-| Instrument | Jeu | Téléchargement | Source (tout en CC0 1.0) |
-| --- | --- | --- | --- |
-| Guitare classique | `guitar-nylon` | 172 Ko | FreePats, guitare classique espagnole |
-| Guitare folk | `guitar-nylon` (**remplaçant**) | idem | aucun enregistrement permissif trouvé, voir plus bas |
-| Ukulélé (toutes tailles) | `ukulele` | 85 Ko | FreePats, ukulélé ténor |
-| Violoncelle | `cello` | 208 Ko | VSCO 2 CE, *Cello Section* (pas de violoncelle solo dans les jeux CC0) |
-| Piano, instruments inconnus | `piano` | 180 Ko | FreePats, Upright Piano KW |
-| Voix | `flute` (**remplaçant**) | idem | aucun enregistrement permissif trouvé, voir plus bas |
-| Flûte | `flute` | 182 Ko | VSCO 2 CE |
-| Violon | `violin` | 208 Ko | VSCO 2 CE, violon solo |
-| Clarinette | `clarinet` | 164 Ko | FreePats |
-| Contrebasse | `double-bass` | 145 Ko | VSCO 2 CE, contrebasse solo |
+| Instrument                  | Jeu                             | Téléchargement | Source (tout en CC0 1.0)                                               |
+| --------------------------- | ------------------------------- | -------------- | ---------------------------------------------------------------------- |
+| Guitare classique           | `guitar-nylon`                  | 172 Ko         | FreePats, guitare classique espagnole                                  |
+| Guitare folk                | `guitar-nylon` (**remplaçant**) | idem           | aucun enregistrement permissif trouvé, voir plus bas                   |
+| Ukulélé (toutes tailles)    | `ukulele`                       | 85 Ko          | FreePats, ukulélé ténor                                                |
+| Violoncelle                 | `cello`                         | 208 Ko         | VSCO 2 CE, _Cello Section_ (pas de violoncelle solo dans les jeux CC0) |
+| Piano, instruments inconnus | `piano`                         | 180 Ko         | FreePats, Upright Piano KW                                             |
+| Voix                        | `flute` (**remplaçant**)        | idem           | aucun enregistrement permissif trouvé, voir plus bas                   |
+| Flûte                       | `flute`                         | 182 Ko         | VSCO 2 CE                                                              |
+| Violon                      | `violin`                        | 208 Ko         | VSCO 2 CE, violon solo                                                 |
+| Clarinette                  | `clarinet`                      | 164 Ko         | FreePats                                                               |
+| Contrebasse                 | `double-bass`                   | 145 Ko         | VSCO 2 CE, contrebasse solo                                            |
 
 Auteurs, URL et textes de licence sont dans [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). L'ensemble pèse 1,34 Mo dans le dépôt.
 
@@ -77,14 +77,14 @@ Auteurs, URL et textes de licence sont dans [`THIRD_PARTY_NOTICES.md`](../THIRD_
 
 Mesuré dans Chromium (portable Windows 11, build de production, serveur local, sans limitation réseau ; le chiffre est dominé par le décodage et la planification, le téléchargement représente environ 60 Ko gzip de Tone plus le jeu).
 
-| Quoi | Budget | Mesuré |
-| --- | --- | --- |
-| Délai avant la première note, à froid (moteur + piano + décodage) | < 3 s | 120 à 330 ms (local) |
-| Délai avant la première note, en cache | < 1 s | 55 à 100 ms |
-| Chunk de lecture (Tone.js + moteur) | ≤ 80 Ko gzip, chargé à la demande | 57,7 Ko gzip, hors du bundle initial |
-| Jeux d'échantillons | ≤ 3 Mo au total | 1,34 Mo au total, 85 à 208 Ko par instrument |
-| JS initial | ≤ 150 Ko gzip | 94,7 Ko (le contrôleur n'en représente que quelques Ko) |
-| Frappe en saisie (100 mesures) | < 16 ms | environ 9 ms (l'aperçu ne reconstruit pas la timeline) |
+| Quoi                                                              | Budget                            | Mesuré                                                  |
+| ----------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------- |
+| Délai avant la première note, à froid (moteur + piano + décodage) | < 3 s                             | 120 à 330 ms (local)                                    |
+| Délai avant la première note, en cache                            | < 1 s                             | 55 à 100 ms                                             |
+| Chunk de lecture (Tone.js + moteur)                               | ≤ 80 Ko gzip, chargé à la demande | 57,7 Ko gzip, hors du bundle initial                    |
+| Jeux d'échantillons                                               | ≤ 3 Mo au total                   | 1,34 Mo au total, 85 à 208 Ko par instrument            |
+| JS initial                                                        | ≤ 150 Ko gzip                     | 94,7 Ko (le contrôleur n'en représente que quelques Ko) |
+| Frappe en saisie (100 mesures)                                    | < 16 ms                           | environ 9 ms (l'aperçu ne reconstruit pas la timeline)  |
 
 Sur un vrai réseau, la première note ajoute le téléchargement du chunk Tone et de l'instrument (environ 250 à 270 Ko), une seconde environ à 2 Mbit/s, rien une fois en cache (fichiers hachés, `immutable`).
 

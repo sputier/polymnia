@@ -6,13 +6,13 @@ The editor lives at `#/editor` (hash routing, no router dependency). The home pa
 
 ## Layout
 
-| Area | Role |
-| --- | --- |
-| Top bar | Back link, instruments toggle, editable score title, save status (`Saved`, `Saving…`, `Offline`), Simple/Advanced toggle, Share and Export (placeholders), theme and language switches, inspector toggle (Advanced only) |
-| Left panel | Instruments, collapsible. In Simple mode it also shows a hint to reach Advanced mode |
-| Center | The note input palette, the score on a "paper" surface and the shortcut reminder strip |
-| Right panel | Inspector, collapsible, **Advanced mode only** |
-| Status bar | Input mode (`NOTE INPUT` / `SELECT`), current duration, measure and beat, interface level, save status |
+| Area        | Role                                                                                                                                                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Top bar     | Back link, instruments toggle, editable score title, save status (`Saved`, `Saving…`, `Offline`), Simple/Advanced toggle, Import, Share (placeholder) and Export menu (MusicXML, MXL; see [musicxml.md](musicxml.md)), theme and language switches, inspector toggle (Advanced only) |
+| Left panel  | Instruments, collapsible. In Simple mode it also shows a hint to reach Advanced mode                                                                                                                                                                                                 |
+| Center      | The note input palette, the score on a "paper" surface and the shortcut reminder strip                                                                                                                                                                                               |
+| Right panel | Inspector, collapsible, **Advanced mode only**                                                                                                                                                                                                                                       |
+| Status bar  | Input mode (`NOTE INPUT` / `SELECT`), current duration, measure and beat, interface level, save status                                                                                                                                                                               |
 
 The center also holds a **transport bar** above the score (play/pause, stop, back to start, loop, metronome, tempo) and, in Advanced mode, a mixer with mute and solo per staff in the inspector; see [playback](playback.md).
 
@@ -29,17 +29,17 @@ The choice is stored in `localStorage` (`polymnia.uiMode`; failures are ignored)
 
 ## Keyboard shortcuts
 
-| Shortcut | Action |
-| --- | --- |
-| `Ctrl+B` (`Cmd+B` on macOS) | Show or hide the instruments panel |
-| `Ctrl+I` (`Cmd+I` on macOS) | Show or hide the inspector (Advanced only) |
-| `Alt+A` (`Option+A` on macOS) | Switch between Simple and Advanced |
-| `Space` | Play or pause (MuseScore behavior; a focused button keeps it) |
-| `Home` | Back to the start of the score |
-| `Ctrl+K` (`Cmd+K` on macOS) | Open the command palette (works while typing in a field) |
-| `Alt+F` (`Option+F` on macOS) | Focus mode |
-| `?` | Keyboard shortcut cheat sheet |
-| `Esc` | Leave focus mode, else close the open panel (narrow screens), else leave note input |
+| Shortcut                      | Action                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| `Ctrl+B` (`Cmd+B` on macOS)   | Show or hide the instruments panel                                                  |
+| `Ctrl+I` (`Cmd+I` on macOS)   | Show or hide the inspector (Advanced only)                                          |
+| `Alt+A` (`Option+A` on macOS) | Switch between Simple and Advanced                                                  |
+| `Space`                       | Play or pause (MuseScore behavior; a focused button keeps it)                       |
+| `Home`                        | Back to the start of the score                                                      |
+| `Ctrl+K` (`Cmd+K` on macOS)   | Open the command palette (works while typing in a field)                            |
+| `Alt+F` (`Option+F` on macOS) | Focus mode                                                                          |
+| `?`                           | Keyboard shortcut cheat sheet                                                       |
+| `Esc`                         | Leave focus mode, else close the open panel (narrow screens), else leave note input |
 
 Shortcuts do not fire while typing in a text field. Note-entry keys are listed in the next section.
 
@@ -49,7 +49,12 @@ Shortcuts do not fire while typing in a text field. Note-entry keys are listed i
 
 ```ts
 useShortcuts([
-  { id: 'editor.toggleInstruments', keys: 'Mod+B', labelKey: 'shortcut.toggleInstruments', handler },
+  {
+    id: "editor.toggleInstruments",
+    keys: "Mod+B",
+    labelKey: "shortcut.toggleInstruments",
+    handler,
+  },
 ]);
 ```
 
@@ -77,25 +82,25 @@ Code in `web/src/editor/commands/` (dialogs) and `web/src/shortcuts/` (`commands
 
 Keys are the MuseScore 4 defaults (`Cmd` replaces `Ctrl` on macOS). They are declared once in `web/src/editor/entry/entryShortcuts.ts` and registered in the shortcut registry; the palette above the score mirrors them, with the key in each tooltip.
 
-| Action | Key |
-| --- | --- |
-| Toggle note input mode (`Esc` also leaves it) | `N` |
-| Duration 16th / 8th / quarter / half / whole | `3` / `4` / `5` / `6` / `7` (`1`, `2`, `8`, `9` are reserved: they only show a notice) |
-| Augmentation dot | `.` |
-| Rest | `0` |
-| Enter a note | `A`–`G` |
-| Add a note to the chord | `Shift+A`–`Shift+G` |
-| Sharp / flat / natural | `+` / `-` / `=` |
-| Pitch up / down a semitone | `↑` / `↓` |
-| Pitch up / down an octave | `Ctrl+↑` / `Ctrl+↓` |
-| Tie | `T` |
-| Slur | `S` |
-| Triplet | `Ctrl+3` |
-| Move cursor or selection | `←` / `→` |
-| Extend the selection | `Shift+←` / `Shift+→` |
-| Delete (turns into rests) | `Del` or `Backspace` |
-| Copy / paste | `Ctrl+C` / `Ctrl+V` |
-| Undo / redo | `Ctrl+Z` / `Ctrl+Y` or `Ctrl+Shift+Z` |
+| Action                                        | Key                                                                                    |
+| --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Toggle note input mode (`Esc` also leaves it) | `N`                                                                                    |
+| Duration 16th / 8th / quarter / half / whole  | `3` / `4` / `5` / `6` / `7` (`1`, `2`, `8`, `9` are reserved: they only show a notice) |
+| Augmentation dot                              | `.`                                                                                    |
+| Rest                                          | `0`                                                                                    |
+| Enter a note                                  | `A`–`G`                                                                                |
+| Add a note to the chord                       | `Shift+A`–`Shift+G`                                                                    |
+| Sharp / flat / natural                        | `+` / `-` / `=`                                                                        |
+| Pitch up / down a semitone                    | `↑` / `↓`                                                                              |
+| Pitch up / down an octave                     | `Ctrl+↑` / `Ctrl+↓`                                                                    |
+| Tie                                           | `T`                                                                                    |
+| Slur                                          | `S`                                                                                    |
+| Triplet                                       | `Ctrl+3`                                                                               |
+| Move cursor or selection                      | `←` / `→`                                                                              |
+| Extend the selection                          | `Shift+←` / `Shift+→`                                                                  |
+| Delete (turns into rests)                     | `Del` or `Backspace`                                                                   |
+| Copy / paste                                  | `Ctrl+C` / `Ctrl+V`                                                                    |
+| Undo / redo                                   | `Ctrl+Z` / `Ctrl+Y` or `Ctrl+Shift+Z`                                                  |
 
 ### Behavior
 

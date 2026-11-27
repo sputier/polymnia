@@ -6,13 +6,13 @@ L'éditeur est à l'adresse `#/editor` (routage par hash, sans dépendance de ro
 
 ## Disposition
 
-| Zone | Rôle |
-| --- | --- |
-| Barre du haut | Lien de retour, bascule des instruments, titre modifiable, état d'enregistrement (`Enregistré`, `Enregistrement…`, `Hors ligne`), bascule Simple/Avancé, Partager et Exporter (maquettes), thème et langue, bascule de l'inspecteur (mode Avancé uniquement) |
-| Panneau gauche | Instruments, repliable. En mode Simple, il indique comment accéder au mode Avancé |
-| Centre | La palette de saisie, la partition sur une surface « papier » et la bande de rappel des raccourcis |
-| Panneau droit | Inspecteur, repliable, **mode Avancé uniquement** |
-| Barre d'état | Mode de saisie (`SAISIE` / `SÉLECTION`), durée courante, mesure et temps, niveau d'interface, état d'enregistrement |
+| Zone           | Rôle                                                                                                                                                                                                                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Barre du haut  | Lien de retour, bascule des instruments, titre modifiable, état d'enregistrement (`Enregistré`, `Enregistrement…`, `Hors ligne`), bascule Simple/Avancé, Importer, Partager (maquette) et menu Exporter (MusicXML, MXL ; voir [musicxml.fr.md](musicxml.fr.md)), thème et langue, bascule de l'inspecteur (mode Avancé uniquement) |
+| Panneau gauche | Instruments, repliable. En mode Simple, il indique comment accéder au mode Avancé                                                                                                                                                                                                                                                  |
+| Centre         | La palette de saisie, la partition sur une surface « papier » et la bande de rappel des raccourcis                                                                                                                                                                                                                                 |
+| Panneau droit  | Inspecteur, repliable, **mode Avancé uniquement**                                                                                                                                                                                                                                                                                  |
+| Barre d'état   | Mode de saisie (`SAISIE` / `SÉLECTION`), durée courante, mesure et temps, niveau d'interface, état d'enregistrement                                                                                                                                                                                                                |
 
 Le centre contient aussi une **barre de transport** au-dessus de la partition (lecture/pause, arrêt, retour au début, boucle, métronome, tempo) et, en mode Avancé, une console avec couper et isoler par portée dans l'inspecteur ; voir [lecture](playback.fr.md).
 
@@ -29,17 +29,17 @@ Le choix est stocké dans `localStorage` (`polymnia.uiMode` ; les erreurs sont i
 
 ## Raccourcis clavier
 
-| Raccourci | Action |
-| --- | --- |
-| `Ctrl+B` (`Cmd+B` sur macOS) | Afficher ou masquer le panneau des instruments |
-| `Ctrl+I` (`Cmd+I` sur macOS) | Afficher ou masquer l'inspecteur (Avancé uniquement) |
-| `Alt+A` (`Option+A` sur macOS) | Basculer entre Simple et Avancé |
-| `Espace` | Lecture ou pause (comportement de MuseScore ; un bouton qui a le focus le garde) |
-| `Origine` (`Home`) | Retour au début de la partition |
-| `Ctrl+K` (`Cmd+K` sur macOS) | Ouvrir la palette de commandes (fonctionne aussi dans un champ texte) |
-| `Alt+F` (`Option+F` sur macOS) | Mode focus |
-| `?` | Aide-mémoire des raccourcis clavier |
-| `Échap` | Quitter le mode focus, sinon fermer le panneau ouvert (écrans étroits), sinon quitter la saisie |
+| Raccourci                      | Action                                                                                          |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `Ctrl+B` (`Cmd+B` sur macOS)   | Afficher ou masquer le panneau des instruments                                                  |
+| `Ctrl+I` (`Cmd+I` sur macOS)   | Afficher ou masquer l'inspecteur (Avancé uniquement)                                            |
+| `Alt+A` (`Option+A` sur macOS) | Basculer entre Simple et Avancé                                                                 |
+| `Espace`                       | Lecture ou pause (comportement de MuseScore ; un bouton qui a le focus le garde)                |
+| `Origine` (`Home`)             | Retour au début de la partition                                                                 |
+| `Ctrl+K` (`Cmd+K` sur macOS)   | Ouvrir la palette de commandes (fonctionne aussi dans un champ texte)                           |
+| `Alt+F` (`Option+F` sur macOS) | Mode focus                                                                                      |
+| `?`                            | Aide-mémoire des raccourcis clavier                                                             |
+| `Échap`                        | Quitter le mode focus, sinon fermer le panneau ouvert (écrans étroits), sinon quitter la saisie |
 
 Les raccourcis ne se déclenchent pas pendant la saisie dans un champ texte. Les touches de saisie de notes sont listées dans la section suivante.
 
@@ -49,7 +49,12 @@ Les raccourcis ne se déclenchent pas pendant la saisie dans un champ texte. Les
 
 ```ts
 useShortcuts([
-  { id: 'editor.toggleInstruments', keys: 'Mod+B', labelKey: 'shortcut.toggleInstruments', handler },
+  {
+    id: "editor.toggleInstruments",
+    keys: "Mod+B",
+    labelKey: "shortcut.toggleInstruments",
+    handler,
+  },
 ]);
 ```
 
@@ -77,25 +82,25 @@ Code dans `web/src/editor/commands/` (dialogues) et `web/src/shortcuts/` (`comma
 
 Les touches sont celles par défaut de MuseScore 4 (`Cmd` remplace `Ctrl` sur macOS). Elles sont déclarées une seule fois dans `web/src/editor/entry/entryShortcuts.ts` et enregistrées dans le registre de raccourcis ; la palette au-dessus de la partition les reprend, avec la touche dans chaque infobulle.
 
-| Action | Touche |
-| --- | --- |
-| Activer ou quitter la saisie de notes (`Échap` la quitte aussi) | `N` |
-| Durée double croche / croche / noire / blanche / ronde | `3` / `4` / `5` / `6` / `7` (`1`, `2`, `8`, `9` sont réservées : elles affichent seulement un message) |
-| Point de prolongation | `.` |
-| Silence | `0` |
-| Saisir une note | `A`–`G` |
-| Ajouter une note à l'accord | `Shift+A`–`Shift+G` |
-| Dièse / bémol / bécarre | `+` / `-` / `=` |
-| Hauteur d'un demi-ton vers le haut / bas | `↑` / `↓` |
-| Hauteur d'une octave vers le haut / bas | `Ctrl+↑` / `Ctrl+↓` |
-| Liaison de prolongation | `T` |
-| Liaison de phrasé | `S` |
-| Triolet | `Ctrl+3` |
-| Déplacer le curseur ou la sélection | `←` / `→` |
-| Étendre la sélection | `Shift+←` / `Shift+→` |
-| Supprimer (devient des silences) | `Suppr` ou `Retour arrière` |
-| Copier / coller | `Ctrl+C` / `Ctrl+V` |
-| Annuler / rétablir | `Ctrl+Z` / `Ctrl+Y` ou `Ctrl+Shift+Z` |
+| Action                                                          | Touche                                                                                                 |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Activer ou quitter la saisie de notes (`Échap` la quitte aussi) | `N`                                                                                                    |
+| Durée double croche / croche / noire / blanche / ronde          | `3` / `4` / `5` / `6` / `7` (`1`, `2`, `8`, `9` sont réservées : elles affichent seulement un message) |
+| Point de prolongation                                           | `.`                                                                                                    |
+| Silence                                                         | `0`                                                                                                    |
+| Saisir une note                                                 | `A`–`G`                                                                                                |
+| Ajouter une note à l'accord                                     | `Shift+A`–`Shift+G`                                                                                    |
+| Dièse / bémol / bécarre                                         | `+` / `-` / `=`                                                                                        |
+| Hauteur d'un demi-ton vers le haut / bas                        | `↑` / `↓`                                                                                              |
+| Hauteur d'une octave vers le haut / bas                         | `Ctrl+↑` / `Ctrl+↓`                                                                                    |
+| Liaison de prolongation                                         | `T`                                                                                                    |
+| Liaison de phrasé                                               | `S`                                                                                                    |
+| Triolet                                                         | `Ctrl+3`                                                                                               |
+| Déplacer le curseur ou la sélection                             | `←` / `→`                                                                                              |
+| Étendre la sélection                                            | `Shift+←` / `Shift+→`                                                                                  |
+| Supprimer (devient des silences)                                | `Suppr` ou `Retour arrière`                                                                            |
+| Copier / coller                                                 | `Ctrl+C` / `Ctrl+V`                                                                                    |
+| Annuler / rétablir                                              | `Ctrl+Z` / `Ctrl+Y` ou `Ctrl+Shift+Z`                                                                  |
 
 ### Comportement
 
