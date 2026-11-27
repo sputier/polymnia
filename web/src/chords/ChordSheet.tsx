@@ -29,9 +29,6 @@ export interface ChordSheetProps {
 /** Pixels per diagram unit. */
 const DIAGRAM_SCALE = 1.7;
 
-/** Sharps and flats as music signs on screen (chord text only ever has b and # as accidentals). */
-const pretty = (text: string): string => text.replace(/#/g, '♯').replace(/b/g, '♭');
-
 /**
  * The chord sheet view: a grid of measures with their chord symbols, then the diagrams of the chords
  * used. A real table (rows of four measures, a row header with the measure numbers), every cell a
@@ -148,7 +145,7 @@ function Cell({
         <span className="sheet-chords" aria-hidden="true">
           {measure.chords.map(({ chord, beat }) => (
             <span key={chord.id} className="sheet-chord" data-chord={formatChord(chord, naming)}>
-              {pretty(formatChord(chord, naming))}
+              {formatChord(chord, naming)}
               {several && <small className="sheet-beat">{beat}</small>}
             </span>
           ))}
@@ -304,7 +301,7 @@ function DiagramFigure({
       ) : (
         <span className="sheet-nodiagram muted">{t('sheet.noDiagram')}</span>
       )}
-      <figcaption>{pretty(caption)}</figcaption>
+      <figcaption>{caption}</figcaption>
     </figure>
   );
 }
