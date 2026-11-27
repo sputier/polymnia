@@ -7,6 +7,7 @@ import { zlibSync } from 'fflate';
 import type { Page } from './pages';
 import type { Item, PathItem, TextItem } from './svgItems';
 import { textWidth } from './pages';
+import { needsUnicode, TextLayer, type TextFont } from './textFont';
 
 const enc = new TextEncoder();
 
@@ -96,7 +97,11 @@ function style(item: PathItem, out: string[]): void {
   }
 }
 
-function textOps(item: TextItem, height: number, out: string[]): void {
+function textOps(item: TextItem, height: number, out: string[], layer?: TextLayer): void {
+  if (layer && needsUnicode(item.text)) {
+    outlinedText(item, height, out, layer);
+    return;
+  }
   const w = textWidth(item.text, item.size);
   const x = item.align === 'middle' ? item.x - w / 2 : item.align === 'end' ? item.x - w : item.x;
   out.push(
@@ -104,15 +109,45 @@ function textOps(item: TextItem, height: number, out: string[]): void {
   );
 }
 
+/**
+ * Text outside WinAnsi: glyph outlines (filled paths, Inter metrics) plus the same text invisible
+ * (render mode 3) in the Unicode font, so it can be selected, searched and copied.
+ */
+function outlinedText(item: TextItem, height: number, out: string[], layer: TextLayer): void {
+  const { font } = layer;
+  const k = item.size / 1000;
+  const w = font.width(item.text, item.size);
+  let x = item.align === 'middle' ? item.x - w / 2 : item.align === 'end' ? item.x - w : item.x;
+  const startX = x;
+  const base = height - item.y;
+  for (const ch of item.text.normalize('NFC')) {
+    const glyph = font.drawable(ch.codePointAt(0)!);
+    const px = (v: number) => num(x + v * k);
+    const py = (v: number) => num(base + v * k);
+    for (const s of glyph.segs) {
+      if (s[0] === 'M') out.push(`${px(s[1])} ${py(s[2])} m`);
+      else if (s[0] === 'L') out.push(`${px(s[1])} ${py(s[2])} l`);
+      else if (s[0] === 'C')
+        out.push(`${px(s[1])} ${py(s[2])} ${px(s[3])} ${py(s[4])} ${px(s[5])} ${py(s[6])} c`);
+      else out.push('h');
+    }
+    if (glyph.segs.length > 0) out.push('f');
+    x += glyph.advance * k;
+  }
+  out.push(
+    `BT 3 Tr /F2 ${num(item.size)} Tf ${num(startX)} ${num(base)} Td ${layer.hex(item.text)} Tj 0 Tr ET`,
+  );
+}
+
 /** Content stream of a page (uncompressed). */
-export function pageContent(page: Page): string {
+export function pageContent(page: Page, layer?: TextLayer): string {
   // White paper first (a viewer in dark mode must not show the sheet dark), then black ink.
   const out: string[] = [`1 g 0 0 ${num(page.width)} ${num(page.height)} re f`, '0 g 0 G 1 J 1 j'];
   for (const item of page.items as Item[]) {
     if (item.kind === 'path') {
       style(item, out);
       pathOps(item, page.height, out);
-    } else textOps(item, page.height, out);
+    } else textOps(item, page.height, out, layer);
   }
   return out.join('\n');
 }
@@ -124,7 +159,12 @@ export interface PdfInfo {
 }
 
 /** Builds the document. `pages` may be empty-looking but never zero (the caller adds a blank). */
-export function buildPdf(pages: readonly Page[], info: PdfInfo): Uint8Array<ArrayBuffer> {
+export function buildPdf(
+  pages: readonly Page[],
+  info: PdfInfo,
+  font?: TextFont,
+): Uint8Array<ArrayBuffer> {
+  const layer = font ? new TextLayer(font) : undefined;
   const chunks: Uint8Array[] = [];
   const offsets: number[] = [];
   let length = 0;
@@ -157,20 +197,38 @@ export function buildPdf(pages: readonly Page[], info: PdfInfo): Uint8Array<Arra
     4,
     `<< /Title ${utf16Hex(info.title)} /Author ${utf16Hex(info.author)} /Creator ${utf16Hex(info.creator)} /Producer ${utf16Hex(info.creator)} >>`,
   );
+  // Content first: it decides whether the Unicode font (F2) is needed.
+  const contents = pages.map((page) =>
+    zlibSync(enc.encode(pageContent(page, layer)), { level: 6 }),
+  );
+  const extra = layer?.used ? 5 + pages.length * 2 : 0;
   pages.forEach((page, i) => {
+    const fonts = extra ? `/F1 3 0 R /F2 ${extra} 0 R` : '/F1 3 0 R';
     object(
       pageId(i),
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(page.width)} ${num(page.height)}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageId(i) + 1} 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(page.width)} ${num(page.height)}] /Resources << /Font << ${fonts} >> >> /Contents ${pageId(i) + 1} 0 R >>`,
+    );
+    object(pageId(i) + 1, contents[i]!, '/Filter /FlateDecode');
+  });
+  if (layer && extra) {
+    // Type0 font, not embedded: it only carries invisible text (the outlines are drawn as paths).
+    object(
+      extra,
+      `<< /Type /Font /Subtype /Type0 /BaseFont /Inter-Regular /Encoding /Identity-H /DescendantFonts [${extra + 1} 0 R] /ToUnicode ${extra + 3} 0 R >>`,
     );
     object(
-      pageId(i) + 1,
-      zlibSync(enc.encode(pageContent(page)), { level: 6 }),
-      '/Filter /FlateDecode',
+      extra + 1,
+      `<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Inter-Regular /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${extra + 2} 0 R /DW 600 /W ${layer.widths()} /CIDToGIDMap /Identity >>`,
     );
-  });
+    object(
+      extra + 2,
+      '<< /Type /FontDescriptor /FontName /Inter-Regular /Flags 32 /FontBBox [-200 -250 1200 950] /ItalicAngle 0 /Ascent 969 /Descent -241 /CapHeight 727 /StemV 80 >>',
+    );
+    object(extra + 3, enc.encode(layer.toUnicode()));
+  }
 
   const xref = length;
-  const count = 5 + pages.length * 2;
+  const count = 5 + pages.length * 2 + (extra ? 4 : 0);
   push(`xref\n0 ${count}\n0000000000 65535 f \n`);
   for (let id = 1; id < count; id++) push(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`);
   push(`trailer\n<< /Size ${count} /Root 1 0 R /Info 4 0 R >>\nstartxref\n${xref}\n%%EOF\n`);

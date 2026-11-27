@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { unzlibSync, unzipSync } from 'fflate';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { expect, test, type Page } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
 import { expectBudget } from './perf-stats';
@@ -22,17 +23,22 @@ function measure(n: number): string {
   return `<measure number="${n}">${n === 1 ? ATTRIBUTES : ''}${treble}<backup><duration>4</duration></backup>${bass}</measure>`;
 }
 
-const scoreXml = (measures: number) =>
-  '<?xml version="1.0"?><score-partwise version="4.0"><work><work-title>Long piece</work-title></work>' +
-  '<identification><creator type="composer">A. Composer</creator></identification>' +
+const scoreXml = (measures: number, title = 'Long piece', composer = 'A. Composer') =>
+  `<?xml version="1.0"?><score-partwise version="4.0"><work><work-title>${title}</work-title></work>` +
+  `<identification><creator type="composer">${composer}</creator></identification>` +
   '<part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>' +
   `<part id="P1">${Array.from({ length: measures }, (_, i) => measure(i + 1)).join('')}</part></score-partwise>`;
 
-async function importLong(page: Page, measures: number): Promise<void> {
+async function importLong(
+  page: Page,
+  measures: number,
+  title?: string,
+  composer?: string,
+): Promise<void> {
   await page.setInputFiles('input[type="file"]', {
     name: 'long.musicxml',
     mimeType: 'application/xml',
-    buffer: Buffer.from(scoreXml(measures)),
+    buffer: Buffer.from(scoreXml(measures, title, composer)),
   });
   const confirm = page.getByRole('alertdialog', { name: 'Replace the current score?' });
   await confirm.getByRole('button', { name: 'Replace the score' }).click();
@@ -89,6 +95,45 @@ test.describe('export', () => {
     expect(content.startsWith('1 g 0 0 612 792 re f')).toBe(true);
     expect(content).not.toMatch(/\b(rg|RG|k|K)\b/);
     expect(content).toContain('Tj'); // title, composer, page number
+  });
+
+  test('PDF: Cyrillic, Greek and accented text is extractable and the PNG draws it (#47)', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const title = 'Этюд — Ωδή — Étude';
+    await importLong(page, 8, title, 'Łukasz Żółć');
+    const pdf = await exportAs(page, 'PDF');
+    const task = getDocument({
+      data: new Uint8Array(pdf.bytes),
+      verbosity: 0,
+    });
+    const doc = await task.promise;
+    const content = await (await doc.getPage(1)).getTextContent();
+    const text = content.items.map((it) => ('str' in it ? it.str : '')).join(' ');
+    await task.destroy();
+    expect(text).toContain(title);
+    expect(text).toContain('Łukasz Żółć');
+    expect(text).not.toContain('?');
+    expect(pdf.bytes.toString('latin1')).toContain('/Subtype /Type0');
+
+    // The PNG draws the title with the browser fonts: ink in the title band, nothing missing.
+    const png = await exportAs(page, 'PNG images');
+    const band = await page.evaluate(async (b64) => {
+      const bitmap = await createImageBitmap(
+        new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: 'image/png' }),
+      );
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(bitmap, 0, 0);
+      // Title band: about 48 to 72 pt from the top, 2 x 96 dpi.
+      const k = (96 / 72) * 2;
+      const { data } = ctx.getImageData(0, Math.round(48 * k), bitmap.width, Math.round(30 * k));
+      let dark = 0;
+      for (let i = 0; i < data.length; i += 4) if (data[i]! < 80) dark++;
+      return dark;
+    }, png.bytes.toString('base64'));
+    expect(band).toBeGreaterThan(800);
   });
 
   test('PDF: A4 when chosen in the menu', async ({ page }) => {
