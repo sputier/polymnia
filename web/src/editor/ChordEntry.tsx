@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Engraver } from '../engraving/engraver';
-import { chordAnchor } from '../engraving/hitTest';
+import { chordAnchor } from '../engraving/chordAnchor';
 import { useI18n } from '../i18n/i18n';
 import { formatChord, parseChord, type Score } from '../score';
 import { positionLabel } from './entry/describe';

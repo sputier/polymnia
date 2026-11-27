@@ -21,6 +21,9 @@ const CASES: { name: string; fixture: string; width: number }[] = [
   { name: 'guitar-tab-features', fixture: 'guitarTabFeatures', width: 900 },
   { name: 'cello-clef-changes', fixture: 'celloClefChanges', width: 700 },
   { name: 'pickup-measure', fixture: 'pickup', width: 600 },
+  { name: 'chords-guitar-diagrams', fixture: 'guitarChords', width: 900 },
+  { name: 'chords-ukulele-capo-shapes', fixture: 'ukuleleChords', width: 700 },
+  { name: 'chords-piano-symbols', fixture: 'pianoChords', width: 700 },
 ];
 
 for (const c of CASES) {

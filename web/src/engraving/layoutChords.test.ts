@@ -9,7 +9,8 @@ import {
 } from '../score';
 import { guitarChords, pianoChords, ukuleleChords, pianoGrandStaff } from '../score/fixtures';
 import { CHORD, DIAGRAM_BAND, DIAGRAM_HEIGHT, chordLabel } from './chords';
-import { chordAnchor, hitTest } from './hitTest';
+import { chordAnchor } from './chordAnchor';
+import { hitTest } from './hitTest';
 import { LayoutCache, METRICS, layoutScore, staffSlots } from './layout';
 
 function withChords(score: Score, entries: [number, number, string][], part = 0): Score {

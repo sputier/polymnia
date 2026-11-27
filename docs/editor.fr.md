@@ -121,6 +121,35 @@ Les touches sont celles par défaut de MuseScore 4 (`Cmd` remplace `Ctrl` sur ma
 
 `window.__polymnia` contient `{ engraver, score, width, store }` (posé une fois les systèmes dessinés ; `store.getState()` est l'état courant). Les tests Playwright l'utilisent.
 
+## Accords
+
+Les accords (`C`, `Am7`, `G/B`, `F#m7b5`...) se placent au-dessus de la portée, et les parties de guitare et d'ukulélé peuvent afficher avec eux un **diagramme de manche**. Le modèle est dans [score-format.fr.md](score-format.fr.md#accords), le dessin dans [engraving.fr.md](engraving.fr.md#accords-et-diagrammes-de-manche), MusicXML dans [musicxml.fr.md](musicxml.fr.md#accords), le son dans [playback.fr.md](playback.fr.md#lecture-des-accords). Code : `web/src/editor/ChordEntry.tsx` (le champ), `EditorStore` (`openChordEntry`, `commitChord`, `moveChordEntry`...), `web/src/score/chords.ts` (l'analyseur).
+
+| Touche (dans le champ) | Action                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `Alt+K` (`Option+K`)   | Ouvre le champ au curseur (un accord déjà présent est modifié)                      |
+| `Espace`, `Maj+Espace` | Écrit, puis passe au temps suivant, précédent (comportement de MuseScore)           |
+| `Tab`, `Maj+Tab`       | Écrit, puis passe au premier temps de la mesure suivante, précédente                |
+| `Entrée`               | Écrit et ferme                                                                      |
+| `Échap`                | Ferme sans écrire                                                                   |
+| clic sur un accord     | Ouvre le champ dessus                                                               |
+| champ vide             | Supprime l'accord (à `Entrée`, `Espace` ou `Tab`)                                   |
+
+`Ctrl+K` est la palette de commandes ici : la saisie d'accords est donc sur **`Alt+K`** (K comme la touche d'accords de MuseScore ; `Alt+K` est libre dans le registre de raccourcis et fonctionne même si une case à cocher du panneau des instruments a le focus). Le champ apparaît sur la partition à l'endroit où l'accord sera dessiné ; le focus revient à la partition quand il se ferme.
+
+- **Ce qu'on peut taper.** Les lettres `A` à `G` (majuscules ou minuscules), `#` et `b` ou `♯` et `♭`, les doubles altérations (`##`, `bb`, `x`), et les écritures usuelles des qualités : `m`, `min`, `-`, `maj7`, `M7`, `Δ7`, `^7`, `7`, `6`, `69` ou `6/9`, `9`, `11`, `13`, `dim`, `°`, `o7`, `ø`, `m7b5`, `aug`, `+`, `sus`, `sus2`, `sus4`, `7sus4`, `add9`, `5`, les altérations `b5 #5 b9 #9 #11 b13` (avec ou sans parenthèses), et une basse après `/` (`G/B`, `Am7/G`). Tout est **normalisé** : `CM7`, `C^7` et `Cmaj7` sont enregistrés et affichés `Cmaj7`. Un texte qui n'est pas un accord garde le champ ouvert (bordure rouge, annoncé) et rien n'est écrit.
+- **Noms de notes français** acceptés en saisie : `Do`, `Ré` (ou `Re`), `Mi`, `Fa`, `Sol`, `La`, `Si`, avec `#` et `b` (`Sib`, `Fa#m7b5`, `Rém7`, `Sol/Si`), en majuscules ou minuscules. `Do` est toujours lu comme la note do (tapez `Ddim` pour ré diminué). L'accord est affiché avec des lettres ; une préférence d'affichage « noms de notes en Do Ré Mi » n'est **pas implémentée** (`formatChord(accord, 'solfege')` existe et est testé, et l'aide du champ montre comment le texte a été compris, par exemple « Affiché Dm7 » pour `rém7`).
+- **Où.** Un accord appartient à la première portée de la partie (la portée standard d'une partie « standard + TAB ») à une position de la mesure, en ticks. `Espace` avance du temps de la signature rythmique (une noire pointée en 6/8, 9/8, 12/8) ; un accord peut se trouver n'importe où, pas seulement sur une note : un accord entre deux notes a sa propre colonne.
+- **Annuler.** Chaque accord écrit, remplacé ou supprimé est une étape d'annulation.
+- **Transposition.** La palette propose « Accords : transposer les symboles d'un demi-ton vers le haut / le bas », qui transposent tous les accords de la partie courante avec la bonne orthographe : `C` +3 demi-tons donne `Eb`, `Am` +1 donne `Bbm`, `F#m7b5` +1 donne `Gm7b5` ; dièses ou bémols suivent l'armure de la mesure quand elle a des altérations (`C` +1 en ré majeur donne `C#`), sinon les noms d'accords usuels (Db, Eb, F#, Ab, Bb ; C#m, F#m, G#m mais Bbm, Ebm) ; une basse suit sa fondamentale. Les notes ne sont **pas** modifiées : les accords nomment des hauteurs réelles (sonores), donc transposer des notes, changer d'instrument ou sa transposition ne les change jamais, et une modification de note ne change jamais un accord.
+- **Diagrammes et capodastre** (panneau des instruments, parties à cordes). « Diagrammes de manche » : aucun, à la première apparition de chaque accord, ou pour chaque accord (choix de la partie) ; la commande de palette « Accords : afficher ou masquer le diagramme de l'accord au curseur » en force ou en masque un. Avec un **capodastre**, l'accord est celui qui sonne et le diagramme est la forme à jouer, comptée depuis le capodastre : capo en case 2, `D` montre la forme de `C`. « Avec un capodastre, afficher aussi la forme à jouer » l'écrit à côté de l'accord : `D (C)`. Les deux sont des choix de la partie, enregistrés dans la partition.
+- **Autres commandes.** « Accords : supprimer l'accord au curseur » (palette).
+- **La lecture** des accords est une option du mixeur (mode Avancé), muette par défaut : voir [playback.fr.md](playback.fr.md#lecture-des-accords).
+
+Accessibilité : le champ est une saisie de texte étiquetée (« Accord, mesure 3, temps 2 ») décrite par ses touches, `aria-invalid` sur un texte qui n'est pas un accord, anneau de focus visible dans les deux thèmes, et les notifications (« Accord Am7. », « Accord supprimé. ») passent par la région live polie. Le texte de l'accord est aussi dans `data-chord` sur chaque symbole du SVG, pour les tests (les accords ne sont pas encore lus un à un par les lecteurs d'écran : la partition est une image avec un résumé, comme pour les notes).
+
+L'état du champ est `store.getState().chordEntry` (`{ staffId, measure, tick }` ou `null`), utilisé aussi par les tests Playwright (`e2e/chords.spec.ts`).
+
 ## Parties, instruments et mesures
 
 Chaque modification ci-dessous est une commande du modèle de partition exécutée via `History` (annuler et rétablir exacts, une étape par action). L'interface est dans `web/src/editor/InstrumentsPanel.tsx` (panneau gauche), `Inspector.tsx` (panneau droit, mode Avancé) et `entry/structureShortcuts.ts` (commandes de la palette).
