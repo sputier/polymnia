@@ -36,7 +36,7 @@ Each score has a `version`, a counter that starts at 1 and increases on every ch
 ## Validation
 
 - Body: `Content-Type: application/json` (`415` otherwise), at most **4 MiB** (`413` beyond). A 500-measure, 4-staff score is about 1 MB and the schema's own limits (2000 measures) give about 4 MB, so 4 MiB covers it while bounding memory, validation time and storage. The limit is enforced on `Content-Length` and while reading (chunked bodies).
-- `Content-Encoding: gzip` or `br` request bodies are accepted. The 4 MiB cap applies to the **decompressed** size (a bomb gets `413`); a corrupt stream gets `400`, any other `Content-Encoding` gets `415`.
+- `Content-Encoding: gzip` or `br` request bodies are accepted. The 4 MiB cap applies to the **decompressed** size (a bomb gets `413`); a corrupt stream gets `400`, any other `Content-Encoding` gets `415`. Only the routes that read the body through the bounded reader (`POST /api/scores`, `PUT /api/scores/{id}`, `PATCH /api/scores/{id}/content`) accept a compressed request body at all; every other route answers `415` to any `Content-Encoding`.
 - Invalid JSON, a document that does not match the schema, or nesting deeper than 32 levels: `400`.
 - `schemaVersion` must be a supported version (only `1` today): `400` otherwise.
 - Title (`meta.title`, rename): trimmed, at most 200 characters (Unicode code points), no control characters, no bidirectional override characters. An empty title is refused everywhere. The trimmed title is the one stored, in the column and in `meta.title` of the document.

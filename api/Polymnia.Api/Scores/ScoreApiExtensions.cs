@@ -57,6 +57,7 @@ internal static class ScoreApiExtensions
     /// <summary>Request decompression (authentication, rate limiting and authorization come from the sign-in feature).</summary>
     public static WebApplication UseScoreApi(this WebApplication app)
     {
+        app.UseCompressedBodyPolicy();
         app.UseRequestDecompression();
         return app;
     }

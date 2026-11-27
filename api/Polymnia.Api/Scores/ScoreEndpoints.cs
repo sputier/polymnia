@@ -42,6 +42,7 @@ internal static class ScoreEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
             .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .AcceptsCompressedBody()
             .AddEndpointFilter<ScoreRateLimitFilter.Writes>();
 
         group.MapPut("/{id:guid}", Update)
@@ -53,6 +54,7 @@ internal static class ScoreEndpoints
             .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
             .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .AcceptsCompressedBody()
             .AddEndpointFilter<ScoreRateLimitFilter.Writes>();
 
         group.MapPatch("/{id:guid}/content", PatchContent)
@@ -64,6 +66,7 @@ internal static class ScoreEndpoints
             .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
             .ProducesProblem(StatusCodes.Status428PreconditionRequired)
             .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .AcceptsCompressedBody()
             .AddEndpointFilter<ScoreRateLimitFilter.Writes>();
 
         group.MapPatch("/{id:guid}", Rename)

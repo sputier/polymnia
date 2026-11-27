@@ -30,6 +30,10 @@ internal sealed class SecurityHeadersMiddleware(RequestDelegate next, IOptions<S
                     : "strict-origin-when-cross-origin";
                 headers["Permissions-Policy"] = PermissionsPolicy;
                 headers["Cross-Origin-Opener-Policy"] = "same-origin";
+                // Defence in depth next to CSP frame-ancestors (browsers that predate it) and the cross-origin read
+                // protections: no other site may frame the app or embed its responses.
+                headers["X-Frame-Options"] = "DENY";
+                headers["Cross-Origin-Resource-Policy"] = "same-origin";
 
                 // Every answer of the public share endpoint (200, 404, 429, fallback) is kept out of indexes.
                 if (ctx.Request.Path.StartsWithSegments(Polymnia.Api.Sharing.ShareEndpoints.SharedPath, StringComparison.OrdinalIgnoreCase))

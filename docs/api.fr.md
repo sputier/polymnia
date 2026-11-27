@@ -36,7 +36,7 @@ Chaque partition a une `version`, un compteur qui part de 1 et augmente à chaqu
 ## Validation
 
 - Corps : `Content-Type: application/json` (`415` sinon), **4 Mio** au plus (`413` au-delà). Une partition de 500 mesures sur 4 portées pèse environ 1 Mo et les limites du schéma (2000 mesures) donnent environ 4 Mo, donc 4 Mio suffit tout en bornant mémoire, temps de validation et stockage. La limite est appliquée sur `Content-Length` et pendant la lecture (corps en chunks).
-- Les corps de requête `Content-Encoding: gzip` ou `br` sont acceptés. Le plafond de 4 Mio s'applique à la taille **décompressée** (une bombe reçoit `413`) ; un flux corrompu reçoit `400`, tout autre `Content-Encoding` reçoit `415`.
+- Les corps de requête `Content-Encoding: gzip` ou `br` sont acceptés. Le plafond de 4 Mio s'applique à la taille **décompressée** (une bombe reçoit `413`) ; un flux corrompu reçoit `400`, tout autre `Content-Encoding` reçoit `415`. Seules les routes qui lisent le corps par le lecteur borné (`POST /api/scores`, `PUT /api/scores/{id}`, `PATCH /api/scores/{id}/content`) acceptent un corps compressé ; toute autre route répond `415` à tout `Content-Encoding`.
 - JSON invalide, document non conforme au schéma, ou imbrication de plus de 32 niveaux : `400`.
 - `schemaVersion` doit être une version prise en charge (seulement `1` aujourd'hui) : `400` sinon.
 - Titre (`meta.title`, renommage) : sans espaces aux extrémités, 200 caractères au plus (points de code Unicode), sans caractère de contrôle ni caractère de surcharge bidirectionnelle. Un titre vide est refusé partout. Le titre sans espaces aux extrémités est celui qui est stocké, dans la colonne et dans `meta.title` du document.

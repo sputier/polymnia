@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Security
 
+- Pre-release security review (#20), see `docs/security-review.md`: compressed request bodies are refused on every route that does not bound the decompressed size (gzip bomb on the rename route); the OpenID Connect front-channel logout path can no longer sign a session out (cross-site logout); `X-Frame-Options: DENY` and `Cross-Origin-Resource-Policy: same-origin` on every response; a malformed `#/scores/%` link no longer blanks the app; key material (`*.pem`, `*.key`, `*.p12`, `*.crt`) is git-ignored; NuGet audit is explicit and fails the build; a release needs a green CI on the tagged commit; the PostgreSQL container drops capabilities and cannot gain privileges. Regression tests: `SecurityReview*Tests`, `web/src/route/useRoute.test.ts`.
 - Authentication hardening (#7): Data Protection keys encrypted at rest with a certificate, mandatory outside Development (`DataProtection:CertificatePath`; compose mounts the `.pfx` and its password file, `DataProtection:CertificatePasswordFile`, as Docker secrets with mode 0400, see `docs/authentication.md`); startup refuses `AllowedHosts` empty or `*` outside Development; per-IP rate limit with `429` and `Retry-After` on `/api/auth/*`; sign-in cookies expire after 10 minutes; structured audit events for sign-in, sign-out, failed sign-in and rate limiting (user id only); one database query per authenticated request for session and user.
 
 ### Changed

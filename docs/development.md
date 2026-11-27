@@ -120,7 +120,7 @@ For front-end development with hot reload, run `npm run dev` in `web/`: the Vite
 ### Security baseline
 
 - HTTPS redirection and HSTS (1 year, no subdomains, no preload) outside Development.
-- Headers on every response, errors included: `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, geolocation, microphone... denied; `midi=(self)` allowed for Web MIDI), `Cross-Origin-Opener-Policy: same-origin`. The `Server` header is removed.
+- Headers on every response, errors included: `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, geolocation, microphone... denied; `midi=(self)` allowed for Web MIDI), `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`, `X-Frame-Options: DENY`. The `Server` header is removed.
 - Errors are ProblemDetails; stack traces only in Development.
 - Request bodies are limited to 1 MiB by default; an endpoint that needs more must opt in explicitly.
 - Set `AllowedHosts` to your real host name in production (the default is `*`).

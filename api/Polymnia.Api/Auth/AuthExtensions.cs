@@ -165,6 +165,9 @@ internal static class AuthExtensions
 
                     return Task.CompletedTask;
                 };
+                // The handler also listens on /signout-oidc (front-channel logout) and signs the current session out on a
+                // bare GET: a page of another site could log people out. Polymnia has no such feature: 404, no sign-out.
+                options.Events.OnRemoteSignOut = SessionEvents.OnRemoteSignOut;
                 options.Events.OnTicketReceived = SessionEvents.OnTicketReceived;
                 options.Events.OnRemoteFailure = SessionEvents.OnRemoteFailure;
             });

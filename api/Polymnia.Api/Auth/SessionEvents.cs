@@ -153,6 +153,15 @@ internal static class SessionEvents
         return Task.CompletedTask;
     }
 
+    /// <summary>Front-channel logout is not supported: the request is answered 404 and the session is left alone.</summary>
+    public static Task OnRemoteSignOut(RemoteSignOutContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        context.HandleResponse();
+        return Task.CompletedTask;
+    }
+
     /// <summary>The user cancelled at Google or the callback was invalid: go back to the app, never show the error.</summary>
     public static Task OnRemoteFailure(RemoteFailureContext context)
     {
