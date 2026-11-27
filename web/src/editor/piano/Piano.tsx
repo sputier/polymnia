@@ -19,6 +19,7 @@ import {
   keyFifthsAt,
   midiToPitch,
   pitchToMidi,
+  soundingMidi,
   type Score,
 } from '../../score';
 import { describePitch } from '../entry/describe';
@@ -101,12 +102,14 @@ const Keys = memo(function Keys({ fifths, initialFocus, t }: KeysProps) {
   );
 });
 
-/** Pitches (MIDI numbers) of the notes with these ids. At most 64 ids are looked up. */
-function midisOf(score: Score, ids: readonly string[]): Set<number> {
+/** Sounding pitches (MIDI numbers) of the notes with these ids. At most 64 ids are looked up. */
+export function midisOf(score: Score, ids: readonly string[]): Set<number> {
   const out = new Set<number>();
   for (const id of ids.slice(0, 64)) {
     const loc = findEvent(score, id);
-    if (loc?.event.kind === 'note') for (const p of loc.event.pitches) out.add(pitchToMidi(p));
+    if (loc?.event.kind === 'note')
+      for (const p of loc.event.pitches)
+        out.add(soundingMidi(p, score.parts[loc.partIndex]?.transposition ?? 0));
   }
   return out;
 }

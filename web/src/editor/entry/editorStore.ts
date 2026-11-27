@@ -526,6 +526,7 @@ export class EditorStore {
    * A key of the on-screen piano or a MIDI note (docs/editor.md). The spelling follows the key
    * signature: sharps in sharp keys, flats in flat keys, natural notes of the key as written.
    * Note input: enters the note at the current duration; `chord` adds it to the note just entered.
+   * `midi` is the SOUNDING key: on a transposing part the written pitch is `midi - transposition`.
    * Select mode: moves the selected notes to it (`chord`: adds it to them). With nothing to change
    * the note is only played.
    */
@@ -535,7 +536,10 @@ export class EditorStore {
     if (s.mode === 'note') {
       const last = chord && s.lastEntered ? findEvent(s.score, s.lastEntered) : undefined;
       if (last?.event.kind === 'note' && s.lastEntered) {
-        const pitch = midiToPitch(midi, keyFifthsAt(s.score, last.measure));
+        const pitch = midiToPitch(
+          midi - (s.score.parts[last.partIndex]?.transposition ?? 0),
+          keyFifthsAt(s.score, last.measure),
+        );
         const id = s.lastEntered;
         const ok = this.commit(addPitch({ eventId: id, pitch }), () => ({
           lastPitch: pitch,
@@ -545,8 +549,10 @@ export class EditorStore {
         if (ok) this.onNoteEntered?.(pitch);
         return;
       }
-      if (!findStaff(s.score, s.staffId)) return;
-      this.place(midiToPitch(midi, keyFifthsAt(s.score, s.cursor.measure)), {
+      const staffLoc = findStaff(s.score, s.staffId);
+      if (!staffLoc) return;
+      const shift = s.score.parts[staffLoc.partIndex]?.transposition ?? 0;
+      this.place(midiToPitch(midi - shift, keyFifthsAt(s.score, s.cursor.measure)), {
         staffId: s.staffId,
         ...s.cursor,
       });
@@ -557,12 +563,17 @@ export class EditorStore {
     for (const id of s.selection) {
       const loc = findEvent(s.score, id);
       if (loc?.event.kind !== 'note') continue;
-      const pitch = midiToPitch(midi, keyFifthsAt(s.score, loc.measure));
+      const pitch = midiToPitch(
+        midi - (s.score.parts[loc.partIndex]?.transposition ?? 0),
+        keyFifthsAt(s.score, loc.measure),
+      );
       heard = pitch;
       cmds.push(chord ? addPitch({ eventId: id, pitch }) : setPitch({ eventId: id, pitch }));
     }
     if (!cmds.length) {
-      this.onNoteEntered?.(midiToPitch(midi, keyFifthsAt(s.score, s.cursor.measure)));
+      const staffLoc = findStaff(s.score, s.staffId);
+      const shift = staffLoc ? (s.score.parts[staffLoc.partIndex]?.transposition ?? 0) : 0;
+      this.onNoteEntered?.(midiToPitch(midi - shift, keyFifthsAt(s.score, s.cursor.measure)));
       return;
     }
     const ids = s.selection;
