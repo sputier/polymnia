@@ -192,6 +192,63 @@ test.describe('engraving', () => {
   });
 });
 
+test.describe('re-flow, progressive (100 measures, grand staff)', () => {
+  test('a re-flow engraves a few systems at once, hit testing stays complete, the rest follows in order', async ({
+    page,
+  }) => {
+    await openFixture(page, 'benchmark100', 1100);
+    const r = await page.evaluate(async () => {
+      interface Hit {
+        eventId?: string;
+        systemIndex: number;
+      }
+      const w = window as unknown as {
+        __polymnia: {
+          score: unknown;
+          engraver: {
+            svg: SVGSVGElement;
+            layout: { systems: { y: number; height: number }[] };
+            render(score: unknown, width: number, o: { progressive: boolean }): EngravingStats;
+            settled(): Promise<void>;
+            hitTest(x: number, y: number): Hit | null;
+          };
+        };
+      };
+      const { score, engraver } = w.__polymnia;
+      // A narrower page: every line break moves, every system must be engraved again.
+      const stats = engraver.render(score, 760, { progressive: true });
+      const atOnce = engraver.svg.querySelectorAll('.vf-pm-system').length;
+      const systems = engraver.layout.systems;
+      const last = systems[systems.length - 1]!;
+      const hit = engraver.hitTest(300, last.y + last.height / 2);
+      await engraver.settled();
+      const groups = [...engraver.svg.querySelectorAll('.vf-pm-system')];
+      const ys = groups.map((g) =>
+        Number(/translate\(0 ([\d.]+)\)/.exec(g.getAttribute('transform')!)![1]),
+      );
+      return {
+        stats,
+        atOnce,
+        total: systems.length,
+        hitSystem: hit?.systemIndex,
+        after: groups.length,
+        inOrder: ys.every((y, i) => i === 0 || y > ys[i - 1]!),
+        final: engraver.svg.querySelectorAll('.vf-pm-system').length === systems.length,
+      };
+    });
+    expect(r.total).toBeGreaterThan(20);
+    // Only what is on screen is engraved by the call, within a keystroke's budget; the rest is pending.
+    expect(r.stats.complete).toBe(false);
+    expect(r.atOnce).toBeLessThan(r.total);
+    expect(r.stats.ms).toBeLessThan(40);
+    // The layout is complete at once: the last system answers hit tests before it is drawn.
+    expect(r.hitSystem).toBe(r.total - 1);
+    expect(r.after).toBe(r.total);
+    expect(r.final).toBe(true);
+    expect(r.inOrder).toBe(true);
+  });
+});
+
 test.describe('engraving performance (100 measures, grand staff)', () => {
   test('full render under 200 ms, one edit under 16 ms, only the touched system is engraved', async ({
     page,

@@ -69,7 +69,7 @@ The model shares unchanged objects between versions, so references are the chang
 
 ## Progressive rendering
 
-`engraver.render(score, width, { progressive: true })` (what `ScoreView` uses) computes the whole layout at once (it is pure and takes a few ms), sets the final size of the SVG, then engraves the systems that intersect the viewport synchronously, so the first system is painted quickly. The other systems are engraved in chunks of at most 20 ms in `requestIdleCallback` (`setTimeout` where it does not exist), in score order, and are inserted in the DOM at their place. `engraver.stats.complete` is `false` until the queue is empty and `await engraver.settled()` resolves when everything is drawn.
+`engraver.render(score, width, { progressive: true })` (what `ScoreView` uses) computes the whole layout at once (it is pure and takes a few ms), sets the final size of the SVG, then engraves synchronously the systems that intersect the viewport (with a small margin), so the first system is painted quickly. The other systems are engraved in chunks of at most 20 ms in `requestIdleCallback` (`setTimeout` where it does not exist), in score order, and are inserted in the DOM at their place. `engraver.stats.complete` is `false` until the queue is empty and `await engraver.settled()` resolves when everything is drawn.
 
 - Hit testing and boxes only use the layout, so they work on systems that are not drawn yet; selection and playback highlights are applied to a system as soon as it is drawn.
 - A new `render` cancels the pending chunks. Systems already drawn and unchanged are reused as usual, so an edit is still incremental, and `render(score, width)` without options stays fully synchronous (what the benchmarks use).
@@ -95,10 +95,23 @@ The SVG has `role="img"` and an `aria-label` summary (title, number of instrumen
 
 `#/editor?fixture=<name>&width=<px>` shows a fixture from `web/src/score/fixtures` (or `accidentals`, `benchmark100`) at a fixed width and exposes `window.__polymnia = { engraver, score, width }`. The browser tests use it; it adds nothing to the initial bundle.
 
+### Re-flow while typing
+
+An edit that moves line breaks (a measure gets wider, a note is added to a full measure) changes every following system, and several of them are on screen. A keystroke must stay under a 60 fps frame, so the synchronous part is time-boxed:
+
+1. The layout is computed in full (about 1 ms with the shape cache) and the SVG size is final: hit testing, event boxes and the selection background are correct at once, even for systems not engraved yet.
+2. The systems to engrave are the ones on screen, the one holding the selection first. They are engraved while the call has spent less than 7 ms (layout included) and the next one is not expected to overrun it (the cost of a system is a moving average of the measures, about 3 to 5 ms for a grand staff). The first one is always engraved: it holds the edit.
+3. The visible systems left over are engraved one per task right after the call (`setTimeout`, not idle time), so a key pressed meanwhile is not kept waiting; the others follow in idle chunks. For a few milliseconds a system waiting for its turn is blank.
+4. Highlights are not re-applied to the whole score on every render any more (it cost about 4 ms on 100 measures): only the systems engraved by the call, and `setSelection` toggles the difference between the old and the new selection.
+
+Line-break hysteresis during note input was not needed to meet the budget and is not implemented: a measure never overflows the page width and the breaks always follow the pure layout.
+
 ## Tests
 
 - Unit (Vitest): `notation.test.ts`, `layout.test.ts` (system breaking, widths, justification, courtesy changes, cache), `hitTest.test.ts`, `ScoreView.test.tsx`.
 - Browser (Playwright, `e2e/engraving.spec.ts`): every fixture engraves without error and without overflow, layout agrees with VexFlow, real click hit test, highlight toggles, dark theme, resize, **performance budgets**.
+- Browser, re-flow (`e2e/engraving.spec.ts`): after a re-flow, only part of the systems is engraved by the call, hit testing answers for the last (undrawn) system, then every system is drawn, in order.
+- Browser, keystroke budget (`e2e/note-entry.spec.ts`, "performance"): real key events on a 100-measure score, time from the key to the end of the synchronous render, p95 < 16 ms for a filled score, for a re-flow at the top of a filled score and while filling an empty score. `PLAYWRIGHT_PORT` changes the preview port when another run uses 4173.
 - Browser, fonts and progressive render (`e2e/engraving-fonts.spec.ts`): no font embedded in any JavaScript response, one hashed Bravura file and a preload link, the score renders when Bravura arrives late (the request is delayed by 3.5 s), progressive render (full height at once, partial drawing, then complete, first system under 100 ms).
 - `npm run size` (after `npm run build`) fails when the initial JS, the editor chunk or the Bravura file exceed their budget, or when a font is embedded in a JS chunk.
 - Visual (`e2e/visual/`): screenshots of single staff, grand staff, chords, accidentals and key changes, ties and slurs, triplets, guitar standard + tab, cello clef changes, pickup measure, dark theme with highlights.
@@ -124,10 +137,13 @@ Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 
 | Full render, first ever (JIT cold), all systems | n/a | 230 to 320 ms (the drawing work is unchanged; it now runs in idle chunks) |
 | Full render, warm (median of 7) | < 200 ms | about 120 ms |
 | One edit, median / max of 25 | < 16 ms | about 6 ms / 10 ms |
+| Keystroke, filled score, median / p95 / max of 40 | p95 < 16 ms | 5.1 / 7.2 / 7.3 ms (before: 5.8 / 7.5 / 7.6 ms) |
+| Keystroke with a re-flow at the top of a filled score, median / p95 / max of 40 | p95 < 16 ms | 8.7 / 11.5 / 11.9 ms, 3 systems at most (before: 9.5 / 16.2 / 16.5 ms) |
+| Keystroke while filling an empty score, median / p95 / max of 400 | p95 < 16 ms | 3.2 / 7.0 / 12.6 ms (before: 3.3 / 6.6 / 24.5 ms) |
 | Highlight (selection + playing) | class toggle | < 1 ms |
 | Layout alone (jsdom) | n/a | a few ms |
 | Initial JS | <= 150 KB gzip | 72.7 KB |
 | Editor chunk (VexFlow + engraving, no font) | <= 200 KB gzip | 180 KB (was 468 KB with the fonts) |
 | Bravura font file | <= 250 KB woff2 | 247 KB, separate file, immutable cache |
 
-The browser test asserts warm full render < 200 ms, cold < 600 ms (JIT, parallel workers, slower CI machines), edit median < 16 ms.
+The browser test asserts warm full render < 200 ms, cold < 600 ms (JIT, parallel workers, slower CI machines), edit median < 16 ms, keystroke p95 < 16 ms in the three scenarios above.

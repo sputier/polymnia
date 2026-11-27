@@ -46,10 +46,21 @@ type IdleScheduler = (
 
 /** Time slice of one idle chunk, ms. */
 const CHUNK_MS = 20;
+/**
+ * A progressive render engraves the systems on screen in the call itself only while this budget
+ * (layout included) allows it: a keystroke must stay under a 60 fps frame. The first system is
+ * always engraved (it holds the edit); the other visible ones follow on the next tasks, before
+ * idle time.
+ */
+const SYNC_BUDGET_MS = 7;
+/** Starting estimate of the cost of engraving one system, ms (then follows the measures). */
+const SYSTEM_COST_MS = 4;
 
 interface Job {
   readonly score: Score;
-  queue: { system: SystemLayout; key: string; refs: unknown[] }[];
+  queue: Pending[];
+  /** Leading queue items that are on screen: drawn one per task, before idle time. */
+  urgent: number;
   readonly t0: number;
   drawn: number;
   firstSystemMs: number;
@@ -57,6 +68,12 @@ interface Job {
   resolve: () => void;
   handle?: number | undefined;
   cancel?: ((handle: number) => void) | undefined;
+}
+
+interface Pending {
+  readonly system: SystemLayout;
+  readonly key: string;
+  readonly refs: unknown[];
 }
 
 interface Entry {
@@ -86,6 +103,8 @@ export class Engraver {
   private readonly cache = new LayoutCache();
   private entries: (Entry | undefined)[] = [];
   private job: Job | undefined;
+  /** Smoothed cost of engraving one system, ms. */
+  private systemCost = SYSTEM_COST_MS;
   private eventSystem = new Map<string, number>();
   private selected = new Set<string>();
   private playing = new Set<string>();
@@ -128,7 +147,7 @@ export class Engraver {
     const previous = this.entries.filter((e): e is Entry => e !== undefined);
     const reusedEntries = new Set<Entry>();
     const next: (Entry | undefined)[] = [];
-    const pending: { system: SystemLayout; key: string; refs: unknown[] }[] = [];
+    const pending: Pending[] = [];
     for (const system of layout.systems) {
       const { key, refs } = systemSignature(score, system, this.eventSystem);
       const entry = previous.find(
@@ -149,6 +168,7 @@ export class Engraver {
     const job: Job = {
       score,
       queue: pending,
+      urgent: 0,
       t0,
       drawn: 0,
       firstSystemMs: pending.length === 0 ? 0 : -1,
@@ -158,20 +178,37 @@ export class Engraver {
     this.job = job;
     job.done = new Promise<void>((resolve) => (job.resolve = resolve));
 
-    // Systems on screen are engraved now; with `progressive`, the others wait for idle time.
+    // Systems on screen come first, the one holding the selection before the others. Without
+    // `progressive` everything is engraved now; with it, only what the budget allows, the rest of
+    // the visible ones on the next tasks and the others in idle time.
     const eager = options.progressive ? this.visibleRange() : undefined;
     if (eager) {
-      // Engrave the visible ones now, keep the rest queued in score order.
-      const rest: typeof pending = [];
-      for (const p of pending) {
-        if (p.system.y < eager.bottom && p.system.y + p.system.height > eager.top) {
-          this.drawPending(job, p);
-        } else {
-          rest.push(p);
-        }
+      const edited = new Set<number>();
+      for (const id of this.selected) {
+        const index = this.eventSystem.get(id);
+        if (index !== undefined) edited.add(index);
       }
-      job.queue = rest;
-      if (rest.length === 0 && job.firstSystemMs < 0) job.firstSystemMs = performance.now() - t0;
+      const visible: Pending[] = [];
+      const rest: Pending[] = [];
+      for (const p of pending) {
+        const on = p.system.y < eager.bottom && p.system.y + p.system.height > eager.top;
+        (on ? visible : rest).push(p);
+      }
+      visible.sort(
+        (a, b) => Number(edited.has(b.system.index)) - Number(edited.has(a.system.index)),
+      );
+      let next = 0;
+      while (next < visible.length) {
+        const spent = performance.now() - t0;
+        if (next > 0 && spent + this.systemCost > SYNC_BUDGET_MS) break;
+        this.drawPending(job, visible[next]!);
+        next++;
+      }
+      const later = visible.slice(next).sort((a, b) => a.system.index - b.system.index);
+      job.urgent = later.length;
+      job.queue = [...later, ...rest];
+      if (job.queue.length === 0 && job.firstSystemMs < 0)
+        job.firstSystemMs = performance.now() - t0;
     } else {
       for (const p of pending) this.drawPending(job, p);
       job.queue = [];
@@ -180,7 +217,7 @@ export class Engraver {
     if (job.queue.length === 0) this.finishJob(job);
     else this.scheduleChunk(job);
 
-    this.applyHighlights();
+    this.refreshOverlay();
     return this.snapshotStats(job, total);
   }
 
@@ -208,8 +245,9 @@ export class Engraver {
     return { top, bottom };
   }
 
-  private drawPending(job: Job, p: { system: SystemLayout; key: string; refs: unknown[] }): void {
+  private drawPending(job: Job, p: Pending): void {
     const { system, key, refs } = p;
+    const started = performance.now();
     const inSystem = (id: string) => this.eventSystem.get(id) === system.index;
     const result = drawSystem(this.ctx, job.score, system, job.score.slurs, inSystem);
     const entry: Entry = {
@@ -234,6 +272,7 @@ export class Engraver {
     job.drawn++;
     if (job.firstSystemMs < 0) job.firstSystemMs = performance.now() - job.t0;
     this.applyHighlightsTo(entry);
+    this.systemCost = this.systemCost * 0.5 + (performance.now() - started) * 0.5;
   }
 
   private scheduleChunk(job: Job): void {
@@ -244,16 +283,22 @@ export class Engraver {
       job.handle = undefined;
       if (this.job !== job) return;
       const start = performance.now();
-      const budget = Math.min(deadline?.timeRemaining() ?? CHUNK_MS, CHUNK_MS);
-      do {
-        const next = job.queue.shift();
-        if (!next) break;
-        this.drawPending(job, next);
-      } while (job.queue.length > 0 && performance.now() - start < budget);
+      if (job.urgent > 0) {
+        // On screen: one system per task, so that a key pressed meanwhile is not kept waiting.
+        this.drawPending(job, job.queue.shift()!);
+        job.urgent--;
+      } else {
+        const budget = Math.min(deadline?.timeRemaining() ?? CHUNK_MS, CHUNK_MS);
+        do {
+          const next = job.queue.shift();
+          if (!next) break;
+          this.drawPending(job, next);
+        } while (job.queue.length > 0 && performance.now() - start < budget);
+      }
       if (job.queue.length === 0) this.finishJob(job);
       else this.scheduleChunk(job);
     };
-    if (idle) {
+    if (idle && job.urgent === 0) {
       job.handle = idle(run, { timeout: 120 });
       job.cancel = cancelIdle;
     } else {
@@ -294,8 +339,11 @@ export class Engraver {
 
   /** Highlights events (class toggle on existing nodes, no re-engrave). */
   setSelection(ids: readonly string[]): void {
+    const before = this.selected;
     this.selected = new Set(ids);
-    this.applyHighlights();
+    for (const id of before) if (!this.selected.has(id)) this.toggle(id, 'pm-selected', false);
+    for (const id of this.selected) if (!before.has(id)) this.toggle(id, 'pm-selected', true);
+    this.refreshOverlay();
   }
 
   /** Marks events as playing (class toggle, safe to call at 60 fps). */
@@ -322,8 +370,8 @@ export class Engraver {
     }
   }
 
-  private applyHighlights(): void {
-    for (const entry of this.entries) if (entry) this.applyHighlightsTo(entry);
+  /** Selection backgrounds, from the layout (available even for systems not engraved yet). */
+  private refreshOverlay(): void {
     this.overlay.replaceChildren();
     for (const id of this.selected) {
       const box = eventBox(this.layout, id);

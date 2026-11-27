@@ -278,18 +278,98 @@ test.describe('note entry on macOS', () => {
   });
 });
 
-test.describe('performance', () => {
-  test('a keystroke on a 100-measure score: one or two systems, under 16 ms', async ({ page }) => {
-    await openEditor(page, '?new=100');
-    // Fill the score programmatically (800 eighth notes), then edit at the start of it, on screen (off-screen systems are drawn in idle time, not in the keystroke).
-    await page.evaluate(() => {
-      const store = window.__polymnia.store as unknown as {
-        toggleInputMode(): void;
-        durationKey(d: string): void;
-        enterStep(s: string): void;
-        click(hit: unknown): void;
-        getState(): State;
+interface KeyRun {
+  requested: number;
+  times: number[];
+  drawn: number[];
+}
+
+/**
+ * Presses `count` note keys one after the other. Each time is the end of the synchronous render
+ * of the edit minus the start of the key (what blocks the next keystroke); idle-time drawing of the
+ * other systems is awaited (`settled()`) between keys, like a pause of the player.
+ */
+async function pressNoteKeys(
+  page: Page,
+  count: number,
+  letters: string[],
+  sharp = false,
+): Promise<KeyRun> {
+  return page.evaluate(
+    async ({ count, letters, sharp }) => {
+      const engraver = window.__polymnia.engraver as unknown as {
+        render: (...a: unknown[]) => unknown;
+        stats: { drawn: number };
+        settled(): Promise<void>;
       };
+      const mark = { at: 0 };
+      const original = engraver.render.bind(engraver);
+      engraver.render = (...args: unknown[]) => {
+        const r = original(...args);
+        mark.at = performance.now();
+        return r;
+      };
+      const tick = () => new Promise<void>((r) => setTimeout(r, 0));
+      const times: number[] = [];
+      const drawn: number[] = [];
+      for (let i = 0; i < count; i++) {
+        const letter = letters[i % letters.length]!;
+        // A sharp widens the measure: the edit may move line breaks.
+        if (sharp) (window.__polymnia.store as unknown as EntryStore).accidental(1);
+        mark.at = 0;
+        const t0 = performance.now();
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: letter.toLowerCase(),
+            code: `Key${letter}`,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+        // A key that changes nothing (same pitch, refused entry) does not render: it is not a
+        // sample and must not cost a long wait.
+        while (mark.at === 0 && performance.now() - t0 < 150) await tick();
+        if (mark.at > 0) {
+          times.push(mark.at - t0);
+          drawn.push(engraver.stats.drawn);
+        }
+        await engraver.settled();
+        await tick();
+      }
+      return { times, drawn, requested: count };
+    },
+    { count, letters, sharp },
+  );
+}
+
+function report(label: string, run: KeyRun): { median: number; p95: number } {
+  // Most keys must have rendered, otherwise the measurement means nothing.
+  expect(run.times.length).toBeGreaterThanOrEqual(run.requested * 0.6);
+  const sorted = [...run.times].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)]!;
+  const p95 = sorted[Math.floor(sorted.length * 0.95)]!;
+  const max = sorted[sorted.length - 1]!;
+  console.log(
+    `keystroke end-to-end (${label}): ${run.times.length} keys, median ${median.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms, max ${max.toFixed(1)} ms, systems drawn per edit max ${Math.max(...run.drawn)}`,
+  );
+  return { median, p95 };
+}
+
+type EntryStore = {
+  toggleInputMode(): void;
+  durationKey(d: string): void;
+  enterStep(s: string): void;
+  accidental(alter: number): void;
+  click(hit: unknown): void;
+  getState(): State;
+};
+
+test.describe('performance', () => {
+  test('a keystroke on a filled 100-measure score: p95 under 16 ms', async ({ page }) => {
+    await openEditor(page, '?new=100');
+    // Fill the score programmatically (800 eighth notes), then edit at the start of it, on screen (off-screen systems are drawn in idle time).
+    await page.evaluate(() => {
+      const store = window.__polymnia.store as unknown as EntryStore;
       store.toggleInputMode();
       store.durationKey('4');
       const letters = ['C', 'G', 'E', 'A'];
@@ -302,59 +382,42 @@ test.describe('performance', () => {
       () => window.__polymnia.score === window.__polymnia.store.getState().score,
     );
 
-    const result = await page.evaluate(async () => {
-      const w = window;
-      const engraver = w.__polymnia.engraver as unknown as {
-        render: (...a: unknown[]) => unknown;
-        stats: { drawn: number; ms: number };
-      };
-      // Time of the end of the synchronous render of each edit.
-      const mark = { at: 0 };
-      const original = engraver.render.bind(engraver);
-      engraver.render = (...args: unknown[]) => {
-        const r = original(...args);
-        mark.at = performance.now();
-        return r;
-      };
-      const tick = () => new Promise<void>((r) => setTimeout(r, 0));
-      const times: number[] = [];
-      const drawn: number[] = [];
-      const letters = ['D', 'F', 'B', 'C'];
-      for (let i = 0; i < 40; i++) {
-        const letter = letters[i % letters.length]!;
-        mark.at = 0;
-        const t0 = performance.now();
-        document.dispatchEvent(
-          new KeyboardEvent('keydown', {
-            key: letter.toLowerCase(),
-            code: `Key${letter}`,
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
-        // A key that changes nothing (same pitch, refused entry) does not render: it is not a
-        // sample, and it must not cost a long wait.
-        while (mark.at === 0 && performance.now() - t0 < 150) await tick();
-        if (mark.at > 0) {
-          times.push(mark.at - t0);
-          drawn.push(engraver.stats.drawn);
-        }
-        // Let the idle-time drawing of the other systems finish before the next key.
-        await new Promise((r) => setTimeout(r, 30));
-      }
-      return { times, drawn };
+    const run = await pressNoteKeys(page, 40, ['D', 'F', 'B', 'C']);
+    const { p95 } = report('100 measures, filled', run);
+    expect(p95).toBeLessThan(16);
+  });
+
+  test('re-flow at the top of a filled 100-measure score: p95 under 16 ms', async ({ page }) => {
+    await openEditor(page, '?new=100');
+    await page.evaluate(() => {
+      const store = window.__polymnia.store as unknown as EntryStore;
+      store.toggleInputMode();
+      store.durationKey('4');
+      const letters = ['C', 'G', 'E', 'A'];
+      for (let i = 0; i < 800; i++) store.enterStep(letters[i % 4]!);
+      const staffId = store.getState().staffId;
+      store.click({ systemIndex: 0, partId: '', staffId, measureIndex: 0, tick: 0 });
     });
-    const sorted = [...result.times].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)]!;
-    const p95 = sorted[Math.floor(sorted.length * 0.95)]!;
-    console.log(
-      `keystroke end-to-end (100 measures, filled): median ${median.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms, max ${sorted[sorted.length - 1]!.toFixed(1)} ms, systems drawn per edit max ${Math.max(...result.drawn)}`,
+    await page.waitForFunction(
+      () => window.__polymnia.score === window.__polymnia.store.getState().score,
     );
-    // Most keys must have rendered, otherwise the measurement means nothing.
-    expect(result.times.length).toBeGreaterThanOrEqual(25);
-    // The edit is on screen: what is drawn in the keystroke is part of the measure.
-    expect(Math.max(...result.drawn)).toBeGreaterThan(0);
-    expect(Math.max(...result.drawn)).toBeLessThanOrEqual(2);
-    expect(median).toBeLessThan(16);
+    // Sharps on the first 40 notes: the first measures widen, line breaks move, every system after
+    // them is concerned while the ones on screen must be redrawn right away.
+    const run = await pressNoteKeys(page, 40, ['C', 'G', 'E', 'A'], true);
+    const { p95 } = report('100 measures, filled, re-flow at the top', run);
+    expect(p95).toBeLessThan(16);
+  });
+
+  test('filling an empty 100-measure score: re-flows stay under 16 ms (p95)', async ({ page }) => {
+    await openEditor(page, '?new=100');
+    await page.evaluate(() => {
+      const store = window.__polymnia.store as unknown as EntryStore;
+      store.toggleInputMode();
+      store.durationKey('4');
+    });
+    // 400 eighth notes: the first 50 measures, each widening as its rests become notes.
+    const run = await pressNoteKeys(page, 400, ['C', 'G', 'E', 'A']);
+    const { p95 } = report('100 measures, filling an empty score', run);
+    expect(p95).toBeLessThan(16);
   });
 });
