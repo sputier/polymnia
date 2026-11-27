@@ -25,11 +25,17 @@ internal sealed class SecurityHeadersMiddleware(RequestDelegate next, IOptions<S
                 headers.ContentSecurityPolicy = self._contentSecurityPolicy;
                 headers.XContentTypeOptions = "nosniff";
                 // The public share endpoint has a credential in its path: nothing about it may ever be sent along.
-                headers["Referrer-Policy"] = ctx.Request.Path.StartsWithSegments("/api/shared", StringComparison.OrdinalIgnoreCase)
+                headers["Referrer-Policy"] = ctx.Request.Path.StartsWithSegments(Polymnia.Api.Sharing.ShareEndpoints.SharedPath, StringComparison.OrdinalIgnoreCase)
                     ? "no-referrer"
                     : "strict-origin-when-cross-origin";
                 headers["Permissions-Policy"] = PermissionsPolicy;
                 headers["Cross-Origin-Opener-Policy"] = "same-origin";
+
+                // Every answer of the public share endpoint (200, 404, 429, fallback) is kept out of indexes.
+                if (ctx.Request.Path.StartsWithSegments(Polymnia.Api.Sharing.ShareEndpoints.SharedPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    headers["X-Robots-Tag"] = "noindex, nofollow, noarchive";
+                }
 
                 // API responses are never cacheable unless an endpoint says otherwise.
                 if (ctx.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))

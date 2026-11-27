@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Polymnia.Api.Auth;
 
 namespace Polymnia.Api.Sharing;
@@ -16,6 +17,9 @@ internal sealed class ShareRateLimitOptions
 
     /// <summary>Public reads streaming at the same time, all clients together (each holds a database connection).</summary>
     public int MaxConcurrentReads { get; set; } = 32;
+
+    /// <summary>Public reads streaming at the same time for one client address: a slow reader cannot starve the others.</summary>
+    public int MaxConcurrentReadsPerClient { get; set; } = 4;
 }
 
 internal static class ShareApiExtensions
@@ -24,40 +28,58 @@ internal static class ShareApiExtensions
     {
         services.AddOptions<ShareRateLimitOptions>()
             .Bind(configuration.GetSection(ShareRateLimitOptions.SectionName))
-            .Validate(static o => o.PermitLimit > 0 && o.WindowSeconds > 0 && o.MaxConcurrentReads > 0, "RateLimiting:Shared values must be positive.")
+            .Validate(
+                static o => o.PermitLimit > 0 && o.WindowSeconds > 0 && o.MaxConcurrentReads > 0 && o.MaxConcurrentReadsPerClient > 0,
+                "RateLimiting:Shared values must be positive.")
             .ValidateOnStart();
 
-        ShareRateLimitOptions limits = configuration.GetSection(ShareRateLimitOptions.SectionName).Get<ShareRateLimitOptions>() ?? new();
+        // The endpoint is anonymous, so budgets are per client address: the IPv4 address or the IPv6 /64 (the same key
+        // as the sign-in limiter); an unknown address (no socket address) shares one "unknown" key rather than being
+        // unlimited. Order matters: the concurrency caps come first, so a request they refuse does not spend the
+        // per-window budget of a legitimate reader. Chained after the existing global limiters; 429 and Retry-After come
+        // from the shared OnRejected handler. Values are the validated options.
+        services.AddOptions<RateLimiterOptions>().Configure<IOptions<ShareRateLimitOptions>>((options, shared) =>
+        {
+            ShareRateLimitOptions limits = shared.Value;
 
-        // The endpoint is anonymous, so the budget is per client address: the IPv4 address or the IPv6 /64 (the same
-        // key as the sign-in limiter). Unknown and valid tokens, and any method, share it, so it also slows token
-        // guessing (which 256 random bits make pointless anyway). Chained after the existing global limiters; 429 and
-        // Retry-After come from the shared OnRejected handler.
-        PartitionedRateLimiter<HttpContext> perClient = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            IsSharedPath(context) && AuthExtensions.ClientKey(context.Connection.RemoteIpAddress) is { } key
-                ? RateLimitPartition.GetFixedWindowLimiter("shared:" + key, _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = limits.PermitLimit,
-                    Window = TimeSpan.FromSeconds(limits.WindowSeconds),
-                    QueueLimit = 0,
-                })
-                : RateLimitPartition.GetNoLimiter("other"));
+            PartitionedRateLimiter<HttpContext> perClientConcurrency = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                IsSharedPath(context)
+                    ? RateLimitPartition.GetConcurrencyLimiter("shared-conc:" + Key(context), _ => new ConcurrencyLimiterOptions
+                    {
+                        PermitLimit = limits.MaxConcurrentReadsPerClient,
+                        QueueLimit = 0,
+                    })
+                    : RateLimitPartition.GetNoLimiter("other"));
 
-        PartitionedRateLimiter<HttpContext> concurrency = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-            IsSharedPath(context)
-                ? RateLimitPartition.GetConcurrencyLimiter("shared-reads", _ => new ConcurrencyLimiterOptions
-                {
-                    PermitLimit = limits.MaxConcurrentReads,
-                    QueueLimit = 0,
-                })
-                : RateLimitPartition.GetNoLimiter("other"));
+            PartitionedRateLimiter<HttpContext> globalConcurrency = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                IsSharedPath(context)
+                    ? RateLimitPartition.GetConcurrencyLimiter("shared-reads", _ => new ConcurrencyLimiterOptions
+                    {
+                        PermitLimit = limits.MaxConcurrentReads,
+                        QueueLimit = 0,
+                    })
+                    : RateLimitPartition.GetNoLimiter("other"));
 
-        services.PostConfigure<RateLimiterOptions>(options => options.GlobalLimiter = options.GlobalLimiter is null
-            ? PartitionedRateLimiter.CreateChained(perClient, concurrency)
-            : PartitionedRateLimiter.CreateChained(options.GlobalLimiter, perClient, concurrency));
+            PartitionedRateLimiter<HttpContext> perClientWindow = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                IsSharedPath(context)
+                    ? RateLimitPartition.GetFixedWindowLimiter("shared:" + Key(context), _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = limits.PermitLimit,
+                        Window = TimeSpan.FromSeconds(limits.WindowSeconds),
+                        QueueLimit = 0,
+                    })
+                    : RateLimitPartition.GetNoLimiter("other"));
+
+            PartitionedRateLimiter<HttpContext> chain = PartitionedRateLimiter.CreateChained(perClientConcurrency, globalConcurrency, perClientWindow);
+            options.GlobalLimiter = options.GlobalLimiter is null
+                ? chain
+                : PartitionedRateLimiter.CreateChained(options.GlobalLimiter, chain);
+        });
 
         return services;
     }
+
+    private static string Key(HttpContext context) => AuthExtensions.ClientKey(context.Connection.RemoteIpAddress) ?? "unknown";
 
     private static bool IsSharedPath(HttpContext context) =>
         context.Request.Path.StartsWithSegments(ShareEndpoints.SharedPath, StringComparison.OrdinalIgnoreCase);

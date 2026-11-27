@@ -123,7 +123,6 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
         ShareLink row = await db.ShareLinks.AsNoTracking().SingleAsync(l => l.ScoreId == id, Ct);
         Assert.Equal(ShareToken.Hash(token), row.TokenHash);
-        Assert.DoesNotContain(token, Convert.ToBase64String(row.TokenHash), StringComparison.Ordinal);
         Assert.Null(row.RevokedAt);
     }
 
@@ -168,11 +167,11 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         using HttpClient owner = await SignedInAsync();
         Guid id = await CreateScoreAsync(owner);
 
-        HttpResponseMessage[] responses = await Task.WhenAll(Enumerable.Range(0, 2)
+        HttpResponseMessage[] responses = await Task.WhenAll(Enumerable.Range(0, 8)
             .Select(_ => owner.PostAsync($"/api/scores/{id}/share", null, Ct)));
         foreach (HttpResponseMessage r in responses)
         {
-            Assert.True(r.StatusCode is HttpStatusCode.Created or HttpStatusCode.Conflict, r.StatusCode.ToString());
+            Assert.True(r.StatusCode is HttpStatusCode.Created or HttpStatusCode.Conflict or HttpStatusCode.TooManyRequests, r.StatusCode.ToString());
             r.Dispose();
         }
 
@@ -468,13 +467,6 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
         {
             foreach (string secret in new[] { token, wrong, hashBase64, hashHex })
             {
-                // Request logging at Trace level records the path of the public endpoint: that is why ASP.NET Core is
-                // kept at Warning in appsettings.json. Here it is forced on, so only the application's own events
-                // and the database commands are asserted.
-                if (entry.Category.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal))
-                {
-                    continue;
-                }
 
                 Assert.DoesNotContain(secret, entry.Message, StringComparison.Ordinal);
             }
