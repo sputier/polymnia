@@ -34,7 +34,7 @@ source repository or archive (license file and readme), not taken from a third-p
 
 | Sample set (`web/src/playback/samples/`) | Played by | Original recording | Author | Source, license |
 | --- | --- | --- | --- | --- |
-| `guitar-nylon` | Classical guitar (also stands in for the steel-string guitar) | Spanish classical guitar | Roberto (roberto@zenvoid.org), FreePats | <https://freepats.zenvoid.org/Guitar/acoustic-guitar.html>, CC0 1.0 (`cc0.txt` in the archive) |
+| `guitar-nylon` | Classical guitar (also stands in for the steel-string guitar) | Spanish classical guitar | Roberto, FreePats | <https://freepats.zenvoid.org/Guitar/acoustic-guitar.html>, CC0 1.0 (`cc0.txt` in the archive) |
 | `ukulele` | All ukuleles | Ukulele (tenor, Flight Fireball) | Mateusz Dąbrowski, FreePats | <https://freepats.zenvoid.org/GuitarFamily/ukulele.html>, CC0 1.0 (`LICENSE.txt`) |
 | `piano` | Piano, unknown instruments | Upright Piano KW (small) | Gonzalo and Roberto, FreePats | <https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html>, CC0 1.0 (`cc0.txt`) |
 | `clarinet` | Clarinet | Clarinet | Tyler Dence (recording), Kaili Dence (performer), Roberto (bank), FreePats | <https://freepats.zenvoid.org/Reed/clarinet.html>, CC0 1.0 (`readme.txt`) |
