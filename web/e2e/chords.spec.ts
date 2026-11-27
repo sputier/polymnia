@@ -141,11 +141,16 @@ test.describe('chord symbols', () => {
     await page.locator('svg.pm-score .vf-pm-chord').first().click({ force: true });
     const field = page.getByRole('textbox', { name: /Chord symbol/ });
     await expect(field).toHaveValue('C');
+    // The browser takes the focus away right after the click; the field gets it back.
+    await page.waitForTimeout(400);
+    await expect(field).toBeFocused();
     await page.keyboard.type('Fmaj7');
     await page.keyboard.press('Enter');
     await expect.poll(() => symbols(page)).toEqual(['Fmaj7']);
 
     await page.locator('svg.pm-score .vf-pm-chord').first().click({ force: true });
+    await page.waitForTimeout(400);
+    await expect(page.getByRole('textbox', { name: /Chord symbol/ })).toBeFocused();
     await page.keyboard.press('Backspace');
     await page.keyboard.press('Enter');
     await expect.poll(() => symbols(page)).toEqual([]);
