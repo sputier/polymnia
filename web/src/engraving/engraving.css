@@ -41,3 +41,10 @@
 .pm-score [fill='#000000'] {
   fill: currentColor;
 }
+
+/* Playback cursor: one bar that moves (see Engraver.setPlayCursor). */
+.pm-score .pm-cursor {
+  fill: var(--play);
+  opacity: 0.85;
+  pointer-events: none;
+}

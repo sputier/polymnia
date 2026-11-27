@@ -55,6 +55,7 @@ function keyMatches(event: KeyboardEvent, key: string): boolean {
     return event.code === `Key${key.toUpperCase()}` || event.key.toLowerCase() === key;
   }
   if (/^[0-9]$/.test(key)) return event.code === `Digit${key}` || event.key === key;
+  if (key === 'space') return event.code === 'Space' || event.key === ' ';
   return event.key.toLowerCase() === key;
 }
 
@@ -84,6 +85,7 @@ const DISPLAY: Record<string, string> = {
   arrowup: '↑',
   arrowdown: '↓',
   ' ': 'Space',
+  space: 'Space',
   delete: 'Del',
   backspace: '⌫',
   plus: '+',
