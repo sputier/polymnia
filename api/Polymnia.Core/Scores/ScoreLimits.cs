@@ -10,11 +10,34 @@ public static class ScoreLimits
     /// </summary>
     public const int MaxContentBytes = 4 * 1024 * 1024;
 
+    /// <summary>
+    /// Maximum size of a stored document that patches may produce, in bytes of its <c>jsonb</c> binary form (known without
+    /// serializing it). A document accepted by a full save is at most <see cref="MaxContentBytes"/> of compact JSON, and the
+    /// binary form of a score is about 1.6 times that (many small objects), so three times the limit of a full save lets a
+    /// patch edit any document a full save accepted, and bounds the growth by patches.
+    /// </summary>
+    public const int MaxStoredContentBytes = 3 * MaxContentBytes;
+
     /// <summary>Maximum title length, in Unicode code points (same as <c>meta.title</c> in the schema).</summary>
     public const int MaxTitleLength = 200;
 
     /// <summary>Maximum title length, in UTF-16 units: the database column size (a code point is at most 2 units).</summary>
     public const int MaxTitleColumnLength = MaxTitleLength * 2;
+
+    /// <summary>
+    /// Maximum request body of an incremental update (<c>PATCH /api/scores/{id}/content</c>), in bytes, after
+    /// decompression. A typical autosave batch is a few KB; the client sends the full document above 256 KB anyway.
+    /// </summary>
+    public const int MaxPatchBytes = 1024 * 1024;
+
+    /// <summary>Maximum number of operations in one patch.</summary>
+    public const int MaxPatchOps = 256;
+
+    /// <summary>
+    /// Maximum number of document edits one patch expands to (an inserted measure costs one per staff). Every edit
+    /// rewrites the stored document inside PostgreSQL, so this bounds the work of one request.
+    /// </summary>
+    public const int MaxPatchEdits = 256;
 
     /// <summary>Default maximum number of scores one user can own.</summary>
     public const int DefaultMaxScoresPerUser = 200;

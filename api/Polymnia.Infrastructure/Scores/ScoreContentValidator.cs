@@ -93,7 +93,7 @@ public sealed class ScoreContentValidator : IScoreContentValidator
     private static ScoreValidationResult Fail(string error) =>
         new(null, error.Length <= MaxErrorLength ? error : error[..MaxErrorLength]);
 
-    private static string LoadSchema()
+    internal static string LoadSchema()
     {
         using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(SchemaResource)
             ?? throw new InvalidOperationException($"Embedded resource '{SchemaResource}' is missing.");

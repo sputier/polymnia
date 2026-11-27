@@ -65,6 +65,14 @@ internal sealed class CompiledSchema
     /// </summary>
     public bool IsValid(JsonElement value, List<string> failurePath) => Check(value, failurePath);
 
+    /// <summary>The compiled schema of <c>#/$defs/{name}</c>: lets a patch validate one fragment of a score.</summary>
+    public CompiledSchema Definition(string name) =>
+        _defs.TryGetValue(name, out CompiledSchema? def) ? def : throw new KeyNotFoundException($"Unknown $defs entry '{name}'.");
+
+    /// <summary>The compiled schema of a top-level property (for example <c>meta</c> or <c>slurs</c>).</summary>
+    public CompiledSchema Property(string name) =>
+        _properties?.FirstOrDefault(p => p.Name == name)?.Schema ?? throw new KeyNotFoundException($"Unknown property '{name}'.");
+
     private static CompiledSchema Child(JsonElement schema)
     {
         CompiledSchema child = new();

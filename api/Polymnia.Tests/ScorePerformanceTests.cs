@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Polymnia.Tests;
 
@@ -50,6 +51,23 @@ public sealed class ScorePerformanceTests(ScoreApiFixture fixture) : IClassFixtu
         var updateGzip = new List<double>();
         byte[] gz = Gzip(big);
 
+        // A typical autosave batch: one measure of one staff, and three measures (two staves and a measure attribute).
+        JsonNode doc = JsonNode.Parse(big)!;
+        JsonNode MeasureOf(int staff, int measure) => doc["parts"]![staff / 2]!["staves"]![staff % 2]!["measures"]![measure]!.DeepClone();
+        string patchOne = new JsonObject
+        {
+            ["ops"] = new JsonArray(new JsonObject { ["op"] = "setStaffMeasure", ["staffId"] = "s1", ["measureId"] = "m250", ["value"] = MeasureOf(0, 249) }),
+        }.ToJsonString();
+        string patchThree = new JsonObject
+        {
+            ["ops"] = new JsonArray(
+                new JsonObject { ["op"] = "setStaffMeasure", ["staffId"] = "s1", ["measureId"] = "m251", ["value"] = MeasureOf(0, 250) },
+                new JsonObject { ["op"] = "setStaffMeasure", ["staffId"] = "s2", ["measureId"] = "m251", ["value"] = MeasureOf(1, 250) },
+                new JsonObject { ["op"] = "setMeasureInfo", ["measureId"] = "m252", ["value"] = new JsonObject { ["id"] = "m252", ["tempoBpm"] = 100 } }),
+        }.ToJsonString();
+        var patch1 = new List<double>();
+        var patch3 = new List<double>();
+
         // Warm-up (JIT, connection pool, query plans), not measured.
         for (int i = 0; i < 20; i++)
         {
@@ -95,12 +113,28 @@ public sealed class ScorePerformanceTests(ScoreApiFixture fixture) : IClassFixtu
                 etag = response.Headers.ETag!.Tag;
                 return response;
             }));
+
+            patch1.Add(await TimeAsync(() => PatchAsync(patchOne)));
+            patch3.Add(await TimeAsync(() => PatchAsync(patchThree)));
+        }
+
+        async Task<HttpResponseMessage> PatchAsync(string body)
+        {
+            HttpRequestMessage r = new(HttpMethod.Patch, $"/api/scores/{id}/content")
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            };
+            r.Headers.TryAddWithoutValidation("If-Match", etag);
+            HttpResponseMessage response = await client.SendAsync(r, ct);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            etag = response.Headers.ETag!.Tag;
+            return response;
         }
 
         string report =
             $"PERF 500 measures ({big.Length / 1024} KB): " +
             $"GET p50 {P(get, 50):F1} p95 {P(get, 95):F1} ms | GET 304 p95 {P(getConditional, 95):F1} ms | " +
-            $"LIST(20 of 20) p95 {P(list, 95):F1} ms | PUT p50 {P(update, 50):F1} p95 {P(update, 95):F1} ms | PUT gzip body ({gz.Length / 1024} KB) p50 {P(updateGzip, 50):F1} p95 {P(updateGzip, 95):F1} ms";
+            $"LIST(20 of 20) p95 {P(list, 95):F1} ms | PUT p50 {P(update, 50):F1} p95 {P(update, 95):F1} ms | PUT gzip body ({gz.Length / 1024} KB) p50 {P(updateGzip, 50):F1} p95 {P(updateGzip, 95):F1} ms | PATCH 1 measure ({patchOne.Length} B) p50 {P(patch1, 50):F1} p95 {P(patch1, 95):F1} ms | PATCH 3 measures ({patchThree.Length} B) p50 {P(patch3, 50):F1} p95 {P(patch3, 95):F1} ms";
         Console.WriteLine(report);
         if (Environment.GetEnvironmentVariable("POLYMNIA_PERF_REPORT") is { Length: > 0 } reportFile)
         {
@@ -111,6 +145,9 @@ public sealed class ScorePerformanceTests(ScoreApiFixture fixture) : IClassFixtu
 
         Assert.True(P(get, 95) < BudgetMs, report);
         Assert.True(P(list, 95) < BudgetMs, report);
+        // The point of PATCH: a typical autosave (one measure) stays inside the budget, the document never travels.
+        Assert.True(P(patch1, 95) < BudgetMs, report);
+        Assert.True(P(patch3, 95) < UpdateGuardMs, report);
         Assert.True(P(update, 95) < UpdateGuardMs, report);
         Assert.True(P(updateGzip, 95) < UpdateGuardMs, report);
     }

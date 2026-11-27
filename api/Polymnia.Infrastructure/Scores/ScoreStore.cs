@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using NpgsqlTypes;
 using Polymnia.Core.Scores;
 
 namespace Polymnia.Infrastructure.Scores;
@@ -239,6 +240,220 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
         {
             return new(ScoreOutcome.InvalidContent);
         }
+    }
+
+    /// <summary>
+    /// Applies a validated patch (see <see cref="ScorePatchPlanner"/>) to the stored document at version
+    /// <paramref name="expectedVersion"/>. The document never leaves PostgreSQL: one small query reads its shape
+    /// (ids and counts), the planner turns the patch into jsonb edits, and one conditional <c>UPDATE</c> applies them,
+    /// so two concurrent patches (or a patch and a full save) at the same version cannot both succeed.
+    /// </summary>
+    public async Task<ScoreResult<ScoreSaved>> PatchContentAsync(
+        Guid owner, Guid id, long expectedVersion, ScorePatch patch, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(patch);
+
+        // The shape (ids and counts, a few KB) is read with five jsonpath calls: they do not copy the nodes they
+        // walk, unlike jsonb_array_elements over the parts (measured: 3 ms against 9 ms for a 1 MB score). It is
+        // only computed when the version is the expected one.
+        ShapeRow? row = (await db.Database
+            .SqlQuery<ShapeRow>(
+                $"""
+                SELECT version AS "Version",
+                       CASE WHEN version = {expectedVersion} THEN jsonb_path_query_array(content, '$.measures[*].id')::text END AS "Measures",
+                       CASE WHEN version = {expectedVersion} THEN jsonb_path_query_array(content, '$.parts[*].id')::text END AS "PartIds",
+                       CASE WHEN version = {expectedVersion} THEN jsonb_path_query_array(content, '$.parts[*].staves.size()')::text END AS "StaffCounts",
+                       CASE WHEN version = {expectedVersion} THEN jsonb_path_query_array(content, '$.parts[*].staves[*].id')::text END AS "StaffIds",
+                       CASE WHEN version = {expectedVersion} THEN jsonb_path_query_array(content, '$.parts[*].staves[*].measures.size()')::text END AS "StaffMeasureCounts"
+                FROM scores
+                WHERE owner_id = {owner} AND id = {id}
+                """)
+            .ToListAsync(ct)).FirstOrDefault();
+        if (row is null)
+        {
+            return new(ScoreOutcome.NotFound);
+        }
+
+        if (row.Version != expectedVersion)
+        {
+            return new(ScoreOutcome.Conflict);
+        }
+
+        ScoreShape shape;
+        try
+        {
+            shape = ScoreShape.FromJson(row.Measures!, row.PartIds!, row.StaffCounts!, row.StaffIds!, row.StaffMeasureCounts!);
+        }
+        catch (InvalidOperationException)
+        {
+            return new(ScoreOutcome.InvalidPatch, Error: "The stored score has an unexpected structure: send the full document.");
+        }
+
+        PatchPlan plan = ScorePatchPlanner.Plan(shape, patch);
+        if (!plan.IsValid)
+        {
+            return new(ScoreOutcome.InvalidPatch, Error: plan.Error);
+        }
+
+        DateTimeOffset now = clock.GetUtcNow();
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using NpgsqlCommand command = new() { Connection = (NpgsqlConnection)db.Database.GetDbConnection() };
+            command.CommandText = PatchSql(plan, command.Parameters, owner, id, expectedVersion, now);
+
+            string? title = null;
+            int schemaVersion = 0;
+            await using (System.Data.Common.DbDataReader reader = await command.ExecuteReaderAsync(ct))
+            {
+                if (await reader.ReadAsync(ct))
+                {
+                    title = reader.GetString(0);
+                    schemaVersion = reader.GetInt32(1);
+                }
+            }
+
+            if (title is not null)
+            {
+                return new(ScoreOutcome.Ok, new ScoreSaved(id, title, schemaVersion, expectedVersion + 1, now));
+            }
+        }
+        catch (PostgresException ex) when (IsInvalidData(ex))
+        {
+            return new(ScoreOutcome.InvalidContent);
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+
+        // Nothing was updated: a concurrent change, or the patched document would be too large.
+        long? current = await db.Scores.AsNoTracking()
+            .Where(s => s.OwnerId == owner && s.Id == id)
+            .Select(s => (long?)s.Version)
+            .FirstOrDefaultAsync(ct);
+        return current is null
+            ? new(ScoreOutcome.NotFound)
+            : new(current == expectedVersion ? ScoreOutcome.TooLarge : ScoreOutcome.Conflict);
+    }
+
+    private sealed record ShapeRow(long Version, string? Measures, string? PartIds, string? StaffCounts, string? StaffIds, string? StaffMeasureCounts);
+
+    // Replacements of one measure (a MeasureInfo, or a measure of a staff): paths that no other kind of edit overlaps.
+    private static bool Groupable(Edit edit) =>
+        edit.Kind == EditKind.Set
+        && ((edit.Path[0] == "measures" && edit.Path.Length == 2) || (edit.Path[0] == "parts" && edit.Path.Length > 2));
+
+    // The SQL text only ever contains numbers and constants; every value (ids, paths, fragments) is a parameter.
+    private static string PatchSql(
+        PatchPlan plan, NpgsqlParameterCollection parameters, Guid owner, Guid id, long expectedVersion, DateTimeOffset now)
+    {
+        parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Uuid, Value = owner });
+        parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Uuid, Value = id });
+        parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bigint, Value = expectedVersion });
+        parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = now });
+        parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)plan.Title ?? DBNull.Value });
+
+        // One CTE per stage; each rewrites the document once. jsonb_set copies the whole document (about 15 ms per
+        // megabyte), so consecutive replacements inside the same array are applied to that array alone and put back
+        // with a single rewrite of the document.
+        List<string> stages =
+        [
+            "s0 AS MATERIALIZED (SELECT content AS c FROM scores WHERE owner_id = $1 AND id = $2 AND version = $3)",
+        ];
+        string Param(NpgsqlDbType type, object value)
+        {
+            parameters.Add(new NpgsqlParameter { NpgsqlDbType = type, Value = value });
+            return $"${parameters.Count}";
+        }
+
+        string PathParam(string[] path) => Param(NpgsqlDbType.Array | NpgsqlDbType.Text, path) + "::text[]";
+        string JsonParam(string json) => Param(NpgsqlDbType.Jsonb, json) + "::jsonb";
+
+        void Stage(Func<string, string> rewrite)
+        {
+            string previous = $"s{stages.Count - 1}.c";
+            stages.Add($"s{stages.Count} AS MATERIALIZED (SELECT {rewrite(previous)} AS c FROM s{stages.Count - 1})");
+        }
+
+        IReadOnlyList<Edit> edits = plan.Edits;
+        for (int i = 0; i < edits.Count;)
+        {
+            if (!Groupable(edits[i]))
+            {
+                Edit edit = edits[i++];
+                string path = PathParam(edit.Path);
+                if (edit.Kind == EditKind.Delete)
+                {
+                    Stage(c => $"{c} #- {path}");
+                }
+                else
+                {
+                    string value = JsonParam(edit.Json!);
+                    string call = edit.Kind switch
+                    {
+                        EditKind.Set => "jsonb_set({0}, {1}, {2}, false)",
+                        EditKind.Insert => "jsonb_insert({0}, {1}, {2}, false)",
+                        _ => "jsonb_insert({0}, {1}, {2}, true)",
+                    };
+                    Stage(c => string.Format(System.Globalization.CultureInfo.InvariantCulture, call, c, path, value));
+                }
+
+                continue;
+            }
+
+            // A run of replacements of measures: group them by the array that holds them (the path without its
+            // last index). A replacement of a whole part is never grouped, it could overlap the others.
+            int end = i;
+            while (end < edits.Count && Groupable(edits[end]))
+            {
+                end++;
+            }
+
+            foreach (IGrouping<string, Edit> group in edits.Skip(i).Take(end - i).GroupBy(e => string.Join('/', e.Path[..^1])))
+            {
+                Edit[] sets = [.. group];
+                if (sets.Length == 1 || sets[0].Path.Length < 2)
+                {
+                    foreach (Edit set in sets)
+                    {
+                        string path = PathParam(set.Path);
+                        string value = JsonParam(set.Json!);
+                        Stage(c => $"jsonb_set({c}, {path}, {value}, false)");
+                    }
+
+                    continue;
+                }
+
+                string container = PathParam(sets[0].Path[..^1]);
+                Stage(c =>
+                {
+                    string inner = $"({c} #> {container})";
+                    foreach (Edit set in sets)
+                    {
+                        inner = $"jsonb_set({inner}, {PathParam([set.Path[^1]])}, {JsonParam(set.Json!)}, false)";
+                    }
+
+                    return $"jsonb_set({c}, {container}, {inner}, false)";
+                });
+            }
+
+            i = end;
+        }
+
+        // pg_column_size of a fresh jsonb is its binary size, known without serializing it.
+        return $"""
+            WITH {string.Join(",\n     ", stages)}
+            UPDATE scores s
+            SET content = p.c,
+                title = COALESCE($5, s.title),
+                version = s.version + 1,
+                updated_at = $4
+            FROM s{stages.Count - 1} p
+            WHERE s.owner_id = $1 AND s.id = $2 AND s.version = $3
+              AND pg_column_size(p.c) <= {ScoreLimits.MaxStoredContentBytes}
+            RETURNING s.title, s.schema_version
+            """;
     }
 
     /// <summary>Renames the score and keeps <c>meta.title</c> in the content in sync (it is a content change: same version rules).</summary>

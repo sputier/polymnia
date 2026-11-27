@@ -13,10 +13,8 @@ internal static class BoundedBody
     /// Returns the body, or <c>null</c> when it is larger than <see cref="ScoreLimits.MaxContentBytes"/> (answer 413).
     /// The limit is checked on <c>Content-Length</c> first, then while reading (chunked bodies have no length).
     /// </summary>
-    public static async Task<ReadOnlyMemory<byte>?> ReadAsync(HttpContext context, CancellationToken ct)
+    public static async Task<ReadOnlyMemory<byte>?> ReadAsync(HttpContext context, CancellationToken ct, int limit = ScoreLimits.MaxContentBytes)
     {
-        const int limit = ScoreLimits.MaxContentBytes;
-
         if (context.Request.ContentLength > limit)
         {
             return null;

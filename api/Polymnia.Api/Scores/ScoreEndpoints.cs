@@ -54,6 +54,17 @@ internal static class ScoreEndpoints
             .ProducesProblem(StatusCodes.Status429TooManyRequests)
             .AddEndpointFilter<ScoreRateLimitFilter.Writes>();
 
+        group.MapPatch("/{id:guid}/content", PatchContent)
+            .WithName("PatchScoreContent")
+            .Produces<ScoreSaved>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .AddEndpointFilter<ScoreRateLimitFilter.Writes>();
+
         group.MapPatch("/{id:guid}", Rename)
             .WithName("RenameScore")
             .Produces<ScoreSaved>()
@@ -235,8 +246,53 @@ internal static class ScoreEndpoints
         return await store.DeleteAsync(owner, id, ct) ? Results.NoContent() : NotFound();
     }
 
+    private static async Task<IResult> PatchContent(
+        HttpContext context, Guid id, ICurrentUser user, ScoreStore store, IScorePatchParser parser, CancellationToken ct)
+    {
+        if (user.UserId is not { } owner)
+        {
+            return Results.Unauthorized();
+        }
+
+        // Cheap checks first: nothing is read or parsed for a request that cannot succeed.
+        if (RequireVersion(context) is not { } expected)
+        {
+            return PreconditionProblem(context);
+        }
+
+        (ReadOnlyMemory<byte>? body, IResult? error) = await ReadBodyAsync(context, ScoreLimits.MaxPatchBytes, ct);
+        if (body is null)
+        {
+            return error!;
+        }
+
+        ScorePatchParseResult parsed = parser.Parse(body.Value);
+        if (!parsed.IsValid)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "Invalid patch", parsed.Error);
+        }
+
+        ScoreResult<ScoreSaved> result = await store.PatchContentAsync(owner, id, expected, parsed.Patch!, ct);
+        return Saved(context, result);
+    }
+
     private static async Task<(ScoreDocument?, IResult?)> ReadDocumentAsync(
         HttpContext context, IScoreContentValidator validator, CancellationToken ct)
+    {
+        (ReadOnlyMemory<byte>? body, IResult? error) = await ReadBodyAsync(context, ScoreLimits.MaxContentBytes, ct);
+        if (body is null)
+        {
+            return (null, error);
+        }
+
+        ScoreValidationResult validation = validator.Validate(body.Value);
+        return validation.IsValid
+            ? (validation.Document, null)
+            : (null, Problem(StatusCodes.Status400BadRequest, "Invalid score", validation.Error));
+    }
+
+    private static async Task<(ReadOnlyMemory<byte>?, IResult?)> ReadBodyAsync(
+        HttpContext context, int limit, CancellationToken ct)
     {
         if (!context.Request.HasJsonContentType())
         {
@@ -255,7 +311,7 @@ internal static class ScoreEndpoints
         ReadOnlyMemory<byte>? body;
         try
         {
-            body = await BoundedBody.ReadAsync(context, ct);
+            body = await BoundedBody.ReadAsync(context, ct, limit);
         }
         catch (TimeoutException)
         {
@@ -272,13 +328,10 @@ internal static class ScoreEndpoints
             return (null, Problem(
                 StatusCodes.Status413PayloadTooLarge,
                 "Request body too large",
-                string.Create(CultureInfo.InvariantCulture, $"A score is limited to {ScoreLimits.MaxContentBytes} bytes.")));
+                string.Create(CultureInfo.InvariantCulture, $"The body is limited to {limit} bytes.")));
         }
 
-        ScoreValidationResult validation = validator.Validate(body.Value);
-        return validation.IsValid
-            ? (validation.Document, null)
-            : (null, Problem(StatusCodes.Status400BadRequest, "Invalid score", validation.Error));
+        return (body, null);
     }
 
     private static IResult Created(HttpContext context, ScoreResult<ScoreSummary> result)
@@ -314,6 +367,13 @@ internal static class ScoreEndpoints
                     ConflictProblemType);
             case ScoreOutcome.InvalidContent:
                 return Problem(StatusCodes.Status400BadRequest, "Invalid score", "The score contains characters that cannot be stored.");
+            case ScoreOutcome.InvalidPatch:
+                return Problem(StatusCodes.Status400BadRequest, "Invalid patch", result.Error);
+            case ScoreOutcome.TooLarge:
+                return Problem(
+                    StatusCodes.Status413PayloadTooLarge,
+                    "Score too large",
+                    string.Create(CultureInfo.InvariantCulture, $"The patched score would be larger than {ScoreLimits.MaxStoredContentBytes} bytes."));
             default:
                 return NotFound();
         }

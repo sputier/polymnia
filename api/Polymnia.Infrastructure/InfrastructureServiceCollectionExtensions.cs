@@ -38,6 +38,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<UserProvisioner>();
         services.AddSingleton<IScoreContentValidator, ScoreContentValidator>();
+        services.AddSingleton<IScorePatchParser, ScorePatchParser>();
         services.AddScoped<ScoreStore>();
         services.AddScoped<Sharing.ShareStore>();
         services.AddScoped<AccountStore>();
