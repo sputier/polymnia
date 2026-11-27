@@ -542,3 +542,46 @@ describe('piano keys (enterMidi)', () => {
     expect(pitches()).toEqual([]);
   });
 });
+
+describe('piano keys on transposing parts (sounding pitch)', () => {
+  const first = () => {
+    const e = events()[0];
+    return e?.kind === 'note' ? e.pitches.map((p) => `${p.step}${p.octave}`) : [];
+  };
+  const partId = () => store.getState().score.parts[0]!.id;
+
+  it('guitar (-12): the key that sounds C4 enters the written C5', () => {
+    expect(store.changeInstrument(partId(), 'guitar-classical')).toBe(true);
+    press('N', '5');
+    store.enterMidi(60);
+    expect(first()).toEqual(['C5']);
+  });
+
+  it('Bb clarinet (-2): the key that sounds C4 enters the written D4', () => {
+    expect(store.changeInstrument(partId(), 'clarinet')).toBe(true);
+    const heard = vi.fn();
+    store.onNoteEntered = heard;
+    press('N', '5');
+    store.enterMidi(60);
+    expect(first()).toEqual(['D4']);
+    expect(heard).toHaveBeenCalledWith({ step: 'D', alter: 0, octave: 4 });
+    store.enterMidi(61, true);
+    expect(events()[0]).toMatchObject({ pitches: [{ step: 'D' }, { step: 'D', alter: 1 }] });
+  });
+
+  it('select mode on a guitar part moves the note to the written pitch', () => {
+    store.changeInstrument(partId(), 'guitar-classical');
+    press('N', '5');
+    store.enterMidi(60);
+    press('Escape');
+    store.clickEvent(events()[0]!.id);
+    store.enterMidi(64);
+    expect(first()).toEqual(['E5']);
+  });
+
+  it('piano (0) is unchanged', () => {
+    press('N', '5');
+    store.enterMidi(60);
+    expect(first()).toEqual(['C4']);
+  });
+});
