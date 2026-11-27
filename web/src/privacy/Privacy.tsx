@@ -113,6 +113,7 @@ const EMPTY_LEGAL: LegalInfo = {
   hostingProvider: null,
   hostingCountry: null,
   logRetentionDays: 0,
+  contactRetentionDays: 0,
   sessionIdleDays: 0,
   sessionAbsoluteDays: 0,
 };
@@ -133,7 +134,7 @@ function Operator({ text, legal }: { text: ReturnType<typeof policyText>; legal:
         <dd>{legal.operatorName}</dd>
         <dt>{text.contactLabel}</dt>
         <dd>
-          <Contact legal={legal} />
+          <Contact legal={legal} formLabel={text.contactFormLabel} />
         </dd>
         {legal.address && (
           <>
@@ -156,8 +157,10 @@ function Operator({ text, legal }: { text: ReturnType<typeof policyText>; legal:
 }
 
 /** The contact is a link only when the server says it is an e-mail address or an https URL (it checks both). */
-function Contact({ legal }: { legal: LegalInfo }) {
+function Contact({ legal, formLabel }: { legal: LegalInfo; formLabel: string }) {
   const contact = legal.contact ?? '';
+  // The instance's own form: a link inside the app (the address is never published, docs/contact.md).
+  if (legal.contactKind === 'page') return <a href="#/contact">{formLabel}</a>;
   if (legal.contactKind === 'email') return <a href={`mailto:${contact}`}>{contact}</a>;
   if (legal.contactKind === 'url' && /^https:\/\//i.test(contact)) {
     return (

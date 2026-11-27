@@ -30,6 +30,6 @@ internal sealed partial class ForwardedHeadersAdvisor(RequestDelegate next, ILog
         EventId = 30,
         EventName = "ForwardedHeadersDisabled",
         Level = LogLevel.Warning,
-        Message = "A request carried X-Forwarded-For or Forwarded but forwarded headers are disabled: behind a reverse proxy every client shares the proxy's address, so the per-address rate limits (sign-in, share links) are one shared budget. Set POLYMNIA_FORWARDED_HEADERS=true (ForwardedHeaders:Enabled) and trust the proxy (see docs/self-hosting.md). Logged once.")]
+        Message = "A request carried X-Forwarded-For or Forwarded but forwarded headers are disabled: behind a reverse proxy every client shares the proxy's address, so the per-address rate limits (sign-in, share links, contact form) are one shared budget. Set POLYMNIA_FORWARDED_HEADERS=true (ForwardedHeaders:Enabled) and trust the proxy (see docs/self-hosting.md). Logged once.")]
     private static partial void ProxyNotTrusted(ILogger logger);
 }

@@ -5,11 +5,13 @@ export interface LegalInfo {
   configured: boolean;
   operatorName: string | null;
   contact: string | null;
-  contactKind: 'email' | 'url' | null;
+  /** `page` is the instance's own contact form (`#/contact`). */
+  contactKind: 'email' | 'url' | 'page' | null;
   address: string | null;
   hostingProvider: string | null;
   hostingCountry: string | null;
   logRetentionDays: number;
+  contactRetentionDays: number;
   sessionIdleDays: number;
   sessionAbsoluteDays: number;
 }

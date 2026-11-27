@@ -9,7 +9,8 @@ export type Route =
   | { readonly name: 'editor' }
   | { readonly name: 'score'; readonly id: string }
   | { readonly name: 'shared'; readonly token: string }
-  | { readonly name: 'privacy' };
+  | { readonly name: 'privacy' }
+  | { readonly name: 'contact' };
 
 // Hash routing: three screens do not justify a router dependency.
 function read(): string {
@@ -26,6 +27,8 @@ export function parseRoute(hash: string): Route {
   if (shared) return { name: 'shared', token: shared[1]! };
   if (path.startsWith('#/editor')) return { name: 'editor' };
   if (/^#\/privacy\/?$/.test(path)) return { name: 'privacy' };
+  // The contact form (docs/contact.md): public. `?topic=report&page=<token>` prefills it, read by the page itself.
+  if (/^#\/contact\/?$/.test(path)) return { name: 'contact' };
   return { name: 'library' };
 }
 
@@ -39,7 +42,16 @@ export function useRoute(): Route {
   return useMemo(() => parseRoute(hash), [hash]);
 }
 
-export const ROUTE_HREF = { home: '#/', editor: '#/editor', privacy: '#/privacy' } as const;
+export const ROUTE_HREF = {
+  home: '#/',
+  editor: '#/editor',
+  privacy: '#/privacy',
+  contact: '#/contact',
+} as const;
+
+/** The contact form prefilled to report a shared page. The token is the shared page's own, shown to the sender. */
+export const reportHref = (token: string): string =>
+  `#/contact?topic=report&page=${encodeURIComponent(token)}`;
 
 export const sharedHref = (token: string): string => `#/s/${encodeURIComponent(token)}`;
 

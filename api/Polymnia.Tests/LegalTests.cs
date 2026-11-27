@@ -95,6 +95,12 @@ public sealed class LegalTests
     [InlineData("a@b", null)]
     [InlineData("a@@example.com", null)]
     [InlineData("https://user:pw@example.com", null)]
+    [InlineData("/#/contact", "page")]
+    [InlineData(" /#/contact ", "page")]
+    [InlineData("/#/contact?x=1", null)]
+    [InlineData("/contact", null)]
+    [InlineData("//evil.example/#/contact", null)]
+    [InlineData("/#/privacy", null)]
     public void Contact_kind_is_strict(string value, string? kind)
     {
         Assert.Equal(kind, LegalOptionsValidator.ContactKind(value));

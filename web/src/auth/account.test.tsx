@@ -21,6 +21,7 @@ const legal = {
   hostingProvider: 'Example Hosting',
   hostingCountry: 'Exampleland',
   logRetentionDays: 14,
+  contactRetentionDays: 90,
   sessionIdleDays: 7,
   sessionAbsoluteDays: 30,
 };

@@ -42,6 +42,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ScoreStore>();
         services.AddScoped<Sharing.ShareStore>();
         services.AddScoped<AccountStore>();
+        services.AddScoped<Contact.ContactStore>();
 
         return services;
     }

@@ -33,6 +33,7 @@ export const sharingEn = {
   'viewer.corrupt': 'This score cannot be shown.',
   'viewer.madeWith': 'Made with Polymnia',
   'viewer.readOnly': 'Read only',
+  'viewer.report': 'Report this page',
 } as const;
 
 export const sharingFr: Record<keyof typeof sharingEn, string> = {
@@ -67,4 +68,5 @@ export const sharingFr: Record<keyof typeof sharingEn, string> = {
   'viewer.corrupt': 'Cette partition ne peut pas être affichée.',
   'viewer.madeWith': 'Créé avec Polymnia',
   'viewer.readOnly': 'Lecture seule',
+  'viewer.report': 'Signaler cette page',
 };

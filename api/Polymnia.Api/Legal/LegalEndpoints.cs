@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Polymnia.Api.Auth;
+using Polymnia.Api.Contact;
 
 namespace Polymnia.Api.Legal;
 
@@ -13,6 +14,7 @@ internal sealed record LegalResponse(
     string? HostingProvider,
     string? HostingCountry,
     int LogRetentionDays,
+    int ContactRetentionDays,
     int SessionIdleDays,
     int SessionAbsoluteDays);
 
@@ -34,9 +36,9 @@ internal static class LegalEndpoints
 
         // Public (the privacy page is read signed out) and identical for everyone: built once, cacheable.
         Lazy<LegalResponse>? cached = null;
-        endpoints.MapGet("/api/legal", (HttpContext context, IOptions<LegalOptions> legal, IOptions<AuthOptions> auth) =>
+        endpoints.MapGet("/api/legal", (HttpContext context, IOptions<LegalOptions> legal, IOptions<AuthOptions> auth, IOptions<ContactOptions> contact) =>
         {
-            cached ??= new Lazy<LegalResponse>(() => Build(legal.Value, auth.Value));
+            cached ??= new Lazy<LegalResponse>(() => Build(legal.Value, auth.Value, contact.Value));
             context.Response.Headers.CacheControl = "public, max-age=300";
             return Results.Ok(cached.Value);
         })
@@ -45,7 +47,7 @@ internal static class LegalEndpoints
         return endpoints;
     }
 
-    internal static LegalResponse Build(LegalOptions legal, AuthOptions auth)
+    internal static LegalResponse Build(LegalOptions legal, AuthOptions auth, ContactOptions contactForm)
     {
         string? operatorName = Clean(legal.OperatorName);
         string? contact = Clean(legal.Contact);
@@ -60,6 +62,7 @@ internal static class LegalEndpoints
             hosting,
             Clean(legal.HostingCountry),
             legal.LogRetentionDays,
+            contactForm.RetentionDays,
             (int)Math.Ceiling(auth.IdleTimeout.TotalDays),
             (int)Math.Ceiling(auth.AbsoluteTimeout.TotalDays));
     }

@@ -15,7 +15,7 @@ internal sealed class LegalOptions
     /// <summary>Legal name of the person or organization that runs the instance (data controller).</summary>
     public string? OperatorName { get; set; }
 
-    /// <summary>How to reach the operator about personal data: an e-mail address or an <c>https</c> URL.</summary>
+    /// <summary>How to reach the operator about personal data: an e-mail address, an <c>https</c> URL or <c>/#/contact</c> (the contact form).</summary>
     public string? Contact { get; set; }
 
     /// <summary>Optional postal address of the operator.</summary>
@@ -49,12 +49,12 @@ internal sealed class LegalOptionsValidator(IHostEnvironment environment) : IVal
         {
             if (strict)
             {
-                failures.Add("Legal:Contact is required outside Development (an e-mail address or an https URL).");
+                failures.Add("Legal:Contact is required outside Development (an e-mail address, an https URL or /#/contact).");
             }
         }
         else if (ContactKind(options.Contact) is null)
         {
-            failures.Add("Legal:Contact must be an e-mail address or an https URL, without spaces or control characters.");
+            failures.Add("Legal:Contact must be an e-mail address, an https URL or /#/contact, without spaces or control characters.");
         }
 
         if (options.LogRetentionDays is < 1 or > 3650)
@@ -65,12 +65,25 @@ internal sealed class LegalOptionsValidator(IHostEnvironment environment) : IVal
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 
-    /// <summary><c>"email"</c>, <c>"url"</c> or <c>null</c> when the value is neither. The page links it, so it is strict.</summary>
+    /// <summary>The contact form of the instance, as a path of the same site (the privacy page links to <c>#/contact</c>).</summary>
+    public const string ContactPagePath = "/#/contact";
+
+    /// <summary>
+    /// <c>"email"</c>, <c>"url"</c>, <c>"page"</c> (exactly <see cref="ContactPagePath"/>) or <c>null</c> when the value is
+    /// none of them. The page links it, so it is strict.
+    /// </summary>
     internal static string? ContactKind(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
 
         string v = value.Trim();
+
+        // The built-in contact form of this instance (docs/contact.md): the only relative value accepted.
+        if (v == ContactPagePath)
+        {
+            return "page";
+        }
+
         if (v.Length > LegalOptions.MaxFieldLength
             || v.Any(static c => char.IsControl(c) || char.IsWhiteSpace(c) || c is '<' or '>' or '"' or '\'' or '\\'))
         {

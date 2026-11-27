@@ -61,6 +61,10 @@ Le lien partagé contient le jeton dans le **fragment**. Un navigateur n'envoie 
 
 Un robot d'indexation ne voit pas non plus le fragment, et la visionneuse ajoute `<meta name="robots" content="noindex, nofollow">` tant qu'elle est affichée.
 
+### Signaler cette page
+
+Le pied de page de la visionneuse publique a un lien **Signaler cette page** vers le [formulaire de contact](contact.fr.md) (`#/contact?topic=report&page=<jeton>`), pour que quiconque trouve une partition partagée qui ne devrait pas être publique puisse le dire à l'exploitant sans qu'une adresse soit publiée. Le formulaire s'ouvre sur le sujet « Signaler une page partagée » avec le lien de la page écrit dans le message : l'expéditeur le voit et peut le modifier ou le retirer, et il est enregistré et transmis comme le reste du message (le lien ouvre la partition : il est aussi sensible que le message). Seul un jeton bien formé devient un lien. Le propriétaire révoque un lien signalé comme n'importe quel autre (**Arrêter le partage**).
+
 ## Endpoints du propriétaire
 
 Sous `/api/scores/{id}/share`. Ils exigent la session et, pour les méthodes non sûres, l'en-tête antiforgery. Une partition d'un autre utilisateur répond `404`, comme une partition inexistante. Limites : les budgets de lecture et d'écriture par utilisateur de [api.fr.md](api.fr.md).

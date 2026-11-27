@@ -14,6 +14,7 @@ import { useI18n } from '../i18n/i18n';
 import { playback } from '../playback';
 import { followPlayback } from '../playback/follow';
 import { deserialize, type Score } from '../score';
+import { reportHref } from '../route/useRoute';
 import { useShortcuts } from '../shortcuts/useShortcuts';
 import type { Shortcut } from '../shortcuts/registry';
 
@@ -216,6 +217,11 @@ export function SharedViewer({ token }: { token: string }) {
           </div>
         </main>
       )}
+
+      {/* Public pages can be reported to the operator, who never publishes an address (docs/contact.md). */}
+      <footer className="viewer-footer">
+        <a href={reportHref(token)}>{t('viewer.report')}</a>
+      </footer>
     </div>
   );
 }

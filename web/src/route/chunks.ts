@@ -31,6 +31,12 @@ export const ChordSheet = preloadable(
   (m) => m.ChordSheet,
 );
 
+/** The contact form (`#/contact`): public, its own chunk with its own text (docs/contact.md). */
+export const ContactPage = preloadable(
+  () => import('../contact/Contact'),
+  (m) => m.Contact,
+);
+
 /** The command palette and the shortcut sheet (Ctrl+K), in the library and in the editor. */
 export const CommandDialogs = preloadable(
   () => import('../editor/commands/CommandDialogs'),
@@ -57,7 +63,9 @@ export function preloadRoute(route: Route): void {
           ? ScratchEditor
           : route.name === 'shared'
             ? SharedViewer
-            : undefined;
+            : route.name === 'contact'
+              ? ContactPage
+              : undefined;
   screen?.preload().catch(() => undefined); // the lazy boundary retries and reports it
 }
 
