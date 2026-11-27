@@ -48,25 +48,28 @@ A TAB-only part is played from its TAB staff, with the written pitch derived fro
 
 Samples are short Ogg Opus excerpts, a few pitches per instrument; Tone's `Sampler` repitches the nearest one. Only the sets used by the staves of the score are downloaded, and only when you play or enter a note.
 
-| Instrument                 | Set                           | Download | Source (all CC0 1.0)                                       |
-| -------------------------- | ----------------------------- | -------- | ---------------------------------------------------------- |
-| Classical guitar           | `guitar-nylon`                | 172 KB   | FreePats, Spanish classical guitar                         |
-| Steel-string guitar        | `guitar-nylon` (**stand-in**) | same     | no permissive recording found, see below                   |
-| Ukulele (all sizes)        | `ukulele`                     | 85 KB    | FreePats, tenor ukulele                                    |
-| Cello                      | `cello`                       | 208 KB   | VSCO 2 CE, _Cello Section_ (no solo cello in the CC0 sets) |
-| Piano, unknown instruments | `piano`                       | 180 KB   | FreePats, Upright Piano KW                                 |
-| Voice                      | `flute` (**stand-in**)        | same     | no permissive recording found, see below                   |
-| Flute                      | `flute`                       | 182 KB   | VSCO 2 CE                                                  |
-| Violin                     | `violin`                      | 208 KB   | VSCO 2 CE, solo violin                                     |
-| Clarinet                   | `clarinet`                    | 164 KB   | FreePats                                                   |
-| Double bass                | `double-bass`                 | 145 KB   | VSCO 2 CE, solo contrabass                                 |
+| Instrument                 | Set            | Download (Ogg Opus / AAC) | Source (CC0 1.0 unless noted)                                     |
+| -------------------------- | -------------- | ------------------------- | ----------------------------------------------------------------- |
+| Classical guitar           | `guitar-nylon` | 172 / 214 KB              | FreePats, Spanish classical guitar                                |
+| Steel-string guitar        | `guitar-steel` | 244 / 301 KB              | Meta Open Sound, _Meta Steel Guitar_ (medium layer)               |
+| Ukulele (all sizes)        | `ukulele`      | 85 / 107 KB               | FreePats, tenor ukulele                                           |
+| Cello                      | `cello`        | 206 / 254 KB              | Karoryfer x bigcat cello, solo, sustained mf                      |
+| Piano, unknown instruments | `piano`        | 180 / 223 KB              | FreePats, Upright Piano KW                                        |
+| Voice                      | `voice`        | 128 / 158 KB              | epic-choir alto and soprano "ah" (**CC BY 4.0**, credit required) |
+| Flute                      | `flute`        | 182 / 225 KB              | VSCO 2 CE                                                         |
+| Violin                     | `violin`       | 208 / 257 KB              | VSCO 2 CE, solo violin                                            |
+| Clarinet                   | `clarinet`     | 164 / 203 KB              | FreePats                                                          |
+| Double bass                | `double-bass`  | 145 / 179 KB              | VSCO 2 CE, solo contrabass                                        |
 
-Authors, URLs and license texts are in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). The whole set is 1.34 MB in the repository.
+Authors, URLs and license texts are in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). The Ogg Opus files weigh 1.71 MB in the repository (92 files) and their AAC twins 2.12 MB; a browser downloads one of the two formats.
 
-- **Stand-ins.** The only steel-string guitar found in the FreePats collection is GPL-3.0 with an exception, which does not fit an MIT application, so it plays the nylon guitar. No permissively licensed solo voice or choir "aah" set was found, so the voice plays the flute. Baritone and low-G ukuleles reach below the recorded range (C4), the sampler transposes down. Unknown instruments play the piano. The mixer says when a stand-in is used.
-- **Licenses are a hard gate.** Never add a sample that is not CC0, CC-BY, MIT, OFL-like or similar, with the license verified at the source and recorded in `THIRD_PARTY_NOTICES.md`. General MIDI soundfonts (FluidR3, MuseScore General, the "midi-js-soundfonts" builds) were not used: their terms depend on the underlying recordings and were not worth the risk when CC0 sets cover the priority instruments.
-- **Format.** Ogg Opus, mono, 40 kbps, 3.5 to 5 s per pitch with a fade-out. Chromium and Firefox decode Ogg Opus. Safari support is recent and **was not tested on a device**; where it cannot decode it, playback reports "The sound could not start". There is no MP3/AAC fallback yet (it would need an encoder in the sample tool).
-- **Same origin, immutable.** `import.meta.glob('./samples/*/*.ogg', { query: '?url' })` makes Vite emit each file as `/assets/<Note>-<hash>.ogg` (never inlined, see `assetsInlineLimit` in `vite.config.ts`), which the API serves with `Cache-Control: immutable`. The Content-Security-Policy (`default-src 'self'`, `connect-src 'self'`) allows it. Nothing is loaded from a CDN. Tone.js starts a blob Web Worker for its clock when it loads, which `script-src 'self'` forbids: `index.ts` hides `Worker` for the instant Tone's module evaluates so that it uses a timer, and the Tone context is created with `clockSource: 'timeout'` (the scheduler does not use Tone's clock). A browser test runs the real engine under the API's policy and fails on any violation other than styles.
+- **Every catalog instrument has a recording.** The steel-string guitar and the voice were stand-ins (nylon guitar, flute) until #62. Baritone and low-G ukuleles reach below the recorded range (C4), the sampler transposes down; so does a voice part written below the choir's range (A#3 to F#5). Unknown instruments play the piano, and the mixer says so.
+- **Credits are shown in the application.** CC BY 4.0 (the voice) requires a credit, a link to the license and a notice of changes. The "About and credits" button (editor toolbar and library) and the command palette command open a dialog (`web/src/credits/`, its own lazy chunk, French and English) listing every set with its recording, author, license and source link. `credits.test.tsx` checks that every set is listed and that the list matches `THIRD_PARTY_NOTICES.md`.
+- **Licenses are a hard gate.** Never add a sample that is not CC0, CC-BY (3.0 or 4.0), MIT, BSD, OFL-like or similar, with the license verified at the source and recorded in `THIRD_PARTY_NOTICES.md`. Never CC-BY-SA, CC-BY-NC, GPL (the FreePats steel-string guitar is GPL-3.0 with an exception and was not used), "personal use" or an unclear license. General MIDI soundfonts (FluidR3, MuseScore General, the "midi-js-soundfonts" builds) were not used: their terms depend on the underlying recordings and were not worth the risk.
+- **Format.** Ogg Opus, mono, 40 kbps, 3.5 to 5 s per pitch with a fade-out. Chromium and Firefox decode Ogg Opus; Safari is handled by the fallback below.
+- **Safari and the AAC fallback.** What the sources say: Apple's WWDC25 session "What's new in Safari and WebKit" states "in Safari 19, we've added Ogg Opus and Ogg Vorbis to the list of media we support" ([video](https://developer.apple.com/videos/play/wwdc2025/233/); the release that followed WWDC25 is Safari 26, see the [WebKit announcement](https://webkit.org/blog/16993/news-from-wwdc25-web-technology-coming-this-fall-in-safari-26-beta/)); caniuse lists Ogg Vorbis as supported from Safari 18.4 and Opus as supported on iOS from 18.4 but only "partial" on desktop Safari, both for the `<audio>` element only ([Ogg Vorbis](https://caniuse.com/ogg-vorbis), [Opus](https://caniuse.com/opus)); the WebKit notes for Safari 27.0 fix "MP4 files containing Opus audio tracks could not be decoded with `decodeAudioData`" ([notes](https://webkit.org/blog/18325/webkit-features-for-safari-27-0/)). **No source states that Web Audio's `decodeAudioData` decodes Ogg Opus in Safari**, and it was not tested on a device, so the application does not guess: `sampleFormat.ts` decodes a 123-byte Ogg Opus clip once per page load (`OfflineAudioContext.decodeAudioData`) and, when that fails, loads the AAC-LC `.m4a` twin of every file instead (`sampleUrls(set, 'm4a')`). Only one format is ever downloaded; Chromium and Firefox never request an `.m4a`.
+- **Building the AAC twins.** `node scripts/samples/build-fallback.mjs [set id...]` (Windows only) decodes every shipped `.ogg` in Chromium, writes 16-bit WAV files to a temporary folder and encodes them with the Windows Media Foundation AAC encoder (`scripts/samples/aac-encode.ps1`, mono, about 48 kbps) into `<Note>.m4a` next to the `.ogg`. Chromium's WebCodecs cannot encode AAC (checked in Playwright's Chromium, Chrome and Edge) and no other AAC encoder is available to the project. The twin is therefore a second lossy generation derived from the Opus file, and `build-samples.mjs` (which wipes the set folder) must be followed by `build-fallback.mjs` for the same set. `samples.test.ts` fails when an `.ogg` has no `.m4a` twin on the same pitch and when a set goes over its budget (250 KB Ogg Opus, 310 KB AAC; the steel-string guitar is 301 KB in AAC).
+- **Same origin, immutable.** `import.meta.glob('./samples/*/*.{ogg,m4a}', { query: '?url' })` makes Vite emit each file as `/assets/<Note>-<hash>.ogg` (or `.m4a`; never inlined, see `assetsInlineLimit` in `vite.config.ts`), which the API serves with `Cache-Control: immutable`. The Content-Security-Policy (`default-src 'self'`, `connect-src 'self'`) allows it. Nothing is loaded from a CDN. Tone.js starts a blob Web Worker for its clock when it loads, which `script-src 'self'` forbids: `index.ts` hides `Worker` for the instant Tone's module evaluates so that it uses a timer, and the Tone context is created with `clockSource: 'timeout'` (the scheduler does not use Tone's clock). A browser test runs the real engine under the API's policy and fails on any violation other than styles.
 
 ### Adding an instrument
 
@@ -75,7 +78,8 @@ Authors, URLs and license texts are in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY
 3. Add an entry to `web/scripts/samples/sets.mjs` (set id, which file is which note, `seconds`, `fadeOut`, `octaveShift` if the source labels octaves differently, as VSCO does).
 4. From `web/`: `SAMPLES_SRC=<folder> node scripts/samples/build-samples.mjs <set id>`. It decodes, trims, normalizes and encodes with the Chromium of Playwright (WebCodecs), writes `src/playback/samples/<set>/<Note>.ogg` (`s` for a sharp) and prints each file's measured pitch against its label. A line flagged `CHECK PITCH` usually means the auto-detection picked a harmonic, but a deviation of about 1200 cents on every file means a wrong octave label.
 5. Add the set id to `instrumentSets.ts` (`SampleSetId`, `SAMPLE_SET_IDS`) and map the catalog ids to it; add its release time in `toneBackend.ts`; add the instrument to `web/src/score/instruments.ts` if it is not in the catalog.
-6. `npm test` (`samples.test.ts` checks every set covers its range without large holes), update the table above and `THIRD_PARTY_NOTICES.md`.
+6. `node scripts/samples/build-fallback.mjs <set id>` for the AAC twins (Windows), then add the set to `web/src/credits/content.ts` (the credits dialog).
+7. `npm test` (`samples.test.ts` checks every set covers its range without large holes, has an `.m4a` twin for each `.ogg` and stays within its budget; `credits.test.tsx` checks the credits against `THIRD_PARTY_NOTICES.md`), update the table above and `THIRD_PARTY_NOTICES.md`.
 
 ## Chord playback
 
@@ -91,21 +95,21 @@ Chord symbols (see [editor.md](editor.md#chord-symbols)) can be heard. It is an 
 
 Measured in Chromium (Windows 11 laptop, production build, local server, no network throttling; the figure is dominated by decoding and scheduling, the download is about 60 KB gzip of Tone plus the set).
 
-| What                                                   | Budget             | Measured                                               |
-| ------------------------------------------------------ | ------------------ | ------------------------------------------------------ |
-| Time to first note, cold (engine + piano set + decode) | < 3 s              | 120 to 330 ms (local)                                  |
-| Time to first note, cached                             | < 1 s              | 55 to 100 ms                                           |
-| Playback chunk (Tone.js + engine)                      | ≤ 80 KB gzip, lazy | 57.7 KB gzip, not in the initial bundle                |
-| Sample sets                                            | ≤ 3 MB in total    | 1.34 MB total, 85 to 208 KB per instrument             |
-| Initial JS                                             | ≤ 150 KB gzip      | 94.7 KB (the controller is a few KB of it)             |
-| Keystroke in note entry (100 measures)                 | < 16 ms            | about 9 ms (the preview does not rebuild the timeline) |
+| What                                                   | Budget             | Measured                                                          |
+| ------------------------------------------------------ | ------------------ | ----------------------------------------------------------------- |
+| Time to first note, cold (engine + piano set + decode) | < 3 s              | 120 to 330 ms (local)                                             |
+| Time to first note, cached                             | < 1 s              | 55 to 100 ms                                                      |
+| Playback chunk (Tone.js + engine)                      | ≤ 80 KB gzip, lazy | 57.7 KB gzip, not in the initial bundle                           |
+| Sample sets                                            | ≤ 3 MB in total    | 1.71 MB Ogg Opus (2.12 MB AAC twins), 85 to 244 KB per instrument |
+| Initial JS                                             | ≤ 150 KB gzip      | 94.7 KB (the controller is a few KB of it)                        |
+| Keystroke in note entry (100 measures)                 | < 16 ms            | about 9 ms (the preview does not rebuild the timeline)            |
 
 On a real network the first note adds the download of the Tone chunk and of the instrument (about 250 to 270 KB), a second or so on a 2 Mbit/s connection, nothing once cached (hashed files, `immutable`).
 
 ## Tests
 
 - Chords: `chordPlayback.test.ts` (voicings on guitar, ukulele and keyboard, capo, custom fingering, block and strum timelines, ordering, controller option, playhead kept), `e2e/chords.spec.ts` (the mixer option, muted by default).
-- Unit: `timeline.test.ts` (tempo and tempo changes, dots, ties incl. across barlines and per chord pitch, triplets, rests, chords, voices, several parts and staves, transposition, capo, pickup, beats), `clock.test.ts` (loop maths, mute/solo), `controller.test.ts` (scheduling times, look-ahead, pause/resume, stop, seek, play from selection, tempo, loop, metronome, mute/solo, frames, score edits, preview, audio failure), `samples.test.ts`.
-- Browser, audio mocked (`e2e/playback.spec.ts`, `window.__polymniaAudio = 'mock'`; the backend records its calls in `window.__polymniaAudioLog`): play/stop, cursor and highlight toggling, `Space`/`Home`, `Space` ignored in a text field, play from selection and loop, preview on entry, tempo and metronome, mute/solo, page scrolling.
-- Browser, real engine (`e2e/playback-audio.spec.ts`): decoding with the real samples, time to first note cold and cached, same-origin hashed files, no policy violation.
-- `npm run size` budgets the playback chunk and the sample files.
+- Unit: `timeline.test.ts` (tempo and tempo changes, dots, ties incl. across barlines and per chord pitch, triplets, rests, chords, voices, several parts and staves, transposition, capo, pickup, beats), `clock.test.ts` (loop maths, mute/solo), `controller.test.ts` (scheduling times, look-ahead, pause/resume, stop, seek, play from selection, tempo, loop, metronome, mute/solo, frames, score edits, preview, audio failure), `samples.test.ts` (coverage, AAC twins, budgets), `sampleFormat.test.ts` (Ogg Opus or AAC choice, probe, one decision per page load), `credits/credits.test.tsx` (every set credited, in step with `THIRD_PARTY_NOTICES.md`, CC BY credit, French).
+- Browser, audio mocked (`e2e/playback.spec.ts`, `window.__polymniaAudio = 'mock'`; the backend records its calls in `window.__polymniaAudioLog`): play/stop, cursor and highlight toggling, `Space`/`Home`, `Space` ignored in a text field, play from selection and loop, preview on entry, tempo and metronome, mute/solo, page scrolling, steel-string guitar / voice / cello each loading their set.
+- Browser, real engine (`e2e/playback-audio.spec.ts`): decoding with the real samples, time to first note cold and cached, same-origin hashed files, no policy violation, the steel-string guitar, voice and cello decoded for real (Ogg Opus, no `.m4a` requested). `e2e/credits.spec.ts`: the credits dialog from the toolbar and the palette, in English and French.
+- `npm run size` budgets the playback chunk and the sample files (3 MB per format, Ogg Opus and AAC separately).

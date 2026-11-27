@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { shortcuts } from '../../shortcuts/registry';
 import { CheatSheet } from './CheatSheet';
 import { CommandPalette } from './CommandPalette';
 
-export type DialogKind = 'palette' | 'sheet';
+// Credits (sample licenses) are rarely read: their own chunk, fetched when first opened.
+const CreditsDialog = lazy(() => import('../../credits/CreditsDialog'));
+
+export type DialogKind = 'palette' | 'sheet' | 'credits';
 
 interface CommandDialogsProps {
   dialog: DialogKind;
@@ -15,6 +18,13 @@ interface CommandDialogsProps {
 export default function CommandDialogs({ dialog, onClose, onOpen }: CommandDialogsProps) {
   // The registry as it is when the dialog opens.
   const [list] = useState(() => shortcuts.list());
+  if (dialog === 'credits') {
+    return (
+      <Suspense fallback={null}>
+        <CreditsDialog onClose={onClose} />
+      </Suspense>
+    );
+  }
   return dialog === 'palette' ? (
     <CommandPalette list={list} onClose={onClose} />
   ) : (

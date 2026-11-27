@@ -258,6 +258,13 @@ export function EditorLayout({
       handler: () => setDialog('sheet'),
     },
     {
+      id: 'app.credits',
+      keys: '',
+      labelKey: 'shortcut.credits',
+      group: 'help',
+      handler: () => setDialog('credits'),
+    },
+    {
       id: 'view.focus',
       keys: 'Alt+F',
       labelKey: 'shortcut.focusMode',
@@ -420,6 +427,7 @@ export function EditorLayout({
     >
       <TopBar
         onOpenPalette={() => setDialog('palette')}
+        onOpenCredits={() => setDialog('credits')}
         onToggleFocus={() => setFocus(true)}
         title={title}
         onTitleChange={setTitle}

@@ -126,6 +126,13 @@ export function Library() {
       handler: () => setPalette('sheet'),
     },
     {
+      id: 'app.credits',
+      keys: '',
+      labelKey: 'shortcut.credits',
+      group: 'help',
+      handler: () => setPalette('credits'),
+    },
+    {
       id: 'library.new',
       keys: 'N',
       labelKey: 'shortcut.newScore',
@@ -283,6 +290,16 @@ export function Library() {
             onClick={() => setPalette('palette')}
           >
             <span aria-hidden="true">⌘</span>
+          </button>
+          <button
+            type="button"
+            className="btn ghost icon"
+            aria-label={t('shortcut.credits')}
+            title={t('shortcut.credits')}
+            aria-haspopup="dialog"
+            onClick={() => setPalette('credits')}
+          >
+            <Icon name="info" />
           </button>
           <AccountMenu />
           <LanguageSwitch />

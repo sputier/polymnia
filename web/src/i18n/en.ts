@@ -189,6 +189,7 @@ export const en = {
   'command.durationWhole': 'Duration: whole',
   'shortcut.palette': 'Open the command palette',
   'shortcut.cheatSheet': 'Show the keyboard shortcuts',
+  'shortcut.credits': 'About and credits',
   'shortcut.focusMode': 'Focus mode: hide everything but the score',
   'shortcut.togglePiano': 'Show or hide the on-screen piano',
   'piano.label': 'On-screen piano',
