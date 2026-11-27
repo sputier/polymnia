@@ -18,7 +18,7 @@ Code : `web/src/library/` (écran), `web/src/persistence/` (enregistrement autom
 | Nouvelle partition | `N` ou le bouton. La boîte demande le titre, les instruments (guitares, ukulélés, violoncelle et piano d'abord, puis le reste du catalogue), la tonalité, la métrique et le tempo, crée la partition avec `POST /api/scores` et l'ouvre. |
 | Renommer           | Une boîte, puis `PATCH` avec `If-Match`. Si la partition a changé entre-temps (409), la liste est relue.                                                                                                                                 |
 | Dupliquer          | `POST /api/scores/{id}/duplicate` ; la copie apparaît en premier.                                                                                                                                                                        |
-| Partager           | Ouvre un texte provisoire. Le partage est réalisé par sa propre issue.                                                                                                                                                                   |
+| Partager           | Ouvre le dialogue de partage : créer, copier, régénérer ou révoquer le lien en lecture seule, et télécharger une copie. Voir [sharing.fr.md](sharing.fr.md). |
 | État vide          | Un message et un bouton « Nouvelle partition » ; un autre message quand la recherche ne trouve rien.                                                                                                                                     |
 
 ### Clavier

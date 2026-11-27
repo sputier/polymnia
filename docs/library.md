@@ -18,7 +18,7 @@ Code: `web/src/library/` (screen), `web/src/persistence/` (autosave), `web/src/a
 | New score    | `N` or the button. The dialog asks for the title, the instruments (guitars, ukuleles, cello and piano first, then the rest of the catalog), the key, the time signature and the tempo, creates the score with `POST /api/scores` and opens it. |
 | Rename       | A dialog, then `PATCH` with `If-Match`. If the score changed meanwhile (409) the list is read again.                                                                                                                                           |
 | Duplicate    | `POST /api/scores/{id}/duplicate`; the copy appears first.                                                                                                                                                                                     |
-| Share        | Opens a placeholder. Sharing is implemented by its own issue.                                                                                                                                                                                  |
+| Share        | Opens the share dialog: create, copy, regenerate or revoke the read-only link, and download a copy. See [sharing.md](sharing.md). |
 | Empty state  | A message and a "New score" button; a different message when a search finds nothing.                                                                                                                                                           |
 
 ### Keyboard
