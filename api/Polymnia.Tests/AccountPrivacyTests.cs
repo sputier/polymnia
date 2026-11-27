@@ -17,6 +17,11 @@ using Polymnia.Infrastructure;
 namespace Polymnia.Tests;
 
 /// <summary>Account deletion and data export (GDPR, docs/privacy.md) against a real PostgreSQL.</summary>
+/// <summary>Runs alone (no other test class in parallel): the export test measures the process heap.</summary>
+[CollectionDefinition("Account privacy (serial)", DisableParallelization = true)]
+public sealed class AccountPrivacySerialGroup;
+
+[Collection("Account privacy (serial)")]
 public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture<ScoreApiFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -64,6 +69,18 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         return (long)(await command.ExecuteScalarAsync(Ct))!;
     }
 
+    // A share link on every score of the owner.
+    private async Task AddShareLinksAsync(Guid owner)
+    {
+        await using var connection = new NpgsqlConnection(fixture.Postgres.ConnectionString);
+        await connection.OpenAsync(Ct);
+        await using var command = new NpgsqlCommand(
+            "INSERT INTO share_links (id, score_id, token_hash, created_at) SELECT gen_random_uuid(), id, sha256(convert_to(id::text, 'UTF8')), now() FROM scores WHERE owner_id = @o",
+            connection);
+        command.Parameters.AddWithValue("o", owner);
+        await command.ExecuteNonQueryAsync(Ct);
+    }
+
     // ---- deletion -------------------------------------------------------------------------------------------
 
     [Fact]
@@ -75,6 +92,8 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         Guid adaId = await MeAsync(ada);
         Guid bobId = await MeAsync(bob);
         await CreateScoresAsync(ada, 3);
+        await AddShareLinksAsync(adaId);
+        Assert.Equal(3L, await CountAsync("SELECT count(*) FROM share_links l JOIN scores s ON s.id = l.score_id WHERE s.owner_id = @id", ("id", adaId)));
         await CreateScoresAsync(bob, 2);
         app.Logs.Clear();
 
@@ -88,6 +107,7 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         // Every table that references the user is empty for them (discovered from the catalog, so a table added
         // later is covered too), and the user row itself is gone.
         Assert.Equal(0L, await CountAsync("SELECT count(*) FROM users WHERE id = @id", ("id", adaId)));
+        Assert.Equal(0L, await CountAsync("SELECT count(*) FROM share_links WHERE score_id NOT IN (SELECT id FROM scores)"));
         foreach ((string table, string column) in await ReferencingColumnsAsync())
         {
             Assert.Equal(0L, await CountAsync($"SELECT count(*) FROM \"{table}\" WHERE \"{column}\" = @id", ("id", adaId)));
@@ -314,6 +334,7 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
             adaScores.Add((await created.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid());
         }
 
+        await AddShareLinksAsync(adaId);
         JsonNode bobDoc = JsonNode.Parse(Small)!;
         bobDoc["meta"]!["title"] = "Bob private score";
         using (HttpResponseMessage created = await bob.PostAsync("/api/scores", Json(bobDoc.ToJsonString()), Ct))
@@ -363,6 +384,8 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         Assert.DoesNotContain("ticket", all, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(AuthDefaults.SessionCookieName, all, StringComparison.Ordinal);
         Assert.Single(profile["account"]!["sessions"]!.AsArray());
+        Assert.Equal(3, profile["account"]!["shareLinks"]!.AsArray().Count);
+        Assert.DoesNotContain("tokenHash", all, StringComparison.OrdinalIgnoreCase);
 
         LogCapture.LogEntry audit = Assert.Single(app.Logs.Entries, e => e.EventId.Name == "AuthDataExported");
         Assert.Contains(adaId.ToString(), audit.Message, StringComparison.Ordinal);

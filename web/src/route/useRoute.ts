@@ -10,7 +10,6 @@ export type Route =
   | { readonly name: 'score'; readonly id: string }
   | { readonly name: 'shared'; readonly token: string }
   | { readonly name: 'privacy' };
-  | { readonly name: 'privacy' }
 
 // Hash routing: three screens do not justify a router dependency.
 function read(): string {

@@ -37,9 +37,16 @@ public sealed class AccountStore(PolymniaDbContext db, TimeProvider time)
             .Select(s => new SessionInfo(s.CreatedAt, s.ExpiresAt, s.AbsoluteExpiresAt))
             .ToListAsync(cancellationToken);
 
+        List<ShareLinkInfo> shareLinks = await db.ShareLinks
+            .AsNoTracking()
+            .Where(l => db.Scores.Any(s => s.Id == l.ScoreId && s.OwnerId == userId))
+            .OrderBy(l => l.CreatedAt)
+            .Select(l => new ShareLinkInfo(l.ScoreId, l.CreatedAt, l.RevokedAt))
+            .ToListAsync(cancellationToken);
+
         return new AccountProfile(
             user.Id, user.GoogleSubject, user.DisplayName, user.AvatarUrl, user.PreferredLanguage,
-            user.CreatedAt, user.LastSeenAt, sessions);
+            user.CreatedAt, user.LastSeenAt, sessions, shareLinks);
     }
 
     /// <summary>The user's scores, without content. The number is bounded by <c>Scores:MaxScoresPerUser</c>.</summary>

@@ -12,7 +12,11 @@ public sealed record AccountProfile(
     string? PreferredLanguage,
     DateTimeOffset CreatedAt,
     DateTimeOffset LastSeenAt,
-    IReadOnlyList<SessionInfo> Sessions);
+    IReadOnlyList<SessionInfo> Sessions,
+    IReadOnlyList<ShareLinkInfo> ShareLinks);
+
+/// <summary>A share link of one of the user's scores, as listed in the export: dates only, never the token or its hash.</summary>
+public sealed record ShareLinkInfo(Guid ScoreId, DateTimeOffset CreatedAt, DateTimeOffset? RevokedAt);
 
 /// <summary>Metadata of one score of the export (the content is streamed separately).</summary>
 public sealed record ScoreExportRow(
