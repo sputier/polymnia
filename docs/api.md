@@ -56,7 +56,7 @@ The schema file is embedded in the API assembly. Generic JSON Schema libraries t
 | Page size | 100 |
 | Search text `q` | 100 characters |
 
-Reads (list, get): 600 per minute and per user (`RateLimiting:ScoreWrites:ReadPermitLimit`). Over a budget: `429` with `Retry-After` (seconds). At most 16 writes run at the same time, all users together (`MaxConcurrentWrites`).
+Reads (list, get): 600 per minute and per user (`RateLimiting:ScoreWrites:ReadPermitLimit`). Over a budget: `429` with `Retry-After` (seconds). At most 16 writes run at the same time, all users together (`MaxConcurrentWrites`), and one user has at most 2 writes and 4 reads in flight. A body not received within 15 s gets `408`; a response not read within 20 s is cut.
 
 ## Errors
 

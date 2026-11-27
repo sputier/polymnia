@@ -539,7 +539,7 @@ public sealed class ScoreApiTests(ScoreApiFixture fixture) : IClassFixture<Score
             client.SendAsync(Req(HttpMethod.Put, $"/api/scores/{id}", Json(WithTitle("race " + i)), etag), Ct)));
 
         Assert.Single(results, r => r.StatusCode == HttpStatusCode.OK);
-        Assert.Equal(5, results.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+        Assert.Equal(5, results.Count(r => r.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.TooManyRequests));
         foreach (HttpResponseMessage r in results)
         {
             r.Dispose();

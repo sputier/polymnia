@@ -56,7 +56,7 @@ Le fichier de schéma est embarqué dans l'assembly de l'API. Les bibliothèques
 | Taille de page | 100 |
 | Texte de recherche `q` | 100 caractères |
 
-Lectures (liste, get) : 600 par minute et par utilisateur (`RateLimiting:ScoreWrites:ReadPermitLimit`). Au-delà d'un budget : `429` avec `Retry-After` (secondes). Au plus 16 écritures simultanées, tous utilisateurs confondus (`MaxConcurrentWrites`).
+Lectures (liste, get) : 600 par minute et par utilisateur (`RateLimiting:ScoreWrites:ReadPermitLimit`). Au-delà d'un budget : `429` avec `Retry-After` (secondes). Au plus 16 écritures simultanées, tous utilisateurs confondus (`MaxConcurrentWrites`), et un utilisateur a au plus 2 écritures et 4 lectures en cours. Un corps non reçu en 15 s reçoit `408` ; une réponse non lue en 20 s est coupée.
 
 ## Erreurs
 

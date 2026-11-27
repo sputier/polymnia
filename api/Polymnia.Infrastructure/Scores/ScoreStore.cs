@@ -86,24 +86,42 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
         }
         catch
         {
-            await ReleaseAsync(reader, command);
+            try
+            {
+                await ReleaseAsync(reader, command);
+            }
+            catch (Exception releaseError) when (releaseError is not OperationCanceledException)
+            {
+                // Keep the original exception.
+            }
+
             throw;
         }
     }
 
     private async ValueTask ReleaseAsync(System.Data.Common.DbDataReader? reader, NpgsqlCommand? command)
     {
-        if (reader is not null)
+        try
         {
-            await reader.DisposeAsync();
+            try
+            {
+                if (reader is not null)
+                {
+                    await reader.DisposeAsync();
+                }
+            }
+            finally
+            {
+                if (command is not null)
+                {
+                    await command.DisposeAsync();
+                }
+            }
         }
-
-        if (command is not null)
+        finally
         {
-            await command.DisposeAsync();
+            await db.Database.CloseConnectionAsync();
         }
-
-        await db.Database.CloseConnectionAsync();
     }
 
     private sealed class Lease(ScoreStore store, System.Data.Common.DbDataReader reader, NpgsqlCommand command) : IAsyncDisposable

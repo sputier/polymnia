@@ -136,8 +136,11 @@ internal static class ScoreEndpoints
         // Streamed straight from the database; the lease releases the connection when the body is written.
         await using (content.Lease)
         {
+            // A slow reader must not hold a database connection for long.
+            using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            deadline.CancelAfter(TimeSpan.FromSeconds(20));
             context.Response.ContentType = MediaTypeNames.Application.Json;
-            await content.Body.CopyToAsync(context.Response.Body, ct);
+            await content.Body.CopyToAsync(context.Response.Body, deadline.Token);
         }
 
         return Results.Empty;
@@ -253,6 +256,10 @@ internal static class ScoreEndpoints
         try
         {
             body = await BoundedBody.ReadAsync(context, ct);
+        }
+        catch (TimeoutException)
+        {
+            return (null, Problem(StatusCodes.Status408RequestTimeout, "Request timeout", "The request body was not received in time."));
         }
         catch (InvalidDataException)
         {

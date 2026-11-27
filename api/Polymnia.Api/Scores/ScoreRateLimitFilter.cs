@@ -11,7 +11,21 @@ internal sealed class ScoreRateLimiters
     {
         Writes = Create(options.PermitLimit, options.WindowSeconds);
         Reads = Create(options.ReadPermitLimit, options.WindowSeconds);
+        WriteConcurrency = Concurrent(2);
+        ReadConcurrency = Concurrent(4);
     }
+
+    /// <summary>Requests of one user running at the same time (a slow client must not pin connections or buffers).</summary>
+    public PartitionedRateLimiter<Guid> WriteConcurrency { get; }
+
+    public PartitionedRateLimiter<Guid> ReadConcurrency { get; }
+
+    private static PartitionedRateLimiter<Guid> Concurrent(int permits) =>
+        PartitionedRateLimiter.Create<Guid, Guid>(user => RateLimitPartition.GetConcurrencyLimiter(user, _ => new ConcurrencyLimiterOptions
+        {
+            PermitLimit = permits,
+            QueueLimit = 0,
+        }));
 
     public PartitionedRateLimiter<Guid> Writes { get; }
 
@@ -48,7 +62,11 @@ internal abstract class ScoreRateLimitFilter(bool writes) : IEndpointFilter
         using RateLimitLease lease = await (writes ? limiters.Writes : limiters.Reads).AcquireAsync(user, 1, http.RequestAborted);
         if (lease.IsAcquired)
         {
-            return await next(context);
+            using RateLimitLease running = await (writes ? limiters.WriteConcurrency : limiters.ReadConcurrency).AcquireAsync(user, 1, http.RequestAborted);
+            if (running.IsAcquired)
+            {
+                return await next(context);
+            }
         }
 
         int retryAfter = lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan delay)
