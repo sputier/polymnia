@@ -192,6 +192,7 @@ export const fr: Messages = {
   'command.durationWhole': 'Durée : ronde',
   'shortcut.palette': 'Ouvrir la palette de commandes',
   'shortcut.cheatSheet': 'Afficher les raccourcis clavier',
+  'shortcut.credits': 'À propos et crédits',
   'shortcut.focusMode': 'Mode focus : masquer tout sauf la partition',
   'shortcut.togglePiano': 'Afficher ou masquer le piano à l’écran',
   'piano.label': 'Piano à l’écran',

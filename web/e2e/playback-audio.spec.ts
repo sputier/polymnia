@@ -97,3 +97,40 @@ test('plays with the real audio engine, cold then cached', { tag: '@perf' }, asy
       `${sampleRequests.length > 0 ? sampleRequests.slice(0, before).length : 0} sample files`,
   );
 });
+
+test('decodes the steel-string guitar, voice and solo cello recordings (Ogg Opus, no fallback)', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const requests: string[] = [];
+  page.on('response', (response) => {
+    if (/\.(ogg|m4a)$/.test(response.url())) requests.push(new URL(response.url()).pathname);
+  });
+  await mockSignedIn(page);
+  await page.goto('/#/editor');
+  await expect(page.locator('svg.pm-score')).toBeVisible();
+  await page.waitForFunction(() => !!(window as unknown as { __polymnia?: Hook }).__polymnia);
+  await page.evaluate(() => {
+    const { store } = (
+      window as unknown as {
+        __polymnia: {
+          store: {
+            addPart(id: string, o: { layout: string }): void;
+            removePart(id: string): void;
+            getState(): { score: { parts: { id: string }[] } };
+          };
+        };
+      }
+    ).__polymnia;
+    for (const id of ['guitar-steel', 'voice', 'cello']) store.addPart(id, { layout: 'standard' });
+    store.removePart(store.getState().score.parts[0]!.id);
+  });
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect.poll(async () => (await hook(page)).startMs, { timeout: 15_000 }).toBeGreaterThan(0);
+  const state = await hook(page);
+  expect(state.error).toBeNull();
+  expect(state.status).toBe('playing');
+  // Chromium decodes Ogg Opus: the AAC twins are never downloaded. 10 + 7 + 10 recordings.
+  expect(requests.filter((r) => r.endsWith('.m4a'))).toEqual([]);
+  expect(requests.filter((r) => r.endsWith('.ogg')).length).toBe(27);
+});

@@ -46,14 +46,46 @@ export const SETS = [
   },
   {
     id: 'cello',
-    octaveShift: 1,
+    octaveShift: 1, // the source labels C2 as C1
     seconds: 4,
     fadeOut: 0.6,
     files: map(
       'cello',
-      ['B1', 'E1', 'A2', 'D2', 'G3', 'C3', 'F4', 'B3', 'E3', 'D4'],
-      (n) => `susvib_${n}_v1_1.wav`,
+      ['C1', 'Eb1', 'A1', 'Eb2', 'A2', 'Eb3', 'A3', 'Eb4', 'A4', 'C5'],
+      (n) => `${n}_mf_d.wav`,
     ),
+  },
+  {
+    id: 'guitar-steel',
+    seconds: 5,
+    fadeOut: 0.8,
+    files: {
+      E2: 'steel/s/INSGuitarSteel_StringLowE_Vel02_E2_01.wav',
+      A2: 'steel/s/INSGuitarSteel_StringA_Vel02_A2_01.wav',
+      D3: 'steel/s/INSGuitarSteel_StringD_Vel02_D3_01.wav',
+      G3: 'steel/s/INSGuitarSteel_StringG_Vel02_G3_01.wav',
+      B3: 'steel/s/INSGuitarSteel_StringB_Vel02_B3_01.wav',
+      E4: 'steel/s/INSGuitarSteel_StringHighE_Vel02_E4_01.wav',
+      A4: 'steel/s/INSGuitarSteel_StringHighE_Vel02_A4_01.wav',
+      D5: 'steel/s/INSGuitarSteel_StringHighE_Vel02_D5_01.wav',
+      G5: 'steel/s/INSGuitarSteel_StringHighE_Vel02_G5_01.wav',
+      C6: 'steel/s/INSGuitarSteel_StringHighE_Vel02_C6_01.wav',
+    },
+  },
+  {
+    id: 'voice',
+    seconds: 3.5,
+    fadeOut: 0.5,
+    // epic-choir (CC BY 4.0): alto section "ah" at mf, soprano section for the top note.
+    files: {
+      'A#3': 'choir/x/samples/A/A_ah_mf_As3.wav',
+      E4: 'choir/x/samples/A/A_ah_mf_E4.wav',
+      'F#4': 'choir/x/samples/A/A_ah_mf_Fs4.wav',
+      'A#4': 'choir/x/samples/A/A_ah_mf_As4.wav',
+      C5: 'choir/x/samples/A/A_ah_mf_C5.wav',
+      E5: 'choir/x/samples/A/A_ah_mf_E5.wav',
+      'F#5': 'choir/x/samples/S/S_ah_mf_Fs5.wav',
+    },
   },
   {
     id: 'violin',

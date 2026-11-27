@@ -22,6 +22,7 @@ interface TopBarProps {
   rightOpen: boolean;
   onToggleRight: () => void;
   onOpenPalette: () => void;
+  onOpenCredits: () => void;
   onToggleFocus: () => void;
   onExport: (format: ExportFormat) => void;
   onImportFile: (file: File) => void;
@@ -106,6 +107,16 @@ export function TopBar(props: TopBarProps) {
         <span className="lbl">{t('editor.share')}</span>
       </button>
       <ExportMenu onExport={props.onExport} />
+      <button
+        type="button"
+        className="btn ghost icon"
+        aria-label={t('shortcut.credits')}
+        title={t('shortcut.credits')}
+        aria-haspopup="dialog"
+        onClick={props.onOpenCredits}
+      >
+        <Icon name="info" />
+      </button>
       <ThemeSwitch />
       <LanguageSwitch />
       <AccountMenu />

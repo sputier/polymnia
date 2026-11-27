@@ -16,18 +16,21 @@ import {
 } from 'tone';
 import type { AudioBackend } from './backend';
 import type { SampleSetId } from './instrumentSets';
+import { detectSampleFormat } from './sampleFormat';
 import { sampleUrls } from './sampleUrls';
 
 /** Plucked and struck instruments ring after the note ends; bowed and blown ones stop quickly. */
 const RELEASE: Record<SampleSetId, number> = {
   piano: 0.6,
   'guitar-nylon': 0.7,
+  'guitar-steel': 0.7,
   ukulele: 0.5,
   clarinet: 0.15,
   cello: 0.25,
   violin: 0.25,
   'double-bass': 0.25,
   flute: 0.15,
+  voice: 0.4,
 };
 
 type Buffers = Record<number, ToneAudioBuffer>;
@@ -71,14 +74,19 @@ export class ToneBackend implements AudioBackend {
   private load(set: SampleSetId): Promise<Buffers> {
     let promise = this.loading.get(set);
     if (!promise) {
-      const entries = Object.entries(sampleUrls(set));
-      promise = Promise.all(
-        entries.map(async ([midi, url]) => [midi, await ToneAudioBuffer.fromUrl(url)] as const),
-      ).then((list) => {
-        const buffers = Object.fromEntries(list);
-        this.loaded.set(set, buffers);
-        return buffers;
-      });
+      // Ogg Opus where the browser decodes it, the AAC twin of each file otherwise (decided once).
+      promise = detectSampleFormat()
+        .then((format) => Object.entries(sampleUrls(set, format)))
+        .then((entries) =>
+          Promise.all(
+            entries.map(async ([midi, url]) => [midi, await ToneAudioBuffer.fromUrl(url)] as const),
+          ),
+        )
+        .then((list) => {
+          const buffers = Object.fromEntries(list);
+          this.loaded.set(set, buffers);
+          return buffers;
+        });
       // A failed download can be retried by the next play.
       promise.catch(() => this.loading.delete(set));
       this.loading.set(set, promise);

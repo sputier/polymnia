@@ -15,7 +15,7 @@ const EDITOR_BUDGET_KB = 200; // gzip, the chunk that holds VexFlow (#33)
 const PLAYBACK_BUDGET_KB = 80; // gzip, the chunk that holds Tone.js (#10)
 const EXPORT_BUDGET_KB = 70; // gzip, the chunk with MIDI, PDF and PNG export (#14)
 const TEXT_BLOCK_BUDGET_KB = 40; // gzip, each lazy Inter outline table of the PDF export (#47), fetched on demand
-const SAMPLES_BUDGET_KB = 3000; // all sample files together, as served (Ogg Opus)
+const SAMPLES_BUDGET_KB = 3000; // all sample files of one format together, as served (Ogg Opus; AAC twin on its own)
 const BRAVURA_BUDGET_KB = 250; // woff2 bytes as served (1 KB = 1000 bytes)
 const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
@@ -94,15 +94,21 @@ for (const f of bravura) {
     );
 }
 
-const samples = files.filter((f) => f.endsWith('.ogg'));
-const samplesKb = samples.reduce((sum, f) => sum + statSync(join(assets, f)).size / 1000, 0);
-console.log(
-  `  samples ${samples.length} files, ${samplesKb.toFixed(0)} KB (budget ${SAMPLES_BUDGET_KB} KB)`,
-);
-if (samples.length === 0)
-  fail('No .ogg sample in assets: the samples must be separate hashed files.');
-if (samplesKb > SAMPLES_BUDGET_KB)
-  fail(`Samples over budget by ${(samplesKb - SAMPLES_BUDGET_KB).toFixed(0)} KB.`);
+// Each format is budgeted on its own: a browser downloads one of them (Ogg Opus, or AAC where Opus cannot be decoded).
+for (const [ext, label] of [
+  ['.ogg', 'Ogg Opus'],
+  ['.m4a', 'AAC fallback'],
+]) {
+  const samples = files.filter((f) => f.endsWith(ext));
+  const samplesKb = samples.reduce((sum, f) => sum + statSync(join(assets, f)).size / 1000, 0);
+  console.log(
+    `  samples ${label}: ${samples.length} files, ${samplesKb.toFixed(0)} KB (budget ${SAMPLES_BUDGET_KB} KB)`,
+  );
+  if (samples.length === 0)
+    fail(`No ${ext} sample in assets: the samples must be separate hashed files.`);
+  if (samplesKb > SAMPLES_BUDGET_KB)
+    fail(`${label} samples over budget by ${(samplesKb - SAMPLES_BUDGET_KB).toFixed(0)} KB.`);
+}
 
 const css = files
   .filter((f) => f.endsWith('.css'))

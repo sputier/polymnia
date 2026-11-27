@@ -17,6 +17,9 @@ interface PlaybackHook {
   setTempoScale(scale: number): void;
   lastStartMs: number;
 }
+interface Store {
+  addPart(instrument: string, options: { layout: 'standard' | 'tab' | 'both' }): void;
+}
 type W = Window & {
   __polymnia: { playback: PlaybackHook };
   __polymniaAudioLog: AudioLog;
@@ -161,6 +164,23 @@ test.describe('playback', () => {
     await expect
       .poll(() => page.evaluate(() => (window as unknown as W).__polymniaAudioLog?.sets))
       .toContain('piano');
+  });
+
+  test('steel-string guitar, voice and solo cello each load their own recordings', async ({
+    page,
+  }) => {
+    await openEditor(page);
+    await page.evaluate(() => {
+      const { store } = (window as unknown as { __polymnia: { store: Store } }).__polymnia;
+      for (const id of ['guitar-steel', 'voice', 'cello'])
+        store.addPart(id, { layout: 'standard' });
+    });
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect.poll(() => status(page)).toBe('playing');
+    const sets = await page.evaluate(() => (window as unknown as W).__polymniaAudioLog.sets);
+    expect(sets).toEqual(expect.arrayContaining(['piano', 'guitar-steel', 'voice', 'cello']));
+    // No "played with another instrument" notice: all of them have a recording.
+    await expect(page.getByText(/no recording, played with/)).toHaveCount(0);
   });
 
   test('tempo control slows the playback down and the metronome clicks', async ({ page }) => {
