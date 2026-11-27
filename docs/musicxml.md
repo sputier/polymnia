@@ -65,7 +65,7 @@ The file is untrusted. In order:
 
 ## Performance
 
-Budget: import and export of a 500-measure score under 500 ms each. Measured in Chromium by `e2e/musicxml-perf.spec.ts` (500 measures, 2 staves, from picking the file to the confirmation dialog, and from the menu click to the download): import about 325 ms, export about 100 ms. The unit tests (jsdom, a JavaScript XML parser several times slower than a browser) measure on 500 measures and 4 staves (1 MB of XML) export 7 ms, export `.mxl` 18 ms, import about 260 ms, and only guard against regressions (2 s).
+Budget: import and export of a 500-measure score under 500 ms each. Measured in Chromium by `e2e/musicxml-perf.spec.ts` (500 measures, 2 staves) with User Timing marks around the MusicXML code: import about 23 ms, export about 4 ms (about 325 ms and 110 ms wall clock including the file hand-off, the dialog and the download). The unit tests (jsdom, a JavaScript XML parser several times slower than a browser) measure on 500 measures and 4 staves (1 MB of XML) export 7 ms, export `.mxl` 18 ms, import about 260 ms, and only guard against regressions (2 s).
 
 ## Tests
 

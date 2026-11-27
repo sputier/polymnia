@@ -35,6 +35,20 @@ function download(bytes: Uint8Array<ArrayBuffer>, mime: string, name: string): v
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Runs `fn` and records a User Timing measure (read by the browser performance test). */
+function timed<T>(name: string, fn: () => T): T {
+  const start = performance.now();
+  try {
+    return fn();
+  } finally {
+    try {
+      performance.measure(name, { start, end: performance.now() });
+    } catch {
+      // User Timing unavailable: nothing to record.
+    }
+  }
+}
+
 function hasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes('Files');
 }
@@ -74,7 +88,9 @@ export function useMusicXmlIO(
         try {
           const { exportMusicXml } = await import('../musicxml');
           const score = store.getState().score;
-          const file = exportMusicXml({ ...score, meta: { ...score.meta, title } }, format);
+          const file = timed('musicxml:export', () =>
+            exportMusicXml({ ...score, meta: { ...score.meta, title } }, format),
+          );
           const name = `${fileSlug(title)}.${file.extension}`;
           download(file.bytes, file.mime, name);
           setMessage(t('io.exported').replace('{name}', name));
@@ -97,7 +113,7 @@ export function useMusicXmlIO(
             file.arrayBuffer(),
           ]);
           try {
-            const result = importMusicXml(new Uint8Array(buffer));
+            const result = timed('musicxml:import', () => importMusicXml(new Uint8Array(buffer)));
             setMessage('');
             setDialog({ kind: 'confirm', file: file.name.slice(0, 80), result });
           } catch (error) {

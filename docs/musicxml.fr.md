@@ -65,7 +65,7 @@ Fichier de 20 Mo, XML de 20 Mo, 100 entrées d'archive, 1,5 M de balises, 2000 m
 
 ## Performance
 
-Budget : import et export d'une partition de 500 mesures en moins de 500 ms chacun. Mesuré dans Chromium par `e2e/musicxml-perf.spec.ts` (500 mesures, 2 portées, du choix du fichier au dialogue de confirmation, et du clic de menu au téléchargement) : import environ 325 ms, export environ 100 ms. Les tests unitaires (jsdom, un analyseur XML en JavaScript plusieurs fois plus lent qu'un navigateur) mesurent sur 500 mesures et 4 portées (1 Mo de XML) un export de 7 ms, un export `.mxl` de 18 ms, un import d'environ 260 ms, et ne servent qu'à détecter les régressions (2 s).
+Budget : import et export d'une partition de 500 mesures en moins de 500 ms chacun. Mesuré dans Chromium par `e2e/musicxml-perf.spec.ts` (500 mesures, 2 portées) avec des marques User Timing autour du code MusicXML : import environ 23 ms, export environ 4 ms (environ 325 ms et 110 ms en temps réel, transfert du fichier, dialogue et téléchargement compris). Les tests unitaires (jsdom, un analyseur XML en JavaScript plusieurs fois plus lent qu'un navigateur) mesurent sur 500 mesures et 4 portées (1 Mo de XML) un export de 7 ms, un export `.mxl` de 18 ms, un import d'environ 260 ms, et ne servent qu'à détecter les régressions (2 s).
 
 ## Tests
 
