@@ -22,8 +22,16 @@ export const MARGIN_X = 48;
 const MARGIN_TOP = 48;
 const MARGIN_BOTTOM = 52;
 const TITLE_BLOCK = 58;
-/** Engraving px to points: a staff space (10 px) becomes 6 pt, about 2.1 mm, a usual printed size. */
-const BASE_SCALE = 0.6;
+/** Printed staff space (distance between two staff lines) in millimetres: usual for A4 scores. */
+export const DEFAULT_STAFF_SPACE_MM = 1.75;
+/** A staff space is 10 engraving px. */
+const STAFF_SPACE_PX = 10;
+const MM_TO_PT = 72 / 25.4;
+
+/** Engraving px to points for a printed staff space. */
+export function printScale(staffSpaceMm: number = DEFAULT_STAFF_SPACE_MM): number {
+  return (staffSpaceMm * MM_TO_PT) / STAFF_SPACE_PX;
+}
 
 export interface Page {
   readonly width: number;
@@ -39,16 +47,37 @@ export interface PagePlan {
   readonly layout: Layout;
 }
 
+/** Height available for systems on a page, in points. */
+function bodyRoom(paper: Paper, firstPage: boolean): number {
+  return PAPER_SIZES[paper].height - MARGIN_TOP - MARGIN_BOTTOM - (firstPage ? TITLE_BLOCK : 0);
+}
+
+/** Largest extra distance (points) added between two systems to fill a page. */
+const MAX_SYSTEM_SPREAD = 24;
+
+/**
+ * Extra distance between the systems of page `index`: a page that is not the last one spreads its
+ * leftover height evenly so it looks filled, within a limit; the last page keeps the natural
+ * distance. Pure.
+ */
+export function systemSpread(plan: PagePlan, index: number): number {
+  const systems = plan.pages[index]!;
+  if (index === plan.pages.length - 1 || systems.length < 2) return 0;
+  const first = plan.layout.systems[systems[0]!]!;
+  const last = plan.layout.systems[systems[systems.length - 1]!]!;
+  const used = (last.y + last.height - first.y) * plan.scale;
+  const left = bodyRoom(plan.paper, index === 0) - used;
+  return Math.max(0, Math.min(MAX_SYSTEM_SPREAD, left / (systems.length - 1)));
+}
+
 /** Cuts `layout` into pages: greedy, a system never splits. Pure. */
 export function planPages(layout: Layout, paper: Paper, scale: number): number[][] {
-  const { height } = PAPER_SIZES[paper];
-  const body = height - MARGIN_TOP - MARGIN_BOTTOM;
   const pages: number[][] = [];
   let current: number[] = [];
   let first = 0;
   for (const system of layout.systems) {
     const used = (system.y + system.height - first) * scale;
-    const room = body - (pages.length === 0 ? TITLE_BLOCK : 0);
+    const room = bodyRoom(paper, pages.length === 0);
     if (current.length > 0 && used > room) {
       pages.push(current);
       current = [];
@@ -65,10 +94,14 @@ export function planPages(layout: Layout, paper: Paper, scale: number): number[]
 export function printGeometry(
   paper: Paper,
   tallestSystem: number,
+  staffSpaceMm: number = DEFAULT_STAFF_SPACE_MM,
 ): { scale: number; width: number } {
   const { width, height } = PAPER_SIZES[paper];
   const body = height - MARGIN_TOP - MARGIN_BOTTOM - TITLE_BLOCK;
-  const scale = tallestSystem > 0 ? Math.min(BASE_SCALE, body / tallestSystem) : BASE_SCALE;
+  const scale =
+    tallestSystem > 0
+      ? Math.min(printScale(staffSpaceMm), body / tallestSystem)
+      : printScale(staffSpaceMm);
   return { scale, width: (width - 2 * MARGIN_X) / scale };
 }
 
@@ -143,11 +176,12 @@ export function buildPage(
     }
     top += TITLE_BLOCK;
   }
-  for (const i of systems) {
+  const spread = systemSpread(plan, index);
+  for (const [n, i] of systems.entries()) {
     const group = groups[i];
     if (!group) continue;
     const s = plan.scale;
-    const converted = convertSvg(group, [s, 0, 0, s, MARGIN_X, top - first * s]);
+    const converted = convertSvg(group, [s, 0, 0, s, MARGIN_X, top + n * spread - first * s]);
     for (const item of converted.items) items.push(item);
     for (const [name, n] of Object.entries(converted.dropped))
       dropped[name] = (dropped[name] ?? 0) + n;

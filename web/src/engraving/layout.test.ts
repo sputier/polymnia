@@ -10,7 +10,8 @@ import {
 import { buildScore } from '../score/fixtures/dsl';
 import { setPitch } from '../score';
 import { benchmarkScore } from './previewScores';
-import { LayoutCache, METRICS, layoutScore, staffSlots } from './layout';
+import { LayoutCache, METRICS, layoutScore, staffSlots, stretchFor } from './layout';
+import { accidentalsScore } from './previewScores';
 
 describe('system breaking', () => {
   it('fits a short score on one system when there is room', () => {
@@ -98,11 +99,16 @@ describe('start of systems', () => {
     expect(first!.measures[1]!.start.clef).toBeNull();
   });
 
-  it('shows part names only on the first system and indents it', () => {
+  it('shows the full part name on the first system and the short name on the others', () => {
     const layout = layoutScore(benchmarkScore(20), { width: 1000 });
     expect(layout.systems[0]!.names).toBe(true);
-    expect(layout.systems[1]!.names).toBe(false);
-    expect(layout.systems[0]!.x).toBeGreaterThan(layout.systems[1]!.x);
+    expect(layout.systems[0]!.shortNames).toBe(false);
+    expect(layout.systems[1]!.names).toBe(true);
+    expect(layout.systems[1]!.shortNames).toBe(true);
+    const first = layout.systems[0]!.x;
+    const other = layout.systems[1]!.x;
+    expect(first).toBeGreaterThan(other);
+    expect(other).toBeGreaterThan(METRICS.marginX + METRICS.bracket);
   });
 
   it('shows the key signature at the start of every system', () => {
@@ -313,5 +319,91 @@ describe('cache', () => {
     const t0 = performance.now();
     layoutScore(score, { width: 1100 });
     expect(performance.now() - t0).toBeLessThan(100);
+  });
+});
+
+describe('density (#46)', () => {
+  const simple = (n: number) =>
+    buildScore({
+      title: 't',
+      parts: [
+        {
+          name: 'Piano',
+          instrument: 'piano',
+          staves: [
+            { clef: 'treble', measures: Array.from({ length: n }, () => 'C5:q D5:q E5:q F5:q') },
+            { clef: 'bass', measures: Array.from({ length: n }, () => 'C3:h G3:h') },
+          ],
+        },
+      ],
+    });
+
+  it('fits at least 4 simple 4/4 measures per system at 1000 px, first system included', () => {
+    const layout = layoutScore(simple(40), { width: 1000 });
+    for (const s of layout.systems.slice(0, -1))
+      expect(s.measures.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('spaces notes monotonically with duration', () => {
+    const ticks = [120, 240, 480, 960, 1920, 3840];
+    const widths = ticks.map(stretchFor);
+    for (let i = 1; i < widths.length; i++) expect(widths[i]!).toBeGreaterThan(widths[i - 1]!);
+    // Sub-linear (logarithmic): doubling the duration never doubles the space.
+    for (let i = 1; i < widths.length; i++) expect(widths[i]!).toBeLessThan(2 * widths[i - 1]!);
+  });
+
+  it('never lets an accidental run into the previous note', () => {
+    for (const width of [300, 420, 600, 900, 1400]) {
+      const layout = layoutScore(accidentalsScore(), { width });
+      for (const s of layout.systems) {
+        for (const m of s.measures) {
+          m.shape.columns.forEach((c, i) => {
+            if (i === 0 || c.lead === 0) return;
+            const prev = m.shape.columns[i - 1]!;
+            // Left edge of this column's accidentals vs right edge of the previous glyphs.
+            expect(m.colX[i]! - c.lead).toBeGreaterThanOrEqual(m.colX[i - 1]! + prev.glyph - 0.01);
+          });
+        }
+      }
+    }
+  });
+
+  it('justification only stretches: no measure is narrower than its content', () => {
+    const layout = layoutScore(simple(30), { width: 1000 });
+    for (const s of layout.systems)
+      for (const m of s.measures)
+        expect(m.noteEndX - m.noteStartX).toBeGreaterThanOrEqual(
+          METRICS.padLeft + m.shape.fixed + METRICS.padRight - 0.01,
+        );
+  });
+
+  it('leaves a short last system at its natural width, and justifies a fuller one', () => {
+    let sawShort = false;
+    let sawFull = false;
+    for (let n = 6; n <= 16; n++) {
+      const layout = layoutScore(simple(n), { width: 1000 });
+      const last = layout.systems[layout.systems.length - 1]!;
+      if (layout.systems.length < 2) continue;
+      const lineWidth = 1000 - METRICS.marginX - last.x;
+      const natural = last.measures.reduce(
+        (sum, m) =>
+          sum +
+          m.start.width +
+          METRICS.padLeft +
+          m.shape.fixed +
+          m.shape.stretch +
+          METRICS.padRight,
+        0,
+      );
+      if (natural / lineWidth < METRICS.lastSystemFull) {
+        sawShort = true;
+        expect(last.right - last.x).toBeCloseTo(natural, 3);
+      } else {
+        sawFull = true;
+        expect(last.right).toBeCloseTo(1000 - METRICS.marginX, 3);
+      }
+    }
+    expect(sawShort).toBe(true);
+    expect(sawFull).toBe(true);
   });
 });

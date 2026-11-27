@@ -8,6 +8,7 @@
  */
 import { Renderer, type RenderContext } from 'vexflow/core';
 import type { Score } from '../score/types';
+import { shortPartName } from '../score/instruments';
 import { eventBox, hitTest, type EventBox, type HitResult, type Rect } from './hitTest';
 import { LayoutCache, layoutScore, type Layout, type SystemLayout } from './layout';
 import { drawSystem } from './draw';
@@ -518,7 +519,9 @@ function systemSignature(
     m.final,
     m.colX,
   ]);
-  const names = system.names ? score.parts.map((p) => p.name) : null;
+  const names = system.names
+    ? score.parts.map((p) => (system.shortNames ? shortPartName(p) : p.name))
+    : null;
   const key = JSON.stringify([
     system.x,
     system.right,
