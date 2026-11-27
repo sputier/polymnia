@@ -5,7 +5,7 @@ import type { MessageKey } from '../i18n/en';
 // Reminder only: the note-entry shortcuts themselves are registered by the note entry issue.
 const ITEMS: { keys: string[]; range?: boolean; labelKey: MessageKey }[] = [
   { keys: ['N'], labelKey: 'strip.input' },
-  { keys: ['1', '5'], range: true, labelKey: 'strip.duration' },
+  { keys: ['3', '7'], range: true, labelKey: 'strip.duration' },
   { keys: ['A', 'G'], range: true, labelKey: 'strip.note' },
   { keys: ['ArrowLeft', 'ArrowRight'], labelKey: 'strip.move' },
   { keys: ['ArrowUp', 'ArrowDown'], labelKey: 'strip.pitch' },
