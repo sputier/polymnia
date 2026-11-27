@@ -7,10 +7,18 @@
  * tones are raised and smaller. Sharps and flats are Bravura glyphs (SMuFL), never the characters
  * `#` and `b`, so they look like music accidentals and export as vector outlines.
  */
-import { formatChord, qualityRuns, shapeOf, type ChordData } from '../score/chords';
+import {
+  formatChord,
+  qualityRuns,
+  shapeOf,
+  solfegeName,
+  type ChordData,
+  type NoteNaming,
+} from '../score/chords';
 import { diagramStrings } from '../score/diagrams';
 import type { ChordNote, ChordSymbol, Part } from '../score/types';
 
+import { getChordNaming } from './chordNaming';
 import { CHORD, DIAGRAM_BAND, DIAGRAM_HEIGHT, diagramWidth } from './chordMetrics';
 
 export { CHORD, DIAGRAM_BAND, DIAGRAM_HEIGHT, diagramWidth };
@@ -61,6 +69,8 @@ class Builder {
   runs: TextRun[] = [];
   x = 0;
 
+  constructor(private readonly naming: NoteNaming) {}
+
   text(text: string, size: number, dy = 0): void {
     if (text === '') return;
     this.runs.push({ text, font: 'text', size, x: this.x, dy });
@@ -87,7 +97,7 @@ class Builder {
   }
 
   note(n: ChordNote, size: number): void {
-    this.text(n.step, size);
+    this.text(this.naming === 'solfege' ? solfegeName(n.step) : n.step, size);
     this.accidental(n.alter, size);
   }
 
@@ -131,8 +141,12 @@ function chordRuns(b: Builder, chord: ChordData, size: number): void {
  * The text of a chord symbol. With `shape`, the shape the player forms with a capo follows in
  * parentheses and a smaller size: `D (C)`.
  */
-export function chordLabel(chord: ChordData, shape?: ChordData): ChordLabel {
-  const b = new Builder();
+export function chordLabel(
+  chord: ChordData,
+  shape?: ChordData,
+  naming: NoteNaming = getChordNaming(),
+): ChordLabel {
+  const b = new Builder(naming);
   chordRuns(b, chord, CHORD.size);
   if (shape) {
     b.x += 3;
@@ -144,8 +158,8 @@ export function chordLabel(chord: ChordData, shape?: ChordData): ChordLabel {
 }
 
 /** Text read by screen readers and tooltips (`F#m7b5/A`). */
-export function chordText(chord: ChordData): string {
-  return formatChord(chord);
+export function chordText(chord: ChordData, naming: NoteNaming = getChordNaming()): string {
+  return formatChord(chord, naming);
 }
 
 // ---------------------------------------------------------------------------------------------

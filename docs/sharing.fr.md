@@ -8,14 +8,14 @@ Code : `api/Polymnia.Api/Sharing/` (endpoints, limitation de débit), `api/Polym
 
 ## Fonctionnement
 
-| Étape           | Ce qui se passe                                                                                                                                                                       |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Création        | Le propriétaire ouvre **Partager** (barre du haut, menu d'une carte de la bibliothèque, ou palette de commandes : `Ctrl+Maj+L`, « Partager cette partition… ») et clique **Créer un lien**. |
-| Lien            | `https://<hôte>/#/s/<jeton>`. Le dialogue l'affiche une seule fois, sélectionné, avec un bouton **Copier le lien** (API Clipboard, avec repli par sélection).                          |
-| Ouverture       | Le visiteur voit la partition et la barre de lecture, sans être connecté. Pas d'écran de connexion, pas de requête de session, pas d'interface d'édition.                              |
-| Régénération    | **Nouveau lien** révoque le lien actuel et en crée un autre. Une partition a au plus un lien actif.                                                                                   |
-| Arrêt du partage | **Arrêter le partage** révoque le lien immédiatement. La visionneuse affiche alors « Ce lien n'est plus valide. »                                                                    |
-| Export          | Le dialogue contient aussi les boutons d'export (MusicXML, MXL, MIDI, PDF, PNG), les mêmes actions que le menu Exporter de l'éditeur. Depuis la bibliothèque, la partition est chargée pour cela. |
+| Étape            | Ce qui se passe                                                                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Création         | Le propriétaire ouvre **Partager** (barre du haut, menu d'une carte de la bibliothèque, ou palette de commandes : `Ctrl+Maj+L`, « Partager cette partition… ») et clique **Créer un lien**.       |
+| Lien             | `https://<hôte>/#/s/<jeton>`. Le dialogue l'affiche une seule fois, sélectionné, avec un bouton **Copier le lien** (API Clipboard, avec repli par sélection).                                     |
+| Ouverture        | Le visiteur voit la partition et la barre de lecture, sans être connecté. Pas d'écran de connexion, pas de requête de session, pas d'interface d'édition.                                         |
+| Régénération     | **Nouveau lien** révoque le lien actuel et en crée un autre. Une partition a au plus un lien actif.                                                                                               |
+| Arrêt du partage | **Arrêter le partage** révoque le lien immédiatement. La visionneuse affiche alors « Ce lien n'est plus valide. »                                                                                 |
+| Export           | Le dialogue contient aussi les boutons d'export (MusicXML, MXL, MIDI, PDF, PNG), les mêmes actions que le menu Exporter de l'éditeur. Depuis la bibliothèque, la partition est chargée pour cela. |
 
 La visionneuse montre toujours la version **actuelle** de la partition : les modifications du propriétaire apparaissent au chargement suivant.
 
@@ -38,12 +38,12 @@ Un hash rapide convient ici car l'entrée est de l'aléa sur 256 bits, pas un mo
 
 `GET /api/shared` avec le jeton dans l'**en-tête de requête `X-Share-Token`**, sans authentification. Le jeton est le seul secret. Il n'est jamais dans l'URL (chemin ou requête) : aucun journal d'accès, scope de journal ni `Referer` ne peut le porter ; `/api/shared/<n'importe quoi>` et `?token=` sont de simples `404`.
 
-| Cas                                    | Réponse                                                                                                                            |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Lien actif                             | `200`, le document de la partition (JSON, `meta.title` est le titre), lu en flux depuis PostgreSQL comme `GET /api/scores/{id}`.   |
-| Jeton absent, révoqué, inconnu ou mal formé | `404` ProblemDetails, **identique** dans tous les cas (statut, titre, en-têtes).                                                  |
-| Trop de requêtes                       | `429` avec `Retry-After`.                                                                                                          |
-| Toute autre méthode                    | Jamais un succès. `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `TRACE` reçoivent `400` (antiforgery, sans jeton) ou `404`/`405`.   |
+| Cas                                         | Réponse                                                                                                                          |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Lien actif                                  | `200`, le document de la partition (JSON, `meta.title` est le titre), lu en flux depuis PostgreSQL comme `GET /api/scores/{id}`. |
+| Jeton absent, révoqué, inconnu ou mal formé | `404` ProblemDetails, **identique** dans tous les cas (statut, titre, en-têtes).                                                 |
+| Trop de requêtes                            | `429` avec `Retry-After`.                                                                                                        |
+| Toute autre méthode                         | Jamais un succès. `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `TRACE` reçoivent `400` (antiforgery, sans jeton) ou `404`/`405`. |
 
 En-têtes de chaque réponse, `404` compris : `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`. Aucun cookie n'est posé.
 
@@ -52,7 +52,7 @@ Propriétés de sécurité :
 - **Lecture seule par construction.** La route n'accepte que `GET` et ne lit que la partition derrière le jeton. Le jeton n'est accepté nulle part ailleurs (`/api/scores/*` exige toujours une session ; un test vérifie un jeton dans la chaîne de requête et dans un en-tête `Authorization`).
 - **Pas d'oracle temporel sur le secret.** La recherche se fait par le hash sur un index unique : l'application ne compare jamais un secret octet par octet. Un jeton de mauvaise forme est refusé sans accès à la base ; la forme est publique, cela ne révèle rien.
 - **Limitation par adresse client** : 60 requêtes par minute et par adresse IPv4 ou par `/64` IPv6 (même clé que la limite de connexion), plus au plus 4 lectures publiques simultanées par adresse et 32 en tout (les plafonds de concurrence sont vérifiés d'abord, une requête refusée ne consomme donc pas le budget). Une adresse inconnue partage une clé au lieu d'être illimitée. Réglages `RateLimiting:Shared:PermitLimit`, `WindowSeconds`, `MaxConcurrentReads` et `MaxConcurrentReadsPerClient`. Derrière un proxy inverse, activez les en-têtes transférés (`POLYMNIA_FORWARDED_HEADERS=true`, voir [self-hosting.fr.md](self-hosting.fr.md)), sinon tous les visiteurs partagent le budget du proxy. Si les en-têtes transférés sont désactivés et qu'une requête arrive avec `X-Forwarded-For` ou `Forwarded`, l'application journalise un avertissement par processus (`ForwardedHeadersDisabled`).
-- **La compression reste active** pour cet endpoint. La règle BREACH (« une réponse qui porte un secret n'est jamais compressée », voir [authentication.fr.md](authentication.fr.md)) concerne le *corps* : le corps de cette réponse est la partition, qui n'est pas secrète, et ne contient jamais le jeton. La réponse de création, qui porte le jeton, est en `DisableResponseCompression()`.
+- **La compression reste active** pour cet endpoint. La règle BREACH (« une réponse qui porte un secret n'est jamais compressée », voir [authentication.fr.md](authentication.fr.md)) concerne le _corps_ : le corps de cette réponse est la partition, qui n'est pas secrète, et ne contient jamais le jeton. La réponse de création, qui porte le jeton, est en `DisableResponseCompression()`.
 - **Aucun jeton dans les journaux, par construction.** Le jeton est dans un en-tête, qu'aucun journal du framework, scope de journal (`RequestPath`) ou journal d'accès par défaut d'un proxy inverse n'enregistre. L'application ne journalise que les événements d'audit `ShareLinkCreated` / `ShareLinkRevoked` (identifiant utilisateur et partition). Un test lance l'hôte avec tous les niveaux à `Trace` et les scopes capturés, et vérifie qu'aucune entrée ni aucun scope ne contient le jeton ni son hash. Ne configurez pas un proxy pour journaliser les en-têtes de requête.
 
 ### Pourquoi une route par fragment (`#/s/<jeton>`)
@@ -65,11 +65,11 @@ Un robot d'indexation ne voit pas non plus le fragment, et la visionneuse ajoute
 
 Sous `/api/scores/{id}/share`. Ils exigent la session et, pour les méthodes non sûres, l'en-tête antiforgery. Une partition d'un autre utilisateur répond `404`, comme une partition inexistante. Limites : les budgets de lecture et d'écriture par utilisateur de [api.fr.md](api.fr.md).
 
-| Méthode et chemin                       | Rôle                                                                                                          | Succès                                         |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `GET /api/scores/{id}/share`            | État : `{ active, createdAt }`. Jamais le jeton.                                                              | `200`                                          |
-| `POST /api/scores/{id}/share`           | Crée le lien, en révoquant l'actif s'il existe. Sans corps. Jamais compressé, `Cache-Control: no-store`.      | `201` `{ token, createdAt }`                   |
-| `DELETE /api/scores/{id}/share`         | Révoque le lien actif. Idempotent.                                                                            | `204`                                          |
+| Méthode et chemin               | Rôle                                                                                                     | Succès                       |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `GET /api/scores/{id}/share`    | État : `{ active, createdAt }`. Jamais le jeton.                                                         | `200`                        |
+| `POST /api/scores/{id}/share`   | Crée le lien, en révoquant l'actif s'il existe. Sans corps. Jamais compressé, `Cache-Control: no-store`. | `201` `{ token, createdAt }` |
+| `DELETE /api/scores/{id}/share` | Révoque le lien actif. Idempotent.                                                                       | `204`                        |
 
 Un `409` à la création signifie que deux créations se sont croisées pour la même partition ; réessayez.
 

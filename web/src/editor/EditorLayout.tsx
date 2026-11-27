@@ -30,6 +30,7 @@ import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
 import { TransportBar } from './TransportBar';
 import { useMediaQuery } from './useMediaQuery';
+import { getChordNaming, setChordNaming } from '../engraving/chordNaming';
 import { useUiMode } from './uiMode';
 
 // The on-screen piano and the MIDI input are a lazy chunk, fetched the first time the piano opens.
@@ -292,6 +293,13 @@ export function EditorLayout({
       labelKey: 'shortcut.toggleMode',
       group: 'view',
       handler: toggleMode,
+    },
+    {
+      id: 'editor.toggleChordNames',
+      keys: '',
+      labelKey: 'shortcut.toggleChordNames',
+      group: 'view',
+      handler: () => setChordNaming(getChordNaming() === 'solfege' ? 'letters' : 'solfege'),
     },
     {
       id: 'editor.closePanels',

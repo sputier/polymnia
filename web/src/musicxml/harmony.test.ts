@@ -14,6 +14,7 @@ import {
 } from '../score';
 import { parseMusicXml, scoreToMusicXml } from './index';
 import { exportWithReport } from './export';
+import { harmonyXml } from './harmony';
 
 /** A one-measure, 4/4 file with the given content inside the measure (divisions 4 = 4 per quarter). */
 function file(
@@ -450,5 +451,24 @@ describe('round trip: chords', () => {
     const { score } = parseMusicXml(scoreToMusicXml(s));
     expect(validateScore(score)).toEqual([]);
     expect(score.parts[0]!.chordDiagrams).toBe('all');
+  });
+});
+
+describe('MusicXML ignores the chord names display preference (#63)', () => {
+  it('writes English roots whatever the display', async () => {
+    const { setChordNaming, resetChordNaming } = await import('../engraving/chordNaming');
+    const chord = { ...parseChord('Rém7/Sol')!, id: 'c', tick: 0 };
+    const before = harmonyXml(chord, { staffNumber: 1, multi: false });
+    setChordNaming('solfege');
+    try {
+      const after = harmonyXml(chord, { staffNumber: 1, multi: false });
+      expect(after).toBe(before);
+      expect(after).toContain('<root-step>D</root-step>');
+      expect(after).toContain('<bass-step>G</bass-step>');
+      expect(after).not.toMatch(/Ré|Sol/);
+    } finally {
+      localStorage.clear();
+      resetChordNaming();
+    }
   });
 });

@@ -42,7 +42,7 @@ const { score, report } = importMusicXml(bytes); // .musicxml, .xml or .mxl, thr
 | slur                                 | `<slur type number>` (numbers 1 to 16 per part)                                                                                                                        |
 | tab staff                            | clef `TAB`, `<staff-details>` (`<staff-lines>`, `<staff-tuning line>`, `<capo>`)                                                                                       |
 | `fretting`                           | `<technical><string><fret>`                                                                                                                                            |
-| chord symbol, diagram                | `<harmony>` (`root`, `kind`, `bass`, `degree`), `<frame>`, see "Chord symbols" below                                                                               |
+| chord symbol, diagram                | `<harmony>` (`root`, `kind`, `bass`, `degree`), `<frame>`, see "Chord symbols" below                                                                                   |
 | instrument                           | `<instrument-sound>` and a `polymnia-instrument-Pn` miscellaneous field (exact catalog id, for round trips); on import the sound id, then the part name, then `custom` |
 
 A fretting the user chose (`manual`) is written with an extra `<other-technical>polymnia-manual-fingering</other-technical>` inside `<technical>` (the standard extension element, ignored by other programs); on import it restores the flag, so user frettings survive a round trip and derived ones stay derived. Frettings from other programs import as derived-but-valid (they are kept while the notes around are edited).
@@ -53,18 +53,18 @@ Round trip: every fixture exports and imports back to the same score (ids are re
 
 Chord symbols are written and read as `<harmony>` (code in `web/src/musicxml/harmony.ts`), diagrams as `<frame>`. Model: [score-format.md](score-format.md#chord-symbols).
 
-**Export.** Before the notes of each measure, one `<harmony>` per symbol, in the order of the schema: `<root>` (`root-step`, `root-alter` when not 0), `<kind text="m7">minor-seventh</kind>`, `<bass>`, `<degree>` elements, `<frame>`, `<offset>` (in divisions, which are ticks here, written when the symbol is not at the start of the measure), `<staff>` (when the part has several staves). The cursor is at the start of the measure, so the position is the offset: other programs place it correctly, and a harmony does not need a note under it.
+**Export.** Before the notes of each measure, one `<harmony>` per symbol, in the order of the schema: `<root>` (`root-step`, `root-alter` when not 0), `<kind text="m7">minor-seventh</kind>`, `<bass>`, `<degree>` elements, `<frame>`, `<offset>` (in divisions, which are ticks here, written when the symbol is not at the start of the measure), `<staff>` (when the part has several staves). The "Chord names" display preference (`Do Ré Mi`, #63) never changes the file: roots and basses are always English steps (`D`, `G`). The cursor is at the start of the measure, so the position is the offset: other programs place it correctly, and a harmony does not need a note under it.
 
-| Quality                                            | `<kind>`                                                                                                      | `<degree>`                                      |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| major (empty), `m`, `aug`, `dim` | `major` `minor` `augmented` `diminished` | |
-| `6` `m6` `6/9`                                     | `major-sixth` `minor-sixth` `major-sixth`                                                                     | `6/9`: ninth, type `add`                        |
-| `7` `maj7` `m7` `dim7` `aug7` `m7b5` `m(maj7)`     | `dominant` `major-seventh` `minor-seventh` `diminished-seventh` `augmented-seventh` `half-diminished` `major-minor` |                                                 |
-| `9` `11` `13`, `maj9`..., `m9`...                  | `dominant-ninth`, `major-ninth`, `minor-ninth`, `...-11th`, `...-13th`                                        |                                                 |
-| `sus2` `sus4` `5`                                  | `suspended-second` `suspended-fourth` `power`                                                                 |                                                 |
-| `b5 #5 b9 #9 #11 b13`                              | (unchanged)                                                                                                   | `<degree-type>alter</degree-type>` with the alteration |
-| `add9` `add11` `add13` `add2` `add4`               | (unchanged)                                                                                                   | `<degree-type>add</degree-type>`                |
-| anything else (`7sus4`, `maj7#5`, `dim7add9`...)   | `other`                                                                                                       | none: the quality is in `text`                  |
+| Quality                                          | `<kind>`                                                                                                            | `<degree>`                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| major (empty), `m`, `aug`, `dim`                 | `major` `minor` `augmented` `diminished`                                                                            |                                                        |
+| `6` `m6` `6/9`                                   | `major-sixth` `minor-sixth` `major-sixth`                                                                           | `6/9`: ninth, type `add`                               |
+| `7` `maj7` `m7` `dim7` `aug7` `m7b5` `m(maj7)`   | `dominant` `major-seventh` `minor-seventh` `diminished-seventh` `augmented-seventh` `half-diminished` `major-minor` |                                                        |
+| `9` `11` `13`, `maj9`..., `m9`...                | `dominant-ninth`, `major-ninth`, `minor-ninth`, `...-11th`, `...-13th`                                              |                                                        |
+| `sus2` `sus4` `5`                                | `suspended-second` `suspended-fourth` `power`                                                                       |                                                        |
+| `b5 #5 b9 #9 #11 b13`                            | (unchanged)                                                                                                         | `<degree-type>alter</degree-type>` with the alteration |
+| `add9` `add11` `add13` `add2` `add4`             | (unchanged)                                                                                                         | `<degree-type>add</degree-type>`                       |
+| anything else (`7sus4`, `maj7#5`, `dim7add9`...) | `other`                                                                                                             | none: the quality is in `text`                         |
 
 `kind@text` always holds the normalized quality, so a Polymnia file comes back exactly. Every quality of the parser is tested through `.musicxml`.
 

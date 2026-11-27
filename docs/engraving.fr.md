@@ -6,18 +6,18 @@ Le graveur transforme une partition (voir [score-format.fr.md](score-format.fr.m
 
 ## Modules
 
-| Fichier           | Rôle                                                                                                  | VexFlow              |
-| ----------------- | ----------------------------------------------------------------------------------------------------- | -------------------- |
-| `notation.ts`     | Géométrie de la portée (clé vers y), état des altérations, groupes de ligatures, utilitaires de ticks | non                  |
-| `layout.ts`       | Largeurs de mesures, découpage en systèmes, justification, positions x des événements                 | non                  |
-| `hitTest.ts`      | Point vers `{partId, staffId, measureIndex, eventId, pitch}`, boîtes englobantes des événements       | non                  |
-| `draw.ts`         | Dessine un système (portées, notes, ligatures, tuplets, liaisons, accolades, noms)                    | oui                  |
-| `chords.ts`, `chordMetrics.ts`, `chordAnchor.ts` | Typographie et largeurs des accords, tailles des diagrammes, place du champ de texte | non |
-| `drawChords.ts`   | Dessine les accords et les diagrammes de manche d'une mesure (texte et chemins du contexte) | contexte seul (import de type) |
-| `vexflowSetup.ts` | Configure VexFlow (polices) et charge Bravura                                                         | oui                  |
-| `fonts.ts`        | URL du fichier Bravura haché, `<link rel="preload">`                                                  | non (bundle initial) |
-| `engraver.ts`     | Possède le SVG, re-rendu incrémental, surbrillance                                                    | oui                  |
-| `ScoreView.tsx`   | Composant React : chargement différé, redimensionnement, props vers le graveur                        | non (différé)        |
+| Fichier                                          | Rôle                                                                                                  | VexFlow                        |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `notation.ts`                                    | Géométrie de la portée (clé vers y), état des altérations, groupes de ligatures, utilitaires de ticks | non                            |
+| `layout.ts`                                      | Largeurs de mesures, découpage en systèmes, justification, positions x des événements                 | non                            |
+| `hitTest.ts`                                     | Point vers `{partId, staffId, measureIndex, eventId, pitch}`, boîtes englobantes des événements       | non                            |
+| `draw.ts`                                        | Dessine un système (portées, notes, ligatures, tuplets, liaisons, accolades, noms)                    | oui                            |
+| `chords.ts`, `chordMetrics.ts`, `chordAnchor.ts` | Typographie et largeurs des accords, tailles des diagrammes, place du champ de texte                  | non                            |
+| `drawChords.ts`                                  | Dessine les accords et les diagrammes de manche d'une mesure (texte et chemins du contexte)           | contexte seul (import de type) |
+| `vexflowSetup.ts`                                | Configure VexFlow (polices) et charge Bravura                                                         | oui                            |
+| `fonts.ts`                                       | URL du fichier Bravura haché, `<link rel="preload">`                                                  | non (bundle initial)           |
+| `engraver.ts`                                    | Possède le SVG, re-rendu incrémental, surbrillance                                                    | oui                            |
+| `ScoreView.tsx`                                  | Composant React : chargement différé, redimensionnement, props vers le graveur                        | non (différé)                  |
 
 Tout ce qui n'a pas besoin de VexFlow est du TypeScript pur, testé sous jsdom. `ScoreView` charge `engraver.ts` (donc VexFlow) par un `import()` dynamique après le premier affichage : **VexFlow n'est pas dans le bundle initial**. VexFlow est sous licence MIT (voir [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). Le point d'entrée `vexflow/core` est utilisé : il ne contient **aucune police**. Il ne se tree-shake pas en pratique (la bibliothèque enregistre ses classes globalement) : le chunk de l'éditeur reste à environ 180 Ko gzip (voir « Chiffres »).
 
@@ -53,7 +53,7 @@ Autres règles : une levée utilise sa propre `length` (elle reçoit moins de la
 
 Les accords (et, pour la guitare et l'ukulélé, les diagrammes) font partie de la gravure : l'écran, le PDF et le PNG montrent la même chose. Le modèle est décrit dans [score-format.fr.md](score-format.fr.md#accords), la saisie dans [editor.fr.md](editor.fr.md#accords).
 
-**Typographie** (`chords.ts`, pur). Un accord est une liste de _tronçons_ de texte : la fondamentale, puis la qualité, puis la basse. Tout est composé dans la police de l'interface (Inter) à 15 px ; `m`, `maj`, `dim`, `aug` et `sus` restent sur la ligne de base ; les chiffres, altérations et notes ajoutées (`7`, `b5`, `#9`, `6/9`, `add9`, `(maj7)`) sont **en exposant** (5,5 px) et plus petits (10,5 px) ; les dièses et bémols sont des **glyphes Bravura** (U+E262, U+E260, double dièse et double bémol), jamais `#` et `b`, remontés à la hauteur d'x. Ainsi `F#m7b5` est « F », dièse, « m », « 7 » en exposant, bémol en exposant, « 5 » en exposant. Avec un capodastre et l'option « afficher la forme », la forme suit entre parenthèses à 12 px : `D (C)`. Les largeurs viennent d'une estimation des chasses d'Inter (`charEm`) : assez pour écarter les voisins, sans dépendre du chargement de la police.
+**Typographie** (`chords.ts`, pur). Un accord est une liste de _tronçons_ de texte : la fondamentale, puis la qualité, puis la basse. Tout est composé dans la police de l'interface (Inter) à 15 px ; `m`, `maj`, `dim`, `aug` et `sus` restent sur la ligne de base ; les chiffres, altérations et notes ajoutées (`7`, `b5`, `#9`, `6/9`, `add9`, `(maj7)`) sont **en exposant** (5,5 px) et plus petits (10,5 px) ; les dièses et bémols sont des **glyphes Bravura** (U+E262, U+E260, double dièse et double bémol), jamais `#` et `b`, remontés à la hauteur d'x. Ainsi `F#m7b5` est « F », dièse, « m », « 7 » en exposant, bémol en exposant, « 5 » en exposant. Avec un capodastre et l'option « afficher la forme », la forme suit entre parenthèses à 12 px : `D (C)`. Les noms de notes suivent la préférence utilisateur `chordNaming` (`chordNaming.ts` : lettres ou solfège français, lettres par défaut) : `Rém7`, `Sol/Si`, `Fa♯m` (la fondamentale est du texte, l'altération reste un glyphe Bravura). La préférence fait partie de la clé de cache de forme de mesure et de la signature de système : un changement recalcule les largeurs et ne redessine que ce qui change ; `ScoreView` redessine quand elle change. Les largeurs viennent d'une estimation des chasses d'Inter (`charEm`) : assez pour écarter les voisins, sans dépendre du chargement de la police.
 
 **Mise en page** (`layout.ts`, `chords.ts`).
 
@@ -164,20 +164,20 @@ Versionnez les PNG modifiés avec le code qui a changé le rendu, et expliquez p
 
 Mesurés dans Chromium (portable Windows 11, build de production), `benchmark100` : 100 mesures, deux portées, 23 systèmes à 1100 px (34 avant #46), surtout des croches avec altérations et liaisons.
 
-| Quoi                                                                           | Budget            | Mesuré                                                                                                |
-| ------------------------------------------------------------------------------ | ----------------- | ----------------------------------------------------------------------------------------------------- |
-| Premier système affiché (après chargement du chunk)                            | < 100 ms          | environ 27 ms                                                          |
-| Rendu complet, tout premier (JIT froid), tous les systèmes                     | n/a               | environ 207 ms (le dessin s'exécute par tranches en temps libre) |
-| Rendu complet, à chaud (médiane de 7)                                          | < 200 ms          | environ 83 ms                                                                                        |
-| Une édition, médiane / max de 25                                               | < 16 ms           | environ 4,9 ms / 9 ms                                                                                  |
-| Frappe, partition remplie, médiane / p95 / max de 40                           | p95 < 16 ms       | 9,6 / 14,1 / 15,2 ms (édition à l'écran ; les systèmes contiennent plus de mesures, chacun coûte donc plus)                                                              |
-| Frappe avec re-flow en haut d'une partition remplie, médiane / p95 / max de 40 | p95 < 16 ms       | 9,3 / 13,7 / 14,0 ms, 1 système au plus                               |
-| Frappe en remplissant une partition vide, médiane / p95 / max de 400           | p95 < 16 ms       | 3,7 / 7,1 / 12,6 ms                                                     |
-| Surbrillance (sélection + lecture)                                             | bascule de classe | < 1 ms                                                                                                |
-| Layout seul (jsdom)                                                            | n/a               | quelques ms                                                                                           |
-| JS initial                                                                     | <= 110 Ko gzip    | 75 Ko                                                                                                 |
-| Chunk de l'éditeur (VexFlow + gravure, sans police)                            | <= 200 Ko gzip    | 180 Ko (468 Ko avec les polices avant)                                                                |
-| Fichier de police Bravura                                                      | <= 250 Ko woff2   | 247 Ko, fichier séparé, cache immuable                                                                |
+| Quoi                                                                           | Budget            | Mesuré                                                                                                      |
+| ------------------------------------------------------------------------------ | ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| Premier système affiché (après chargement du chunk)                            | < 100 ms          | environ 27 ms                                                                                               |
+| Rendu complet, tout premier (JIT froid), tous les systèmes                     | n/a               | environ 207 ms (le dessin s'exécute par tranches en temps libre)                                            |
+| Rendu complet, à chaud (médiane de 7)                                          | < 200 ms          | environ 83 ms                                                                                               |
+| Une édition, médiane / max de 25                                               | < 16 ms           | environ 4,9 ms / 9 ms                                                                                       |
+| Frappe, partition remplie, médiane / p95 / max de 40                           | p95 < 16 ms       | 9,6 / 14,1 / 15,2 ms (édition à l'écran ; les systèmes contiennent plus de mesures, chacun coûte donc plus) |
+| Frappe avec re-flow en haut d'une partition remplie, médiane / p95 / max de 40 | p95 < 16 ms       | 9,3 / 13,7 / 14,0 ms, 1 système au plus                                                                     |
+| Frappe en remplissant une partition vide, médiane / p95 / max de 400           | p95 < 16 ms       | 3,7 / 7,1 / 12,6 ms                                                                                         |
+| Surbrillance (sélection + lecture)                                             | bascule de classe | < 1 ms                                                                                                      |
+| Layout seul (jsdom)                                                            | n/a               | quelques ms                                                                                                 |
+| JS initial                                                                     | <= 110 Ko gzip    | 75 Ko                                                                                                       |
+| Chunk de l'éditeur (VexFlow + gravure, sans police)                            | <= 200 Ko gzip    | 180 Ko (468 Ko avec les polices avant)                                                                      |
+| Fichier de police Bravura                                                      | <= 250 Ko woff2   | 247 Ko, fichier séparé, cache immuable                                                                      |
 
 Les tests navigateur (`@perf`, projet `perf`, voir [development.fr.md](development.fr.md)) chauffent, prennent de nombreux échantillons, vérifient la médiane contre le budget strict et le p95 contre le double du budget. Ils vérifient : rendu complet à chaud < 200 ms, à froid < 600 ms (JIT, workers parallèles, CI plus lente), médiane d'édition < 16 ms, médiane de frappe < 16 ms et p95 < 32 ms dans les trois scénarios ci-dessus (les runners CI sont environ deux fois plus lents que le portable de référence).
 

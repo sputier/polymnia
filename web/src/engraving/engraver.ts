@@ -10,6 +10,7 @@ import { Renderer, type RenderContext } from 'vexflow/core';
 import type { Score } from '../score/types';
 import { shortPartName } from '../score/instruments';
 import { eventBox, hitTest, type EventBox, type HitResult, type Rect } from './hitTest';
+import { getChordNaming } from './chordNaming';
 import { LayoutCache, layoutScore, type Layout, type SystemLayout } from './layout';
 import { needsChordLibrary } from '../score/diagrams';
 import { drawSystem } from './draw';
@@ -555,6 +556,7 @@ function systemSignature(
     score.parts.map((p) => p.staves.map((s) => (s.showRests ? `${s.type}+rests` : s.type))),
     // Diagrams depend on the tuning and the capo; the symbols on the capo shapes option.
     score.parts.map((p) => [p.instrument, p.tuning, p.capo, p.chordDiagrams, p.chordCapoShapes]),
+    getChordNaming(),
   ]);
   return { key, refs };
 }

@@ -356,6 +356,11 @@ const SOLFEGE: Record<StepName, string> = {
   B: 'Si',
 };
 
+/** French solfège name of a note letter. */
+export function solfegeName(step: StepName): string {
+  return SOLFEGE[step];
+}
+
 export type NoteNaming = 'letters' | 'solfege';
 
 /** Plain text of a chord (`F#m7b5/A`), with letters or French solfège names (`Fa#m7b5/La`). */

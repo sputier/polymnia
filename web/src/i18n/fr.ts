@@ -62,6 +62,12 @@ export const fr: Messages = {
   'shortcut.toggleInstruments': 'Afficher ou masquer le panneau des instruments',
   'shortcut.toggleInspector': "Afficher ou masquer l'inspecteur",
   'shortcut.toggleMode': 'Basculer entre le mode Simple et Avancé',
+  'shortcut.toggleChordNames': 'Basculer les noms d’accords entre C D E et Do Ré Mi',
+  'inspector.chordNames': 'Noms d’accords',
+  'inspector.chordNamesLetters': 'C D E',
+  'inspector.chordNamesSolfege': 'Do Ré Mi',
+  'inspector.chordNamesHint':
+    'Affichage des symboles d’accords, partout. La saisie accepte les deux.',
   'shortcut.closePanels': 'Fermer le panneau ouvert',
   'duration.32nd': 'Triple croche',
   'describe.rest': 'silence',

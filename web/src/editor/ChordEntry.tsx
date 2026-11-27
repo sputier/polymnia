@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Engraver } from '../engraving/engraver';
 import { chordAnchor } from '../engraving/chordAnchor';
+import { useChordNaming } from '../engraving/chordNaming';
 import { useI18n } from '../i18n/i18n';
 import { formatChord, parseChord, type Score } from '../score';
 import { positionLabel } from './entry/describe';
@@ -23,6 +24,7 @@ interface ChordEntryProps {
  */
 export function ChordEntry({ store, entry, score, engraver }: ChordEntryProps) {
   const { t } = useI18n();
+  const chordNaming = useChordNaming();
   const inputRef = useRef<HTMLInputElement>(null);
   const done = useRef(false);
   // A click on a symbol opens the field, then the browser moves the focus to the page: that first
@@ -66,7 +68,7 @@ export function ChordEntry({ store, entry, score, engraver }: ChordEntryProps) {
   const typed = text.trim();
   const parsed = typed ? parseChord(typed) : null;
   const invalid = typed !== '' && parsed === null;
-  const shown = parsed ? formatChord(parsed) : '';
+  const shown = parsed ? formatChord(parsed, chordNaming) : '';
   const label = t('chord.entryLabel')
     .replace('{measure}', String(entry.measure + 1))
     .replace('{beat}', positionLabel(score, entry.measure, entry.tick));
