@@ -25,7 +25,7 @@ test('loads, switches theme and language without reload', async ({ page }) => {
     return 1;
   });
 
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await page.getByRole('button', { name: 'Light: Switch to dark theme' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(13, 15, 20)');
 

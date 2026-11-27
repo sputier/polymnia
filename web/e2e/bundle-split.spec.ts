@@ -74,7 +74,7 @@ test.describe('language catalogs', () => {
     await page.waitForTimeout(1500);
     expect(scripts.some((url) => catalogChunk('en').test(url))).toBe(false);
 
-    await page.getByRole('button', { name: 'EN' }).click();
+    await page.getByRole('button', { name: /^EN/ }).click();
     await expect(page.getByRole('heading', { name: 'My scores' })).toBeVisible();
     expect(scripts.some((url) => catalogChunk('en').test(url))).toBe(true);
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');

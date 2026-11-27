@@ -53,6 +53,7 @@
 .viewer-bar {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 8px 16px;

@@ -384,6 +384,7 @@ kbd {
 }
 
 .transport-tempo {
+  flex-wrap: wrap;
   display: inline-flex;
   gap: 8px;
   align-items: center;

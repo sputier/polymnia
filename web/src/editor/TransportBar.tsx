@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import { describePlaybackChange } from './entry/describe';
 import { Icon } from '../components/Icon';
 import { Kbd } from '../components/Kbd';
 import { useI18n } from '../i18n/i18n';
@@ -15,6 +16,13 @@ export function TransportBar({ controller, selection }: TransportBarProps) {
   const { t } = useI18n();
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const playing = state.status === 'playing';
+  // Start, pause and stop are announced once each; nothing is said while it plays, and nothing on the first render.
+  const [seenStatus, setSeenStatus] = useState(state.status);
+  const [said, setSaid] = useState('');
+  if (seenStatus !== state.status) {
+    setSeenStatus(state.status);
+    setSaid(describePlaybackChange(seenStatus, state.status, t));
+  }
   const percent = Math.round(state.tempoScale * 100);
 
   const toggleLoop = () => {
@@ -80,7 +88,7 @@ export function TransportBar({ controller, selection }: TransportBarProps) {
         <Kbd keys="Space" />
       </span>
       <span className="transport-status" role="status">
-        {state.loading ? t('transport.loading') : state.error ? t('transport.error') : ''}
+        {state.loading ? t('transport.loading') : state.error ? t('transport.error') : said}
       </span>
     </div>
   );

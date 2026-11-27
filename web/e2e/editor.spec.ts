@@ -76,7 +76,7 @@ test.describe('editor shell (desktop)', () => {
 
   test('switches theme and language', async ({ page }) => {
     await page.goto('/#/editor');
-    await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+    await page.getByRole('button', { name: 'Light: Switch to dark theme' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await page.getByRole('button', { name: /FR/ }).click();
     await expect(page.getByRole('contentinfo', { name: "État de l'éditeur" })).toContainText(
@@ -89,10 +89,11 @@ test.describe('editor shell (desktop)', () => {
     // The session check runs first: wait for the top bar before using the keyboard.
     await expect(page.getByRole('link', { name: 'Back to home' })).toBeVisible();
     const names = [
+      'Skip to the score',
       'Back to home',
       'Instruments panel',
       'Score title',
-      'Open the command palette',
+      'Commands… Ctrl K',
       'Focus mode',
       'Score',
       'Chord sheet',
@@ -102,7 +103,7 @@ test.describe('editor shell (desktop)', () => {
       'Share',
       'Export',
       'About and credits',
-      'Switch to dark theme',
+      'Light: Switch to dark theme',
       'EN English',
       'FR Français',
       'Ada Lovelace',

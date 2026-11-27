@@ -19,7 +19,14 @@ import { Mixer } from './Mixer';
 import { ShortcutStrip } from './ShortcutStrip';
 import { SidePanel } from './SidePanel';
 import type { DialogKind } from './commands/CommandDialogs';
-import { describeDuration, describeEvent, formatNotice, positionLabel } from './entry/describe';
+import { SkipLink } from '../components/SkipLink';
+import {
+  describeDuration,
+  describeEvent,
+  describeMeasure,
+  formatNotice,
+  positionLabel,
+} from './entry/describe';
 import { EditorStore, newEditorScore } from './entry/editorStore';
 import { entryShortcuts } from './entry/entryShortcuts';
 import { structureShortcuts } from './entry/structureShortcuts';
@@ -301,6 +308,16 @@ export function EditorLayout({
       handler: () => setFocus(!focus),
     },
     {
+      id: 'a11y.describeMeasure',
+      keys: 'Alt+M',
+      labelKey: 'describe.measureCommand',
+      group: 'view',
+      allowInInput: true,
+      handler: () => {
+        store.describeMeasure();
+      },
+    },
+    {
       id: 'view.chordSheet',
       keys: 'Alt+V',
       labelKey: 'shortcut.chordSheet',
@@ -444,12 +461,22 @@ export function EditorLayout({
   );
 
   const ann = state.announcement;
-  const liveMessage = ann
-    ? 'eventId' in ann
+  const liveMessage = !ann
+    ? ''
+    : 'eventId' in ann
       ? describeEvent(state.score, ann.eventId, t)
-      : formatNotice(ann.notice, t)
-    : '';
+      : 'measure' in ann
+        ? describeMeasure(
+            state.score,
+            ann.measure.staffId,
+            ann.measure.voice,
+            ann.measure.index,
+            t,
+          ) || t('describe.noStaff')
+        : formatNotice(ann.notice, t);
   const notice = ann && 'notice' in ann ? formatNotice(ann.notice, t) : undefined;
+  // The same sentence twice in a row (selecting the same note again) is still spoken: a new element each time.
+  const liveSeq = ann?.seq ?? 0;
   const durationLabel = describeDuration(state.duration, t);
 
   const showScrim = overlay && (leftOpen || rightOpen);
@@ -461,6 +488,7 @@ export function EditorLayout({
       {...(focus ? { 'data-focus': '' } : {})}
       {...io.dropProps}
     >
+      <SkipLink target="score-region" label="a11y.skipToScore" />
       <TopBar
         onOpenPalette={() => setDialog('palette')}
         onOpenCredits={() => setDialog('credits')}
@@ -505,7 +533,12 @@ export function EditorLayout({
           <TransportBar controller={playback} selection={state.selection} />
           <div className="score-area">
             {!sheet && <Palette store={store} state={state} advanced={advanced} />}
-            <section className="paper" aria-label={t('paper.label')}>
+            <section
+              className="paper"
+              id="score-region"
+              tabIndex={-1}
+              aria-label={t('paper.label')}
+            >
               <h1 className="ptitle">{title || t('editor.untitled')}</h1>
               {sheet ? (
                 <Suspense
@@ -528,6 +561,7 @@ export function EditorLayout({
                   selection={highlighted}
                   warnings={warnings}
                   liveMessage={liveMessage}
+                  liveSeq={liveSeq}
                   onEngraver={setEngraver}
                   onHit={(hit, event) => store.click(hit, event.shiftKey)}
                   overlay={

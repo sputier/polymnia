@@ -175,7 +175,13 @@ export function AccountMenu() {
       )}
       {deleting && (
         <Suspense fallback={null}>
-          <DeleteAccountDialog onClose={() => setDeleting(false)} />
+          <DeleteAccountDialog
+            onClose={() => {
+              setDeleting(false);
+              // The menu item that opened it is gone: the focus goes back to the menu button.
+              button.current?.focus();
+            }}
+          />
         </Suspense>
       )}
     </div>

@@ -21,6 +21,8 @@ export interface ScoreViewProps {
   onHit?: (hit: HitResult | null, event: React.PointerEvent<HTMLDivElement>) => void;
   /** Text announced politely to screen readers (the selected event description, wired by #19). */
   liveMessage?: string;
+  /** Changes with every announcement, so an identical sentence is announced again. */
+  liveSeq?: number;
   /** Receives the engraver once it exists (and null when it is gone): playback follows the score through it. */
   onEngraver?: (engraver: Engraver | null) => void;
   /** Drawn over the score, in the coordinates of the engraved SVG (the chord symbol text field). */
@@ -55,6 +57,7 @@ export function ScoreView({
   warnings,
   onHit,
   liveMessage,
+  liveSeq,
   onEngraver,
   overlay,
 }: ScoreViewProps) {
@@ -208,7 +211,8 @@ export function ScoreView({
       />
       {overlay}
       <div className="visually-hidden" role="status" aria-live="polite">
-        {liveMessage}
+        {/* One element per announcement: the same sentence twice in a row is spoken twice. */}
+        {liveMessage && <span key={liveSeq}>{liveMessage}</span>}
       </div>
     </div>
   );

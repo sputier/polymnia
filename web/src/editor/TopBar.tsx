@@ -75,7 +75,8 @@ export function TopBar(props: TopBarProps) {
       <button
         type="button"
         className="cmdk"
-        aria-label={t('cmd.openLabel')}
+        // The name is the visible text ("Commands… Ctrl K", WCAG 2.5.3); the title says what it does.
+        title={t('cmd.openLabel')}
         aria-haspopup="dialog"
         onClick={props.onOpenPalette}
       >

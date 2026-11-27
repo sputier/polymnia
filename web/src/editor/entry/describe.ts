@@ -2,6 +2,7 @@
 import type { MessageKey } from '../../i18n/en';
 import {
   findEvent,
+  findStaff,
   timeSignatureAt,
   voiceEventTicks,
   type Duration,
@@ -75,4 +76,52 @@ export function formatNotice(notice: Notice, t: T): string {
     text = text.replace(`{${name}}`, String(value));
   }
   return text;
+}
+
+/** Events read out by "Describe the measure" before it summarises the rest ("and 5 more"). */
+export const MEASURE_DESCRIPTION_LIMIT = 24;
+
+/**
+ * "Measure 3: C5 quarter, rest eighth, E5 half" for one measure of one staff and voice: the text alternative to
+ * reading the engraved measure (docs/accessibility.md). Empty string when the staff or the measure does not exist.
+ */
+export function describeMeasure(
+  score: Score,
+  staffId: string,
+  voice: number,
+  measure: number,
+  t: T,
+): string {
+  const at = findStaff(score, staffId);
+  const cell = at && score.parts[at.partIndex]!.staves[at.staffIndex]!.measures[measure];
+  if (!cell) return '';
+  const word = t('describe.measure');
+  const head = `${word.charAt(0).toUpperCase()}${word.slice(1)} ${measure + 1}`;
+  const events = cell.voices[voice]?.events ?? [];
+  if (events.length === 0) return `${head}: ${t('describe.empty')}`;
+  const items = events.slice(0, MEASURE_DESCRIPTION_LIMIT).map((e) => {
+    const what = e.kind === 'rest' ? t('describe.rest') : describePitches(e.pitches, t);
+    return `${what} ${describeDuration(e.duration, t)}`;
+  });
+  const more = events.length - items.length;
+  if (more > 0) items.push(t('describe.more').replace('{count}', String(more)));
+  return `${head}: ${items.join(', ')}`;
+}
+
+export type PlaybackStatusName = 'playing' | 'paused' | 'stopped';
+
+/** Spoken when playback starts, pauses or stops (never while it runs, never on the first render). */
+export function describePlaybackChange(
+  previous: PlaybackStatusName,
+  next: PlaybackStatusName,
+  t: T,
+): string {
+  if (previous === next) return '';
+  return t(
+    next === 'playing'
+      ? 'playback.started'
+      : next === 'paused'
+        ? 'playback.paused'
+        : 'playback.stopped',
+  );
 }

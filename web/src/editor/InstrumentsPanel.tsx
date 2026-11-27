@@ -85,7 +85,13 @@ function InstrumentsPanelView({ store, state, addRequest }: Props) {
               <button
                 type="button"
                 className="part-main"
-                aria-label={t('instruments.select').replace('{name}', name(part))}
+                aria-label={
+                  t('instruments.select').replace('{name}', name(part)) +
+                  // The visible text (name, then instrument) stays inside the accessible name (WCAG 2.5.3).
+                  (name(part) !== instrumentName(part.instrument, language)
+                    ? ` ${instrumentName(part.instrument, language)}`
+                    : '')
+                }
                 aria-current={current ? 'true' : undefined}
                 aria-describedby="part-reorder-hint"
                 onClick={() => store.focusPart(index)}
@@ -93,7 +99,10 @@ function InstrumentsPanelView({ store, state, addRequest }: Props) {
               >
                 <span className="part-name">{name(part)}</span>
                 {name(part) !== instrumentName(part.instrument, language) && (
-                  <span className="part-inst">{instrumentName(part.instrument, language)}</span>
+                  <>
+                    {' '}
+                    <span className="part-inst">{instrumentName(part.instrument, language)}</span>
+                  </>
                 )}
               </button>
               <button
