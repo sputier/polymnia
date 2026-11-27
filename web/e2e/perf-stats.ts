@@ -10,6 +10,12 @@ import { expect, test } from '@playwright/test';
  */
 export const CI_FACTOR = process.env.CI ? 2 : 1;
 
+/**
+ * The p95 budget is the median budget times this factor, on every machine: a developer machine
+ * also runs an IDE, a browser and other work, so it has the same noisy tail as a shared runner.
+ */
+export const P95_FACTOR = 2;
+
 export interface Summary {
   n: number;
   median: number;
@@ -39,7 +45,7 @@ export function expectBudget(
   budget: { medianMs: number; p95Ms?: number },
 ): Summary {
   const s = summarize(samples);
-  const p95Ms = budget.p95Ms ?? budget.medianMs * CI_FACTOR;
+  const p95Ms = budget.p95Ms ?? budget.medianMs * P95_FACTOR;
   const line =
     `PERF ${label}: ${s.n} samples, median ${s.median.toFixed(1)} ms (budget ${budget.medianMs}), ` +
     `p95 ${s.p95.toFixed(1)} ms (budget ${p95Ms}), max ${s.max.toFixed(1)} ms`;

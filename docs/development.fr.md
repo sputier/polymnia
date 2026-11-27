@@ -44,9 +44,9 @@ Toute assertion de temps est dans un test marqué `@perf` (`{ tag: '@perf' }`) e
 Chaque mesure écarte des itérations de chauffe, prend de 5 à 400 échantillons, affiche une ligne du type `PERF engraving one edit: 60 samples, median 5.1 ms (budget 16), p95 8.0 ms (budget 32), max 9.3 ms` (aussi en annotation du test) et vérifie :
 
 - la **médiane** contre le budget strict, identique partout ;
-- le **p95** contre le budget multiplié par le facteur CI (`CI_FACTOR` : 2 quand `CI` est définie, les runners partagés sont environ deux fois plus lents que le portable de référence, voir [engraving.fr.md](engraving.fr.md)).
+- le **p95** contre le double du budget (`P95_FACTOR`, sur toutes les machines : un portable fait aussi tourner un IDE et un navigateur, et les runners CI partagés sont environ deux fois plus lents que le portable de référence, voir [engraving.fr.md](engraving.fr.md)).
 
-Une mesure à un seul échantillon (démarrage à froid) applique le facteur CI à son propre budget. Lire un échec : une médiane au-dessus du budget est une vraie régression ; un p95 seul au-dessus signale une queue bruitée, relancer `npm run test:perf` en local avant de toucher à un budget. Rien d'autre ne doit tourner pendant la mesure : `PLAYWRIGHT_PORT` change le port si un autre serveur de prévisualisation occupe 4173.
+Une mesure à un seul échantillon (démarrage à froid) applique le facteur CI (`CI_FACTOR` : 2 quand `CI` est définie) à son propre budget. Lire un échec : une médiane au-dessus du budget est une vraie régression ; un p95 seul au-dessus signale une queue bruitée, relancer `npm run test:perf` en local avant de toucher à un budget. Rien d'autre ne doit tourner pendant la mesure : `PLAYWRIGHT_PORT` change le port si un autre serveur de prévisualisation occupe 4173.
 
 ### Design tokens et thèmes
 

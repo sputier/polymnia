@@ -44,6 +44,8 @@ async function exportAs(page: Page, item: string): Promise<{ name: string; bytes
   const download = page.waitForEvent('download');
   await page.getByRole('menuitem', { name: item }).click();
   const file = await download;
+  // The menu closes asynchronously: opening it again too early would toggle it shut.
+  await expect(page.getByRole('menuitem', { name: item })).toBeHidden();
   return { name: file.suggestedFilename(), bytes: await readFile((await file.path())!) };
 }
 

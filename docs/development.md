@@ -44,9 +44,9 @@ Every timing assertion lives in a test tagged `@perf` (`{ tag: '@perf' }`) and u
 Each measurement discards warm-up iterations, takes 5 to 400 samples, prints a line such as `PERF engraving one edit: 60 samples, median 5.1 ms (budget 16), p95 8.0 ms (budget 32), max 9.3 ms` (also an annotation of the test), and asserts:
 
 - the **median** against the strict budget, the same everywhere;
-- the **p95** against the budget times the CI factor (`CI_FACTOR`: 2 when `CI` is set, shared runners are about twice as slow as the reference laptop, see [engraving.md](engraving.md)).
+- the **p95** against twice the budget (`P95_FACTOR`, on every machine: a laptop also runs an IDE and a browser, and shared CI runners are about twice as slow as the reference laptop, see [engraving.md](engraving.md)).
 
-A one-sample measurement (cold start) gets the CI factor on its own budget. Reading a failure: a median over budget is a real regression; a p95 over budget alone points to a noisy tail, so rerun `npm run test:perf` locally before touching a budget. Nothing else should run during a measurement: use `PLAYWRIGHT_PORT` if another preview server holds port 4173.
+A one-sample measurement (cold start) gets the CI factor (`CI_FACTOR`: 2 when `CI` is set) on its own budget. Reading a failure: a median over budget is a real regression; a p95 over budget alone points to a noisy tail, so rerun `npm run test:perf` locally before touching a budget. Nothing else should run during a measurement: use `PLAYWRIGHT_PORT` if another preview server holds port 4173.
 
 ### Design tokens and themes
 
