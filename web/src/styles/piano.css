@@ -1,0 +1,178 @@
+/* On-screen piano (docs/editor.md). The keys keep a piano look in both themes. */
+.pianobar {
+  --key-white: #ffffff;
+  --key-white-ink: #3a4152;
+  --key-white-edge: #6b7385;
+  --key-black: #1c202a;
+  --key-black-edge: #000000;
+  flex: none;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+:root[data-theme='dark'] .pianobar {
+  --key-white: #dfe3ec;
+  --key-white-ink: #1c202a;
+  --key-white-edge: #0d0f14;
+  --key-black: #11141b;
+  --key-black-edge: #5b6578;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .pianobar {
+    --key-white: #dfe3ec;
+    --key-white-ink: #1c202a;
+    --key-white-edge: #0d0f14;
+    --key-black: #11141b;
+    --key-black-edge: #5b6578;
+  }
+}
+
+.pianobar[hidden] {
+  display: none;
+}
+
+.editor[data-focus] .pianobar {
+  display: none;
+}
+
+.piano-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.piano-head strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.piano-hint {
+  flex: 1;
+  min-width: 160px;
+}
+
+.midi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.midi-msg {
+  max-width: 460px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.midi-msg:empty {
+  display: none;
+}
+
+.midi-ok {
+  color: var(--ok);
+}
+
+.midi-device {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.midi-device select {
+  max-width: 200px;
+  padding: 3px 6px;
+  color: var(--ink);
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.piano-scroll {
+  padding: 0 12px 10px;
+  overflow-x: auto;
+}
+
+.piano-keys {
+  position: relative;
+  height: 96px;
+  margin: 0 auto;
+}
+
+.pk {
+  position: absolute;
+  top: 0;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pk-white {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 96px;
+  padding-bottom: 4px;
+  font: 500 10px var(--font-mono);
+  color: var(--key-white-ink);
+  background: var(--key-white);
+  border: 1px solid var(--key-white-edge);
+  border-radius: 0 0 5px 5px;
+}
+
+.pk-black {
+  z-index: 2;
+  height: 58px;
+  background: var(--key-black);
+  border: 1px solid var(--key-black-edge);
+  border-radius: 0 0 4px 4px;
+}
+
+.pk:focus-visible {
+  z-index: 3;
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.pk-black:focus-visible {
+  outline-color: #ffffff;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.pk-white:hover {
+  background: var(--panel2);
+}
+
+.pk-black:hover {
+  background: #3a4152;
+}
+
+.pk-white.is-on {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.pk-black.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pk-white.is-playing {
+  color: var(--accent-ink);
+  background: var(--play);
+}
+
+.pk-black.is-playing {
+  background: var(--play);
+  border-color: var(--play);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pk {
+    transition: background-color 80ms linear;
+  }
+}

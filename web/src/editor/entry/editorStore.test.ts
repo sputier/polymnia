@@ -498,3 +498,47 @@ describe('store transitions', () => {
     expect(findEvent(store.getState().score, id)?.event).toMatchObject({ kind: 'note' });
   });
 });
+
+describe('piano keys (enterMidi)', () => {
+  const pitches = (measure = 0) =>
+    events(measure).flatMap((e) =>
+      e.kind === 'note' ? [e.pitches.map((p) => p.step + p.octave)] : [],
+    );
+
+  it('enters a note at the current duration, Shift adds it to the chord', () => {
+    press('N', '6');
+    store.enterMidi(60);
+    store.enterMidi(64, true);
+    expect(pitches()).toEqual([['C4', 'E4']]);
+    expect(store.getState().cursor.tick).toBe(1920);
+  });
+
+  it('calls the sound hook', () => {
+    const heard = vi.fn();
+    store.onNoteEntered = heard;
+    press('N');
+    store.enterMidi(62);
+    expect(heard).toHaveBeenCalledWith({ step: 'D', alter: 0, octave: 4 });
+  });
+
+  it('in select mode moves the selected note, Shift adds to it', () => {
+    press('N', '5');
+    store.enterMidi(60);
+    store.enterMidi(64);
+    press('Escape');
+    store.clickEvent(events()[0]!.id);
+    store.enterMidi(67);
+    expect(pitches()[0]).toEqual(['G4']);
+    store.enterMidi(72, true);
+    expect(pitches()[0]).toEqual(['G4', 'C5']);
+    store.undo();
+    expect(pitches()[0]).toEqual(['G4']);
+  });
+
+  it('refuses invalid MIDI numbers', () => {
+    press('N');
+    store.enterMidi(200);
+    store.enterMidi(1.5);
+    expect(pitches()).toEqual([]);
+  });
+});

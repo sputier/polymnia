@@ -30,6 +30,17 @@ import { useUiMode } from './uiMode';
 
 const loadDialogs = () => import('./commands/CommandDialogs');
 const CommandDialogs = lazy(loadDialogs);
+// The on-screen piano and the MIDI input are a lazy chunk, fetched the first time the piano opens.
+const Piano = lazy(() => import('./piano/Piano'));
+
+const PIANO_STORAGE_KEY = 'polymnia.piano';
+function readPianoPref(): boolean {
+  try {
+    return localStorage.getItem(PIANO_STORAGE_KEY) === 'open';
+  } catch {
+    return false;
+  }
+}
 
 /** Below this width the side panels float over the score. */
 export const OVERLAY_QUERY = '(max-width: 1099px)';
@@ -152,6 +163,19 @@ export function EditorLayout({
     const id = setTimeout(load, 200);
     return () => clearTimeout(id);
   }, []);
+  // On-screen piano: stays mounted once opened so a connected MIDI keyboard keeps working.
+  const [pianoOpen, setPianoOpen] = useState(readPianoPref);
+  const [pianoLoaded, setPianoLoaded] = useState(pianoOpen);
+  const togglePiano = () => {
+    const next = !pianoOpen;
+    setPianoOpen(next);
+    if (next) setPianoLoaded(true);
+    try {
+      localStorage.setItem(PIANO_STORAGE_KEY, next ? 'open' : 'closed');
+    } catch {
+      // The choice is a convenience.
+    }
+  };
   // Focus mode: only the score and a pill. Not persisted.
   const [focus, setFocus] = useState(false);
   // "Add an instrument" (palette): opens the instruments panel on the picker.
@@ -223,6 +247,13 @@ export function EditorLayout({
       group: 'view',
       allowInInput: true,
       handler: () => setFocus(!focus),
+    },
+    {
+      id: 'editor.togglePiano',
+      keys: 'P',
+      labelKey: 'shortcut.togglePiano',
+      group: 'view',
+      handler: togglePiano,
     },
     {
       id: 'editor.toggleInstruments',
@@ -413,6 +444,11 @@ export function EditorLayout({
             </section>
             <ShortcutStrip />
           </div>
+          {pianoLoaded && (
+            <Suspense fallback={null}>
+              <Piano store={store} controller={playback} open={pianoOpen} onClose={togglePiano} />
+            </Suspense>
+          )}
         </main>
 
         {advanced && (
