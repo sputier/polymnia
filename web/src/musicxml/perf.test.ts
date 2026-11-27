@@ -38,12 +38,17 @@ function best(runs: number, fn: () => void): number {
   return min;
 }
 
+// jsdom parses XML in JavaScript, several times slower than a browser (and CI machines are slow):
+// this is only a regression guard. The 500 ms budget is checked in a real browser, see
+// e2e/musicxml.spec.ts.
+const BUDGET_MS = 2000;
+
 describe('performance (500 measures, 4 staves, jsdom parser)', () => {
   const score = bigScore();
   const xml = scoreToMusicXml(score);
   const bytes = new TextEncoder().encode(xml);
 
-  it('exports and imports in under 500 ms each', () => {
+  it('exports and imports in within the jsdom guard', () => {
     const exportMs = best(3, () => scoreToMusicXml(score));
     const importMs = best(3, () => parseMusicXml(xml));
     const mxlMs = best(3, () => exportMusicXml(score, 'mxl'));
@@ -58,10 +63,10 @@ describe('performance (500 measures, 4 staves, jsdom parser)', () => {
         `import .mxl       ${importMxlMs.toFixed(1)} ms`,
       ].join('\n'),
     );
-    expect(exportMs).toBeLessThan(500);
-    expect(importMs).toBeLessThan(500);
-    expect(mxlMs).toBeLessThan(500);
-    expect(importMxlMs).toBeLessThan(500);
+    expect(exportMs).toBeLessThan(BUDGET_MS);
+    expect(importMs).toBeLessThan(BUDGET_MS);
+    expect(mxlMs).toBeLessThan(BUDGET_MS);
+    expect(importMxlMs).toBeLessThan(BUDGET_MS);
   });
 
   it('round-trips the large score', () => {
