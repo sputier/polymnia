@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { pianoGrandStaff } from '../score/fixtures';
+import { guitarChords, pianoChords, pianoGrandStaff } from '../score/fixtures';
 
 // VexFlow needs a real canvas and SVG metrics: the engraver itself is tested in the browser
 // (e2e/engraving.spec.ts). Here a fake engraver checks the React wiring.
@@ -11,10 +11,16 @@ const calls = vi.hoisted(() => ({
   playing: [] as (readonly string[])[],
   destroyed: 0,
   fonts: undefined as Promise<void> | undefined,
+  library: [] as string[],
+  libraryGate: undefined as Promise<void> | undefined,
 }));
 
 vi.mock('./engraver', () => ({
   loadEngravingFonts: () => calls.fonts ?? Promise.resolve(),
+  ensureChordLibrary: (score: { meta: { title: string } }) => {
+    calls.library.push(score.meta.title);
+    return calls.libraryGate ?? Promise.resolve();
+  },
   Engraver: class {
     svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     constructor(container: HTMLElement) {
@@ -56,6 +62,8 @@ import { ScoreView } from './ScoreView';
 let observers: (() => void)[] = [];
 
 beforeEach(() => {
+  calls.library = [];
+  calls.libraryGate = undefined;
   calls.render = [];
   calls.selection = [];
   calls.playing = [];
@@ -89,6 +97,31 @@ describe('ScoreView', () => {
     expect(svg.getAttribute('aria-label')).toContain(pianoGrandStaff.meta.title);
     expect(svg.getAttribute('aria-label')).toContain('1 instrument');
     expect(svg.getAttribute('aria-label')).toContain('4 measure');
+  });
+
+  it('waits for the chord library before engraving a score with diagrams, and only for those', async () => {
+    let release: () => void = () => {};
+    calls.libraryGate = new Promise<void>((resolve) => (release = resolve));
+    render(<ScoreView score={guitarChords} />);
+    await waitFor(() => expect(calls.library).toEqual([guitarChords.meta.title]));
+    expect(calls.render).toHaveLength(0);
+    await act(async () => {
+      release();
+      await calls.libraryGate;
+    });
+    await waitFor(() => expect(calls.render).toHaveLength(1));
+  });
+
+  it('engraves a score with chord symbols only (no diagrams) at once', async () => {
+    calls.libraryGate = new Promise<void>(() => {});
+    render(<ScoreView score={pianoChords} />);
+    await waitFor(() => expect(calls.render).toHaveLength(1));
+    expect(calls.library).toEqual([]);
+  });
+
+  it('draws the overlay over the score', async () => {
+    render(<ScoreView score={pianoGrandStaff} overlay={<p>chord field</p>} />);
+    expect(await screen.findByText('chord field')).toBeInTheDocument();
   });
 
   it('shows the Au clair de la lune fixture when no score is given', async () => {

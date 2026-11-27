@@ -152,12 +152,68 @@
         }
       }
     },
+    "chordNote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "alter"],
+      "properties": {
+        "step": { "$ref": "#/$defs/step" },
+        "alter": { "$ref": "#/$defs/alter" }
+      }
+    },
+    "chord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tick", "root", "quality"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "tick": { "type": "integer", "minimum": 0, "maximum": 122879 },
+        "root": { "$ref": "#/$defs/chordNote" },
+        "quality": {
+          "type": "string",
+          "maxLength": 24,
+          "pattern": "^[A-Za-z0-9#/+()-]*$"
+        },
+        "bass": { "$ref": "#/$defs/chordNote" },
+        "diagram": { "type": "boolean" },
+        "frame": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["frets", "base"],
+          "properties": {
+            "frets": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 12,
+              "items": { "type": "integer", "minimum": -1, "maximum": 36 }
+            },
+            "base": { "type": "integer", "minimum": 1, "maximum": 36 },
+            "barre": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["fret", "from", "to"],
+              "properties": {
+                "fret": { "type": "integer", "minimum": 1, "maximum": 36 },
+                "from": { "type": "integer", "minimum": 1, "maximum": 12 },
+                "to": { "type": "integer", "minimum": 1, "maximum": 12 }
+              }
+            }
+          }
+        }
+      }
+    },
     "staffMeasure": {
       "type": "object",
       "additionalProperties": false,
       "required": ["voices"],
       "properties": {
         "clef": { "$ref": "#/$defs/clef" },
+        "chords": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/chord" }
+        },
         "voices": {
           "type": "array",
           "minItems": 1,
@@ -199,6 +255,8 @@
           "items": { "$ref": "#/$defs/pitch" }
         },
         "capo": { "type": "integer", "minimum": 0, "maximum": 24 },
+        "chordDiagrams": { "enum": ["first", "all"] },
+        "chordCapoShapes": { "type": "boolean" },
         "staves": {
           "type": "array",
           "minItems": 1,

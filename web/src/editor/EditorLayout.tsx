@@ -8,6 +8,8 @@ import { ScoreView } from '../engraving/ScoreView';
 import { useI18n } from '../i18n/i18n';
 import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
+// Not lazy: the keys typed right after Alt+K must find the field.
+import { ChordEntry } from './ChordEntry';
 import { Inspector, describeWarnings } from './Inspector';
 import { InstrumentsPanel } from './InstrumentsPanel';
 import { instrumentName } from './instrumentUi';
@@ -459,6 +461,17 @@ export function EditorLayout({
                 liveMessage={liveMessage}
                 onEngraver={setEngraver}
                 onHit={(hit, event) => store.click(hit, event.shiftKey)}
+                overlay={
+                  state.chordEntry && (
+                    <ChordEntry
+                      key={`${state.chordEntry.staffId}/${state.chordEntry.measure}/${state.chordEntry.tick}`}
+                      store={store}
+                      entry={state.chordEntry}
+                      score={state.score}
+                      engraver={engraver}
+                    />
+                  )
+                }
               />
             </section>
             <ShortcutStrip />

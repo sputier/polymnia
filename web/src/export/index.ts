@@ -67,7 +67,8 @@ interface Engraved {
 
 /** Engraves the score at page width in an off-screen container. */
 async function engrave(score: Score, paper: Paper, staffSpaceMm?: number): Promise<Engraved> {
-  const { Engraver } = await import('../engraving/engraver');
+  const { Engraver, ensureChordLibrary } = await import('../engraving/engraver');
+  await ensureChordLibrary(score);
   const container = document.createElement('div');
   container.setAttribute('aria-hidden', 'true');
   container.style.cssText =

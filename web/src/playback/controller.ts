@@ -19,7 +19,8 @@ import {
   type TempoMap,
 } from './clock';
 import { sampleSetFor, type SampleSetId } from './instrumentSets';
-import { buildTimeline, type EventSpan, type Timeline } from './timeline';
+import type { ChordPlayback, ShapeLookup } from './chordVoicing';
+import { buildTimeline, type EventSpan, type Timeline, type TimelineOptions } from './timeline';
 
 export type PlaybackStatus = 'stopped' | 'playing' | 'paused';
 
@@ -32,6 +33,8 @@ export interface PlaybackState {
   /** 1 = the tempo written in the score. */
   readonly tempoScale: number;
   readonly metronome: boolean;
+  /** Chord symbols: not played, as block chords or as a strum. */
+  readonly chords: ChordPlayback;
   readonly muted: ReadonlySet<string>;
   readonly solo: ReadonlySet<string>;
   /** Tempo in force at the playhead, quarter notes per minute, already scaled. */
@@ -66,8 +69,8 @@ interface Timed {
   readonly maxSpanTicks: number;
 }
 
-function timeScore(score: Score): Timed {
-  const timeline = buildTimeline(score);
+function timeScore(score: Score, options: TimelineOptions): Timed {
+  const timeline = buildTimeline(score, options);
   const tempo = makeTempoMap(timeline.tempo);
   return {
     timeline,
@@ -88,6 +91,7 @@ export class PlaybackController {
     loop: false,
     tempoScale: 1,
     metronome: false,
+    chords: 'off',
     muted: new Set(),
     solo: new Set(),
     bpm: 120,
@@ -99,6 +103,8 @@ export class PlaybackController {
   private timed: Timed | undefined;
   /** Playhead tick to restore on the next timeline (set when the score changes). */
   private pendingTick: number | undefined;
+  /** Fretboard shapes for the chords of parts with strings (the chord library, loaded on demand). */
+  private lookup: ShapeLookup | undefined;
   private backend: AudioBackend | undefined;
   private backendPromise: Promise<AudioBackend> | undefined;
   /** Staff channels the backend was last given (rebuilt only when the staves or instruments change). */
@@ -170,7 +176,7 @@ export class PlaybackController {
 
   private ensureTimed(): Timed | undefined {
     if (!this.timed && this.score) {
-      this.timed = timeScore(this.score);
+      this.timed = timeScore(this.score, { chords: this.state.chords, lookup: this.lookup });
       if (this.pendingTick !== undefined) {
         const tick = Math.min(this.pendingTick, this.timed.timeline.totalTicks);
         this.positionSec = this.timed.tempo.ticksToSeconds(tick);
@@ -336,6 +342,26 @@ export class PlaybackController {
     this.state = { ...this.state, tempoScale: clamped };
     this.set({ bpm: this.bpmAt(sec) });
     if (this.state.status === 'playing' && this.backend) this.startAt(this.backend, sec);
+  }
+
+  /**
+   * Plays the chord symbols as block chords or a strum (or not at all, the default). The chord
+   * library is fetched the first time; the timeline is rebuilt and playback stops.
+   */
+  async setChordPlayback(mode: ChordPlayback): Promise<void> {
+    if (mode === this.state.chords) return;
+    if (mode !== 'off' && !this.lookup) {
+      const { lookupShape } = await import('../chords/library');
+      this.lookup = lookupShape;
+    }
+    // The timeline is rebuilt with or without the chords; the playhead keeps its tick.
+    this.pendingTick = this.pendingTick ?? (this.timed ? this.positionTick() : 0);
+    if (this.state.status === 'playing') this.halt();
+    this.timed = undefined;
+    this.set({
+      chords: mode,
+      ...(this.state.status === 'playing' ? { status: 'stopped' as const } : {}),
+    });
   }
 
   setMetronome(on: boolean): void {

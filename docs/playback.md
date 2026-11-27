@@ -77,6 +77,16 @@ Authors, URLs and license texts are in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY
 5. Add the set id to `instrumentSets.ts` (`SampleSetId`, `SAMPLE_SET_IDS`) and map the catalog ids to it; add its release time in `toneBackend.ts`; add the instrument to `web/src/score/instruments.ts` if it is not in the catalog.
 6. `npm test` (`samples.test.ts` checks every set covers its range without large holes), update the table above and `THIRD_PARTY_NOTICES.md`.
 
+## Chord playback
+
+Chord symbols (see [editor.md](editor.md#chord-symbols)) can be heard. It is an option of the mixer (Advanced mode, "Chord symbols"): **Muted** (default), **Block chords** (all the notes together) or **Strum** (the strings one after the other, low to high, 36 ticks apart, about 19 ms at 120 bpm). Code: `web/src/playback/chordVoicing.ts` (pure) and `timeline.ts` (`buildTimeline(score, { chords, lookup })`); `PlaybackController.setChordPlayback(mode)`.
+
+- **On the part's instrument.** The chord notes belong to the staff that carries the symbols, so they are played by that staff's sampler (a guitar chord on the guitar samples, a ukulele chord on the ukulele) and obey that staff's mute and solo.
+- **Voicing.** On a part with strings the notes are the **shape of the diagram**: string by string, open string pitch plus capo plus fret (the sounding pitch is the symbol's, whatever the capo), so what you hear is what the diagram shows; a custom fingering (`frame`) is played as drawn. Otherwise (piano, voice...) a close voicing: the bass note (the slash bass, else the root) in the octave below middle C, the chord tones above it in one octave from middle C, at most five of them (the fifth is dropped first in a 9th, 11th or 13th chord). The chord library is loaded the first time the option is switched on, and never otherwise.
+- **Length.** A chord rings until the next symbol of its measure, or to the end of the measure; a chord does not carry over a barline (write the symbol again in the next measure, as on a chart).
+- **Muted by default, not highlighted.** With the option off the timeline has no chord note at all; chord notes have no event id, so they do not light up notes or move the cursor, and they are not in the MIDI export (which is the notes of the score).
+- **Changing the option** stops playback, rebuilds the timeline and keeps the playhead. The timeline is rebuilt like after an edit: lazily.
+
 ## Performance
 
 Measured in Chromium (Windows 11 laptop, production build, local server, no network throttling; the figure is dominated by decoding and scheduling, the download is about 60 KB gzip of Tone plus the set).
@@ -94,6 +104,7 @@ On a real network the first note adds the download of the Tone chunk and of the 
 
 ## Tests
 
+- Chords: `chordPlayback.test.ts` (voicings on guitar, ukulele and keyboard, capo, custom fingering, block and strum timelines, ordering, controller option, playhead kept), `e2e/chords.spec.ts` (the mixer option, muted by default).
 - Unit: `timeline.test.ts` (tempo and tempo changes, dots, ties incl. across barlines and per chord pitch, triplets, rests, chords, voices, several parts and staves, transposition, capo, pickup, beats), `clock.test.ts` (loop maths, mute/solo), `controller.test.ts` (scheduling times, look-ahead, pause/resume, stop, seek, play from selection, tempo, loop, metronome, mute/solo, frames, score edits, preview, audio failure), `samples.test.ts`.
 - Browser, audio mocked (`e2e/playback.spec.ts`, `window.__polymniaAudio = 'mock'`; the backend records its calls in `window.__polymniaAudioLog`): play/stop, cursor and highlight toggling, `Space`/`Home`, `Space` ignored in a text field, play from selection and loop, preview on entry, tempo and metronome, mute/solo, page scrolling.
 - Browser, real engine (`e2e/playback-audio.spec.ts`): decoding with the real samples, time to first note cold and cached, same-origin hashed files, no policy violation.

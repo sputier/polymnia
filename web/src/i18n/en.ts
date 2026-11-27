@@ -1,4 +1,5 @@
 import { accountEn } from './account';
+import { chordsEn } from './chords.en';
 import { libraryEn } from './library';
 import { partsEn } from './parts.en';
 import { tabEn } from './tab.en';
@@ -275,6 +276,7 @@ export const en = {
   ...accountEn,
   ...libraryEn,
   ...tabEn,
+  ...chordsEn,
   ...partsEn,
   ...sharingEn,
 } as const;

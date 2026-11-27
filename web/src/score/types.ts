@@ -65,9 +65,49 @@ export interface Voice {
 export type Clef = 'treble' | 'bass' | 'alto' | 'tenor' | 'treble-8vb' | 'percussion';
 export type StaffType = 'standard' | 'tab';
 
+/** A spelled note name without octave (chord roots and bass notes). */
+export interface ChordNote {
+  readonly step: StepName;
+  readonly alter: Alter;
+}
+
+/** Barre across strings of a fretboard diagram (1-based strings, 1 = highest, `from` <= `to`). */
+export interface ChordBarre {
+  readonly fret: number;
+  readonly from: number;
+  readonly to: number;
+}
+
+/**
+ * Fingering shown instead of the library shape (imported from MusicXML `<frame>`). One entry per
+ * string, highest string first: -1 muted, 0 open, otherwise the fret (counted from the nut).
+ */
+export interface ChordFrame {
+  readonly frets: readonly number[];
+  /** First fret of the diagram window (1 = at the nut). */
+  readonly base: number;
+  readonly barre?: ChordBarre;
+}
+
+/** Chord symbol at a position of a staff measure. Names concert (sounding) pitches. */
+export interface ChordSymbol {
+  readonly id: string;
+  /** Offset from the start of the measure, in ticks (0 <= tick < measure length), unique per measure. */
+  readonly tick: number;
+  readonly root: ChordNote;
+  /** Normalized quality suffix: `""`, `m7`, `maj7`, `7#9`... (see chords.ts). */
+  readonly quality: string;
+  readonly bass?: ChordNote;
+  /** Overrides the part's diagram mode: true always shows the diagram, false never. */
+  readonly diagram?: boolean;
+  readonly frame?: ChordFrame;
+}
+
 export interface StaffMeasure {
   /** Clef change taking effect at the start of this measure (measure 0 uses `Staff.clef`). */
   readonly clef?: Clef;
+  /** Chord symbols above this staff measure, sorted by tick. Absent = none. */
+  readonly chords?: readonly ChordSymbol[];
   /** At least one voice. Voice 0 is the main voice. */
   readonly voices: readonly Voice[];
 }
@@ -94,6 +134,13 @@ export interface Part {
   readonly tuning?: readonly Pitch[];
   /** Capo fret (fretted instruments), 0 or absent = none. */
   readonly capo?: number;
+  /**
+   * Fretboard diagrams above the chord symbols of this part (guitar, ukulele...): the first
+   * occurrence of each chord, or every one. Absent = none (a chord can still force one).
+   */
+  readonly chordDiagrams?: 'first' | 'all';
+  /** Present only when true: with a capo, symbols also show the shape to play, `D (C)`. */
+  readonly chordCapoShapes?: true;
   readonly staves: readonly Staff[];
 }
 

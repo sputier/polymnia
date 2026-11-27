@@ -6,24 +6,38 @@ import {
   idGen,
   LIMITS,
   newId,
+  partTuning,
   pitchEquals,
   STEPS,
   timeSignatureTicks,
   validateScore,
   ScoreFormatError,
   type Alter,
+  type ChordData,
+  type ChordFrame,
+  type ChordSymbol,
   type Clef,
   type Duration,
   type Fretting,
   type IdGen,
   type NotePitch,
   type NoteBase,
+  type Part,
   type Pitch,
   type Score,
   type StepName,
   type TimeSignature,
 } from '../score';
-import { INSTRUMENT_FIELD, MANUAL_FRETTING } from './export';
+import { lookupShape } from '../chords/library';
+import { diagramPlan } from '../score/diagrams';
+import {
+  CHORD_CAPO_FIELD,
+  CHORD_DIAGRAMS_FIELD,
+  CHORD_FLAGS_FIELD,
+  INSTRUMENT_FIELD,
+  MANUAL_FRETTING,
+} from './export';
+import { parseHarmony } from './harmony';
 import { MUSICXML_LIMITS } from './limits';
 import { looksLikeZip, unpackMxl } from './mxl';
 import { MusicXmlError, type ImportResult } from './types';
@@ -121,7 +135,16 @@ interface RawItem {
 
 type ClefOrTab = Clef | 'tab';
 
+interface RawChord {
+  readonly staff: number;
+  readonly tick: number;
+  readonly chord: ChordData;
+  readonly frame?: ChordFrame | undefined;
+}
+
 interface RawMeasure {
+  /** Chord symbols (`<harmony>`) in reading order. */
+  chords: RawChord[];
   /** staff number -> voice key -> items */
   staffItems: Map<number, Map<string, RawItem[]>>;
   clefs: Map<number, ClefOrTab>;
@@ -143,6 +166,11 @@ interface RawPart {
 }
 
 interface PartInfo {
+  /** Chord options kept by Polymnia (see harmony.ts / docs/musicxml.md). */
+  diagrams?: 'first' | 'all';
+  capoShapes?: boolean;
+  /** `measure.staff.tick` -> explicit diagram flag. */
+  flags?: Map<string, boolean>;
   name: string;
   sound?: string;
   instrument?: string;
@@ -581,6 +609,7 @@ function parsePart(el: Element, id: string, first: boolean, ctx: Ctx): RawPart {
       staffItems: new Map(),
       clefs: new Map(st.pendingClefs),
       contentTicks: 0,
+      chords: [],
     };
     st.pendingClefs.clear();
     const mc: MeasureCtx = { cursor: 0 };
@@ -607,6 +636,15 @@ function parsePart(el: Element, id: string, first: boolean, ctx: Ctx): RawPart {
         case 'direction':
           parseDirection(c, rm, mc, ctx);
           break;
+        case 'harmony': {
+          const h = parseHarmony(c);
+          for (const d of h.dropped) ctx.dropped.add(d);
+          if (!('chord' in h)) break;
+          const tick = Math.round(mc.cursor + (h.offset * 960) / st.divisions);
+          if (tick < 0) ctx.dropped.add('harmony (outside measure)');
+          else rm.chords.push({ staff: h.staff, tick, chord: h.chord, frame: h.frame });
+          break;
+        }
         case 'sound':
           applyTempo(num(c.getAttribute('tempo') ?? undefined), rm, mc, ctx);
           break;
@@ -913,6 +951,103 @@ const NAME_TO_INSTRUMENT: readonly (readonly [RegExp, string])[] = [
   [/guitar|guitare|gitarre/i, 'guitar-classical'],
 ];
 
+/** Chord symbols of one staff measure (see docs/musicxml.md, "Chord symbols"). */
+function buildChords(
+  raw: readonly RawChord[],
+  staffNumber: number,
+  staffCount: number,
+  length: number,
+  o: {
+    gen: IdGen;
+    ctx: Ctx;
+    /** Number of strings of the part, undefined without a tuning. */
+    strings: number | undefined;
+    flag: (tick: number) => boolean | undefined;
+  },
+): ChordSymbol[] {
+  // A harmony aimed at a staff that does not exist goes to the first one.
+  const mine = raw.filter(
+    (c) => c.staff === staffNumber || (c.staff > staffCount && staffNumber === 1),
+  );
+  const out: ChordSymbol[] = [];
+  const used = new Set<number>();
+  for (const c of [...mine].sort((a, b) => a.tick - b.tick)) {
+    if (c.tick >= length) {
+      o.ctx.dropped.add('harmony (outside measure)');
+      continue;
+    }
+    if (used.has(c.tick) || out.length >= LIMITS.maxChordsPerMeasure) {
+      o.ctx.dropped.add('harmony (same position)');
+      continue;
+    }
+    used.add(c.tick);
+    let frame = c.frame;
+    if (frame) {
+      const b = frame.barre;
+      const fits =
+        o.strings === frame.frets.length && (!b || (b.from <= b.to && b.to <= o.strings));
+      if (!fits) {
+        o.ctx.dropped.add('frame');
+        frame = undefined;
+      }
+    }
+    const flag = o.flag(c.tick);
+    out.push({
+      id: o.gen(),
+      tick: c.tick,
+      root: c.chord.root,
+      quality: c.chord.quality,
+      ...(c.chord.bass ? { bass: c.chord.bass } : {}),
+      ...(flag !== undefined ? { diagram: flag } : {}),
+      ...(frame ? { frame } : {}),
+    });
+  }
+  return out;
+}
+
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+/**
+ * A diagram that equals the library shape is not custom: the frame is dropped. A chord that came
+ * with a diagram the part's mode does not show gets its own flag, so the diagram stays visible.
+ */
+function settleDiagrams(part: Record<string, unknown>): void {
+  const staves = part.staves as { measures: { chords?: Mutable<ChordSymbol>[] }[] }[];
+  const framed = new Set<string>();
+  const tuning = partTuning(part as unknown as Part);
+  const capo = (part.capo as number | undefined) ?? 0;
+  for (const staff of staves) {
+    for (const sm of staff.measures) {
+      for (const c of sm.chords ?? []) {
+        if (!c.frame) continue;
+        framed.add(c.id);
+        if (tuning && sameFrame(c.frame, lookupShape(c, tuning, capo))) delete c.frame;
+      }
+    }
+  }
+  if (framed.size === 0) return;
+  const plan = diagramPlan({ parts: [part] } as unknown as Score);
+  for (const staff of staves) {
+    for (const sm of staff.measures) {
+      for (const c of sm.chords ?? []) {
+        if (framed.has(c.id) && !plan.has(c.id) && c.diagram === undefined) c.diagram = true;
+      }
+    }
+  }
+}
+
+function sameFrame(a: ChordFrame, b: ChordFrame | undefined): boolean {
+  if (!b) return false;
+  return (
+    a.base === b.base &&
+    a.frets.length === b.frets.length &&
+    a.frets.every((f, i) => f === b.frets[i]) &&
+    a.barre?.fret === b.barre?.fret &&
+    a.barre?.from === b.barre?.from &&
+    a.barre?.to === b.barre?.to
+  );
+}
+
 function resolveInstrument(info: PartInfo | undefined): string {
   if (info?.instrument) return cleanText(info.instrument, LIMITS.maxInstrumentLength) || 'custom';
   if (info?.sound) {
@@ -929,13 +1064,22 @@ function parsePartList(root: Element, ctx: Ctx): Map<string, PartInfo> {
   const list = child(root, 'part-list');
   if (!list) return infos;
   const fields = new Map<string, string>();
+  const diagrams = new Map<string, string>();
+  const capo = new Map<string, string>();
+  const flags = new Map<string, string>();
   const misc = child(child(root, 'identification') ?? root, 'miscellaneous');
   if (misc) {
     for (const f of kids(misc)) {
       const name = f.getAttribute('name') ?? '';
-      if (f.localName === 'miscellaneous-field' && name.startsWith(INSTRUMENT_FIELD)) {
-        fields.set(name.slice(INSTRUMENT_FIELD.length), f.textContent?.trim() ?? '');
-      }
+      if (f.localName !== 'miscellaneous-field') continue;
+      const value = f.textContent?.trim() ?? '';
+      if (name.startsWith(INSTRUMENT_FIELD)) fields.set(name.slice(INSTRUMENT_FIELD.length), value);
+      else if (name.startsWith(CHORD_DIAGRAMS_FIELD))
+        diagrams.set(name.slice(CHORD_DIAGRAMS_FIELD.length), value);
+      else if (name.startsWith(CHORD_CAPO_FIELD))
+        capo.set(name.slice(CHORD_CAPO_FIELD.length), value);
+      else if (name.startsWith(CHORD_FLAGS_FIELD))
+        flags.set(name.slice(CHORD_FLAGS_FIELD.length), value);
     }
   }
   for (const c of kids(list)) {
@@ -948,6 +1092,19 @@ function parsePartList(root: Element, ctx: Ctx): Map<string, PartInfo> {
       if (sound) info.sound = sound;
       const exact = fields.get(id);
       if (exact) info.instrument = exact;
+      const mode = diagrams.get(id);
+      if (mode === 'first' || mode === 'all') info.diagrams = mode;
+      if (capo.get(id) === '1') info.capoShapes = true;
+      const list = flags.get(id);
+      if (list) {
+        info.flags = new Map(
+          list
+            .split(';')
+            .map((entry) => entry.split('='))
+            .filter((kv): kv is [string, string] => kv.length === 2 && /^[01]$/.test(kv[1]!))
+            .map(([key, v]) => [key, v === '1']),
+        );
+      }
       infos.set(id, info);
     } else if (c.localName === 'part-group') ctx.dropped.add('part-group');
   }
@@ -1107,7 +1264,17 @@ export function parseMusicXml(text: string): ImportResult {
             current = wanted;
           }
         }
-        staffMeasures.push(clef ? { clef, voices } : { voices });
+        const chords = buildChords(rm?.chords ?? [], number, raw.staffCount, lengths[m]!, {
+          gen,
+          ctx,
+          strings: raw.tuning?.length ?? def?.strings?.length,
+          flag: (tick) => info?.flags?.get(`${m}.${i}.${tick}`),
+        });
+        staffMeasures.push({
+          ...(clef ? { clef } : {}),
+          voices,
+          ...(chords.length > 0 ? { chords } : {}),
+        });
       }
       return {
         id: staffId,
@@ -1131,6 +1298,9 @@ export function parseMusicXml(text: string): ImportResult {
       if (!same) part.tuning = raw.tuning;
     }
     if (raw.capo > 0) part.capo = raw.capo;
+    if (info?.diagrams) part.chordDiagrams = info.diagrams;
+    if (info?.capoShapes) part.chordCapoShapes = true;
+    settleDiagrams(part);
     return part;
   });
   if (slurs.open.size > 0) ctx.dropped.add('slur', slurs.open.size);

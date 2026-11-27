@@ -11,10 +11,22 @@ import type { Score } from '../score/types';
 import { shortPartName } from '../score/instruments';
 import { eventBox, hitTest, type EventBox, type HitResult, type Rect } from './hitTest';
 import { LayoutCache, layoutScore, type Layout, type SystemLayout } from './layout';
+import { needsChordLibrary } from '../score/diagrams';
 import { drawSystem } from './draw';
+import { hasShapeLookup, setShapeLookup } from './drawChords';
 import './vexflowSetup';
 
 export { loadEngravingFonts } from './vexflowSetup';
+
+/**
+ * Loads the chord library (a separate lazy chunk) the first time a score shows fretboard diagrams.
+ * Call it before `render`: it does nothing for a score without diagrams and resolves at once afterwards.
+ */
+export async function ensureChordLibrary(score: Score): Promise<void> {
+  if (hasShapeLookup() || !needsChordLibrary(score)) return;
+  const { lookupShape } = await import('../chords/library');
+  setShapeLookup(lookupShape);
+}
 
 export interface RenderStats {
   /** Wall time of the whole render call, ms. */
@@ -104,6 +116,8 @@ export class Engraver {
   private readonly cursorLayer: SVGGElement;
   private cursor: SVGRectElement | undefined;
   private readonly cache = new LayoutCache();
+  /** Size last given to the SVG (width x height). */
+  private size = '';
   private entries: (Entry | undefined)[] = [];
   private job: Job | undefined;
   /** Smoothed cost of engraving one system, ms. */
@@ -152,9 +166,15 @@ export class Engraver {
     }
 
     const height = Math.max(layout.height, 1);
-    this.svg.setAttribute('width', String(width));
-    this.svg.setAttribute('height', String(height));
-    this.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    // Only when the size changed: setting an attribute to the same value still invalidates the
+    // layout of the whole SVG, which a keystroke would then pay for in the next forced layout.
+    const size = `${width}x${height}`;
+    if (size !== this.size) {
+      this.size = size;
+      this.svg.setAttribute('width', String(width));
+      this.svg.setAttribute('height', String(height));
+      this.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    }
 
     // Reuse what is unchanged (cheap: signatures only), remember what must be engraved.
     const previous = this.entries.filter((e): e is Entry => e !== undefined);
@@ -314,7 +334,8 @@ export class Engraver {
     };
     if (idle && job.urgent === 0) {
       job.handle = idle(run, { timeout: 120 });
-      job.cancel = cancelIdle;
+      // Called as a method of the job it would throw "Illegal invocation": keep `this` as the window.
+      job.cancel = (h) => cancelIdle?.call(globalThis, h);
     } else {
       job.handle = setTimeout(() => run(), 0) as unknown as number;
       job.cancel = (h) => clearTimeout(h);
@@ -518,6 +539,7 @@ function systemSignature(
     m.clefs,
     m.final,
     m.colX,
+    m.shape.chords,
   ]);
   const names = system.names
     ? score.parts.map((p) => (system.shortNames ? shortPartName(p) : p.name))
@@ -531,6 +553,8 @@ function systemSignature(
     placement,
     slurs,
     score.parts.map((p) => p.staves.map((s) => (s.showRests ? `${s.type}+rests` : s.type))),
+    // Diagrams depend on the tuning and the capo; the symbols on the capo shapes option.
+    score.parts.map((p) => [p.instrument, p.tuning, p.capo, p.chordDiagrams, p.chordCapoShapes]),
   ]);
   return { key, refs };
 }

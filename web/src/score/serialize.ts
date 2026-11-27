@@ -3,6 +3,9 @@ import { MIN_TICKS } from './ticks';
 import { validateScore } from './validate';
 import { SCHEMA_VERSION } from './types';
 import type {
+  ChordFrame,
+  ChordNote,
+  ChordSymbol,
   Clef,
   Duration,
   Issue,
@@ -133,6 +136,8 @@ const CLEFS: readonly Clef[] = ['treble', 'bass', 'alto', 'tenor', 'treble-8vb',
 const STAFF_TYPES: readonly StaffType[] = ['standard', 'tab'];
 const BEAT_TYPES = [1, 2, 4, 8, 16, 32] as const;
 const MAX_MEASURE_TICKS = 32 * 3840;
+/** Characters of a normalized chord quality (see chords.ts). */
+const CHORD_QUALITY_PATTERN = /^[A-Za-z0-9#/+()-]*$/;
 
 function pitch(v: unknown, path: string): Pitch {
   const o = obj(v, path, ['step', 'alter', 'octave']);
@@ -223,12 +228,65 @@ function voice(v: unknown, path: string): Voice {
   };
 }
 
+function chordNote(v: unknown, path: string): ChordNote {
+  const o = obj(v, path, ['step', 'alter']);
+  return {
+    step: oneOf(o.step, `${path}/step`, STEPS),
+    alter: oneOf(o.alter, `${path}/alter`, ALTERS),
+  };
+}
+
+function chordSymbol(v: unknown, path: string): ChordSymbol {
+  const o = obj(v, path, ['id', 'tick', 'root', 'quality'], ['bass', 'diagram', 'frame']);
+  const out: { -readonly [K in keyof ChordSymbol]: ChordSymbol[K] } = {
+    id: idOf(o.id, `${path}/id`),
+    tick: int(o.tick, `${path}/tick`, 0, MAX_MEASURE_TICKS - 1),
+    root: chordNote(o.root, `${path}/root`),
+    quality: str(o.quality, `${path}/quality`, LIMITS.maxQualityLength),
+  };
+  if (!CHORD_QUALITY_PATTERN.test(out.quality)) fail(`${path}/quality`, 'Invalid characters');
+  if (o.bass !== undefined) out.bass = chordNote(o.bass, `${path}/bass`);
+  if (o.diagram !== undefined) {
+    if (typeof o.diagram !== 'boolean') fail(`${path}/diagram`, 'Expected a boolean');
+    out.diagram = o.diagram;
+  }
+  if (o.frame !== undefined) {
+    const f = obj(o.frame, `${path}/frame`, ['frets', 'base'], ['barre']);
+    const frame: { -readonly [K in keyof ChordFrame]: ChordFrame[K] } = {
+      frets: arr(f.frets, `${path}/frame/frets`, 1, LIMITS.maxTuning).map((x, i) =>
+        int(x, `${path}/frame/frets/${i}`, -1, LIMITS.maxFret),
+      ),
+      base: int(f.base, `${path}/frame/base`, 1, LIMITS.maxFret),
+    };
+    if (f.barre !== undefined) {
+      const b = obj(f.barre, `${path}/frame/barre`, ['fret', 'from', 'to']);
+      frame.barre = {
+        fret: int(b.fret, `${path}/frame/barre/fret`, 1, LIMITS.maxFret),
+        from: int(b.from, `${path}/frame/barre/from`, 1, LIMITS.maxTuning),
+        to: int(b.to, `${path}/frame/barre/to`, 1, LIMITS.maxTuning),
+      };
+    }
+    out.frame = frame;
+  }
+  return out;
+}
+
 function staffMeasure(v: unknown, path: string): StaffMeasure {
-  const o = obj(v, path, ['voices'], ['clef']);
+  const o = obj(v, path, ['voices'], ['clef', 'chords']);
   const voices = arr(o.voices, `${path}/voices`, 1, LIMITS.maxVoicesPerMeasure).map((x, i) =>
     voice(x, `${path}/voices/${i}`),
   );
-  return o.clef === undefined ? { voices } : { clef: oneOf(o.clef, `${path}/clef`, CLEFS), voices };
+  const chords =
+    o.chords === undefined
+      ? undefined
+      : arr(o.chords, `${path}/chords`, 1, LIMITS.maxChordsPerMeasure).map((c, i) =>
+          chordSymbol(c, `${path}/chords/${i}`),
+        );
+  return {
+    ...(o.clef === undefined ? {} : { clef: oneOf(o.clef, `${path}/clef`, CLEFS) }),
+    voices,
+    ...(chords ? { chords } : {}),
+  };
 }
 
 function staff(v: unknown, path: string): Staff {
@@ -253,7 +311,7 @@ function part(v: unknown, path: string): Part {
     v,
     path,
     ['id', 'name', 'instrument', 'transposition', 'staves'],
-    ['tuning', 'capo'],
+    ['tuning', 'capo', 'chordDiagrams', 'chordCapoShapes'],
   );
   const out: { -readonly [K in keyof Part]: Part[K] } = {
     id: idOf(o.id, `${path}/id`),
@@ -270,6 +328,14 @@ function part(v: unknown, path: string): Part {
     );
   }
   if (o.capo !== undefined) out.capo = int(o.capo, `${path}/capo`, 0, 24);
+  if (o.chordDiagrams !== undefined) {
+    out.chordDiagrams = oneOf(o.chordDiagrams, `${path}/chordDiagrams`, ['first', 'all'] as const);
+  }
+  if (o.chordCapoShapes !== undefined) {
+    if (typeof o.chordCapoShapes !== 'boolean')
+      fail(`${path}/chordCapoShapes`, 'Expected a boolean');
+    if (o.chordCapoShapes) out.chordCapoShapes = true;
+  }
   return out;
 }
 

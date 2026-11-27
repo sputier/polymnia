@@ -42,5 +42,8 @@ export const FIXTURE_NAMES = [
   'guitarTabFeatures',
   'ukuleleMelody',
   'celloClefChanges',
+  'guitarChords',
+  'ukuleleChords',
+  'pianoChords',
   'accidentals',
 ] as const;

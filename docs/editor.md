@@ -121,6 +121,35 @@ Keys are the MuseScore 4 defaults (`Cmd` replaces `Ctrl` on macOS). They are dec
 
 `window.__polymnia` holds `{ engraver, score, width, store }` (set once the systems are drawn; `store.getState()` is the live state). The Playwright tests use it.
 
+## Chord symbols
+
+Chord symbols (`C`, `Am7`, `G/B`, `F#m7b5`...) sit above the staff, and guitar and ukulele parts can show a **fretboard diagram** with them. The model is in [score-format.md](score-format.md#chord-symbols), the drawing in [engraving.md](engraving.md#chord-symbols-and-fretboard-diagrams), MusicXML in [musicxml.md](musicxml.md#chord-symbols), the sound in [playback.md](playback.md#chord-playback). Code: `web/src/editor/ChordEntry.tsx` (the field), `EditorStore` (`openChordEntry`, `commitChord`, `moveChordEntry`...), `web/src/score/chords.ts` (parser).
+
+| Key (in the field)     | Action                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `Alt+K` (`Option+K`)   | Open the field at the cursor (a symbol that is already there is edited)         |
+| `Space`, `Shift+Space` | Write, then move to the next, previous beat (MuseScore behavior)                |
+| `Tab`, `Shift+Tab`     | Write, then move to the first beat of the next, previous measure                |
+| `Enter`                | Write and close                                                                 |
+| `Esc`                  | Close without writing                                                           |
+| click on a symbol      | Open the field on it                                                            |
+| empty field            | Removes the symbol (on `Enter`, `Space` or `Tab`)                               |
+
+`Ctrl+K` is the command palette here, so chord entry is **`Alt+K`** (K as in MuseScore's chord key; `Alt+K` is free in the shortcut registry and works while a checkbox of the instruments panel has the focus). The field appears over the score where the symbol will be drawn; focus returns to the score when it closes.
+
+- **What you can type.** Letters `A` to `G` (upper or lower case), `#` and `b` or `♯` and `♭`, double alterations (`##`, `bb`, `x`), and the usual quality spellings: `m`, `min`, `-`, `maj7`, `M7`, `Δ7`, `^7`, `7`, `6`, `69` or `6/9`, `9`, `11`, `13`, `dim`, `°`, `o7`, `ø`, `m7b5`, `aug`, `+`, `sus`, `sus2`, `sus4`, `7sus4`, `add9`, `5`, alterations `b5 #5 b9 #9 #11 b13` (with or without parentheses), and a bass note after `/` (`G/B`, `Am7/G`). Everything is **normalized**: `CM7`, `C^7` and `Cmaj7` are stored and shown as `Cmaj7`. Text that is not a chord keeps the field open (red border, announced), and nothing is written.
+- **French note names** are accepted as input: `Do`, `Ré` (or `Re`), `Mi`, `Fa`, `Sol`, `La`, `Si`, with `#` and `b` (`Sib`, `Fa#m7b5`, `Rém7`, `Sol/Si`), in upper or lower case. `Do` is always read as the note C (type `Ddim` for D diminished). The symbol is displayed with letters; a "show note names as Do Ré Mi" display preference is **not implemented** (`formatChord(chord, 'solfege')` exists and is tested, and the field's hint shows how the text was understood, for example "Shown as Dm7" for `rém7`).
+- **Where.** A symbol belongs to the first staff of the part (the standard staff of a "standard + TAB" part) at a position in the measure, in ticks. Space moves by the beat of the time signature (a dotted quarter in 6/8, 9/8, 12/8); a symbol can sit anywhere, not only on a note: a symbol between two notes gets its own column.
+- **Undo.** Every written, replaced or removed symbol is one undo step.
+- **Transposition.** The palette has "Chords: transpose the symbols up / down a semitone", which transpose every symbol of the current part with the correct spelling: `C` up 3 semitones is `Eb`, `Am` up 1 is `Bbm`, `F#m7b5` up 1 is `Gm7b5`; sharps or flats follow the key signature of the measure when it has accidentals (`C` up 1 in D major is `C#`), else the usual chord names (Db, Eb, F#, Ab, Bb; C#m, F#m, G#m but Bbm, Ebm); a slash bass follows its root. The notes are **not** touched: chord symbols name concert (sounding) pitches, so transposing notes, changing the instrument or its transposition never changes them, and a note edit never changes a symbol.
+- **Diagrams and the capo** (instruments panel, for parts with strings). "Fretboard diagrams": none, the first time each chord appears, or every chord (the part's choice); the palette command "Chords: show or hide the diagram of the chord at the cursor" forces or hides one. With a **capo**, the symbol is the sounding chord and the diagram is the shape you play, counted from the capo: with a capo on fret 2, `D` shows the `C` shape. "With the capo, also show the shape to play" writes it next to the symbol: `D (C)`. Both are choices of the part, saved in the score.
+- **Other commands.** "Chords: remove the chord symbol at the cursor" (palette).
+- **Playback** of chord symbols is an option of the mixer (Advanced mode), muted by default: see [playback.md](playback.md#chord-playback).
+
+Accessibility: the field is a labelled text input ("Chord symbol, measure 3, beat 2") described by its keys, `aria-invalid` on text that is not a chord, visible focus ring in both themes, and the notices ("Chord Am7.", "Chord removed.") go through the polite live region. The chord text is also in `data-chord` on each symbol of the SVG, for tests (the symbols are not read one by one by screen readers yet: the score is one image with a summary, as for the notes).
+
+The state of the field is `store.getState().chordEntry` (`{ staffId, measure, tick }` or `null`), also used by the Playwright tests (`e2e/chords.spec.ts`).
+
 ## Parts, instruments and measures
 
 Every change below is a score-model command run through `History` (exact undo and redo, one step per action). The UI is `web/src/editor/InstrumentsPanel.tsx` (left panel), `Inspector.tsx` (right panel, Advanced mode) and `entry/structureShortcuts.ts` (palette commands).

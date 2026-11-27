@@ -18,6 +18,8 @@ interface Spec {
   readonly palette?: false;
   /** Hidden from the cheat sheet. */
   readonly sheet?: false;
+  /** Also fires while a text field or a checkbox has the focus (default: not). */
+  readonly allowInInput?: true;
   /** Where the command does something; the palette shows it disabled otherwise. */
   readonly enabled?: (store: EditorStore) => boolean;
   readonly run: (store: EditorStore) => boolean | void;
@@ -316,6 +318,44 @@ const specs: Spec[] = [
     group: 'edit',
     run: (s) => s.paste(),
   },
+  // Chord symbols. Alt+K: K as in MuseScore's chord key (Ctrl+K is the command palette here).
+  {
+    id: 'entry.chordSymbol',
+    keys: 'Alt+K',
+    labelKey: 'shortcut.chordEntry',
+    group: 'input',
+    // A checkbox of the instruments panel may have the focus: the chord field still opens.
+    allowInInput: true,
+    run: (s) => s.openChordEntry(),
+  },
+  {
+    id: 'chord.transposeUp',
+    keys: '',
+    labelKey: 'command.chordTransposeUp',
+    group: 'edit',
+    run: (s) => s.transposeChords(1),
+  },
+  {
+    id: 'chord.transposeDown',
+    keys: '',
+    labelKey: 'command.chordTransposeDown',
+    group: 'edit',
+    run: (s) => s.transposeChords(-1),
+  },
+  {
+    id: 'chord.diagram',
+    keys: '',
+    labelKey: 'command.chordDiagram',
+    group: 'edit',
+    run: (s) => s.toggleChordDiagram(),
+  },
+  {
+    id: 'chord.delete',
+    keys: '',
+    labelKey: 'command.chordDelete',
+    group: 'edit',
+    run: (s) => s.deleteChordAtCursor(),
+  },
 ];
 
 /** Key combo of a shortcut id (for tooltips and the palette). */
@@ -343,6 +383,7 @@ export function entryShortcuts(store: EditorStore): Shortcut[] {
     ...(spec.paletteLabelKey ? { paletteLabelKey: spec.paletteLabelKey } : {}),
     ...(spec.palette === false ? { palette: false } : {}),
     ...(spec.sheet === false ? { sheet: false } : {}),
+    ...(spec.allowInInput ? { allowInInput: true } : {}),
     ...(spec.enabled ? { enabled: () => spec.enabled?.(store) ?? true } : {}),
     handler: () => {
       // Arrow keys fall back to scrolling when there is nothing to move.

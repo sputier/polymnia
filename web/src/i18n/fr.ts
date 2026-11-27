@@ -1,3 +1,4 @@
+import { chordsFr } from './chords.fr';
 import type { Messages } from './en';
 import { accountFr } from './account';
 import { libraryFr } from './library';
@@ -277,6 +278,7 @@ export const fr: Messages = {
   ...accountFr,
   ...libraryFr,
   ...tabFr,
+  ...chordsFr,
   ...partsFr,
   ...sharingFr,
 };

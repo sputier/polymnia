@@ -402,6 +402,8 @@ function cloneStaff(
       const old = replaces?.measures[m];
       return {
         ...(type === 'standard' && sm.clef ? { clef: sm.clef } : {}),
+        // Chord symbols belong to the standard staff and are not part of the synced notes.
+        ...(type === 'standard' && old?.chords ? { chords: old.chords } : {}),
         voices: sm.voices.map((v, vi): Voice => {
           const oldEvents = old?.voices[vi]?.events;
           return {
