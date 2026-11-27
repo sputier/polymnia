@@ -1,0 +1,43 @@
+/* Score engraving. Colors come from the design tokens; highlighting is a class toggle. */
+.score-view {
+  min-width: 0;
+}
+
+.score-host {
+  min-height: 120px;
+}
+
+.pm-score {
+  display: block;
+  color: var(--score-ink);
+  user-select: none;
+}
+
+.pm-score .pm-event.pm-selected {
+  color: var(--accent);
+}
+
+.pm-score .pm-event.pm-playing {
+  color: var(--play);
+}
+
+.pm-score .pm-sel-bg {
+  fill: var(--accent-soft);
+  stroke: none;
+}
+
+.pm-score .pm-overlay {
+  pointer-events: none;
+}
+
+/* VexFlow hard-codes black on stems and ledger lines: follow the theme instead. */
+.pm-score [stroke='black'],
+.pm-score [stroke='#444'],
+.pm-score [stroke='#000000'] {
+  stroke: currentColor;
+}
+
+.pm-score [fill='black'],
+.pm-score [fill='#000000'] {
+  fill: currentColor;
+}

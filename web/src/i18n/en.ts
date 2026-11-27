@@ -31,7 +31,7 @@ export const en = {
   'inspector.empty': 'Select a note to see its properties.',
   'panel.close': 'Close panel',
   'paper.label': 'Score',
-  'paper.placeholder': 'The score will be displayed here.',
+  'score.summary': 'Score "{title}": {parts} instrument(s), {measures} measure(s).',
   'status.label': 'Editor status',
   'status.input': 'NOTE INPUT',
   'status.select': 'SELECT',

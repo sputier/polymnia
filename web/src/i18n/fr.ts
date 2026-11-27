@@ -33,7 +33,7 @@ export const fr: Messages = {
   'inspector.empty': 'Sélectionnez une note pour voir ses propriétés.',
   'panel.close': 'Fermer le panneau',
   'paper.label': 'Partition',
-  'paper.placeholder': 'La partition sera affichée ici.',
+  'score.summary': 'Partition « {title} » : {parts} instrument(s), {measures} mesure(s).',
   'status.label': "État de l'éditeur",
   'status.input': 'SAISIE',
   'status.select': 'SÉLECTION',

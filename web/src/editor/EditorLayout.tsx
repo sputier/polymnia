@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Kbd } from '../components/Kbd';
 import type { SaveState } from '../components/SaveStatus';
+import { ScoreView } from '../engraving/ScoreView';
 import { useI18n } from '../i18n/i18n';
 import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
@@ -125,7 +126,7 @@ export function EditorLayout({
           <div className="score-area">
             <section className="paper" aria-label={t('paper.label')}>
               <h1 className="ptitle">{title || t('editor.untitled')}</h1>
-              <p className="paper-placeholder">{t('paper.placeholder')}</p>
+              <ScoreView />
             </section>
             <ShortcutStrip />
           </div>
