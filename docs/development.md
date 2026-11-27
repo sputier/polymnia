@@ -25,6 +25,7 @@ Run them from `web/`.
 | `npm test`             | Unit tests (Vitest and Testing Library)                   |
 | `npm run build`        | Type check and production build into `dist/`              |
 | `npm run size`         | Check the bundle budget (run after `build`)               |
+| `npm run bench`        | Score model benchmarks (Vitest bench, fails over budget)  |
 | `npm run test:e2e`     | Playwright smoke tests (Chromium, builds and serves the app) |
 
 First run of the end-to-end tests: `npx playwright install chromium`.
