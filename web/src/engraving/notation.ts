@@ -4,8 +4,10 @@
  */
 import { keyAlter, pitchEquals, STEPS } from '../score/pitch';
 import { TICKS_PER_QUARTER, durationTicks } from '../score/ticks';
+import { clefAt } from '../score/query';
 import type {
   Clef,
+  Staff,
   NotePitch,
   Pitch,
   ScoreEvent,
@@ -178,4 +180,21 @@ export function beamGroups(voice: Voice, time: TimeSignature): number[][] {
 
 export function samePitchIndex(pitches: readonly NotePitch[], p: Pitch): number {
   return pitches.findIndex((q) => pitchEquals(q, p));
+}
+
+/** VexFlow clef type and octave annotation of a clef (treble-8vb is a treble clef with a small 8 below). */
+export function clefGlyph(clef: Clef): { type: string; annotation: '8vb' | undefined } {
+  return clef === 'treble-8vb'
+    ? { type: 'treble', annotation: '8vb' }
+    : { type: clef, annotation: undefined };
+}
+
+/**
+ * The clef of a staff to announce at the start of "measure" (courtesy at the end of the previous
+ * system, or a small clef inside a system): only when the clef in force really changes there.
+ */
+export function clefChangeAt(staff: Staff, measure: number): Clef | null {
+  if (measure <= 0 || measure >= staff.measures.length) return null;
+  const next = clefAt(staff, measure);
+  return next === clefAt(staff, measure - 1) ? null : next;
 }

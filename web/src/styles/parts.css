@@ -246,3 +246,22 @@
   background: var(--warn);
   border-radius: 3px;
 }
+
+/* Mixer rows fit the panel (the inspector is 264 px wide, and narrower as an overlay). */
+.mixer {
+  padding: 0 14px 16px;
+}
+
+.mixer li {
+  flex-wrap: wrap;
+}
+
+.mixer-name {
+  flex: 1 1 7em;
+}
+
+.mixer li .btn.icon {
+  flex: 0 0 auto;
+  min-width: 32px;
+  justify-content: center;
+}

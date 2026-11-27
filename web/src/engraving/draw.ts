@@ -46,6 +46,8 @@ import {
   tieInFrom,
   tiedInKey,
   type AccidentalGlyph,
+  clefChangeAt,
+  clefGlyph,
 } from './notation';
 import { METRICS, type PlacedMeasure, type StaffSlot, type SystemLayout } from './layout';
 
@@ -226,8 +228,9 @@ export function drawSystem(
       if (m.start.clef === 'full') {
         if (tab) stave.addClef('tab');
         else stave.addClef(vfClef(clef), 'default', clef === 'treble-8vb' ? '8vb' : undefined);
-      } else if (m.start.clef === 'small' && !tab) {
-        stave.addClef(vfClef(clef), 'small', clef === 'treble-8vb' ? '8vb' : undefined);
+      } else if (m.start.clef === 'small' && !tab && clefChangeAt(staff, m.index)) {
+        const g = clefGlyph(clef);
+        stave.addClef(g.type, 'small', g.annotation);
       }
       if (m.start.key !== null && !tab) {
         stave.addKeySignature(
@@ -237,9 +240,10 @@ export function drawSystem(
       }
       if (m.start.time) stave.addTimeSignature(`${m.start.time.beats}/${m.start.time.beatType}`);
       if (m.end) {
-        if (m.end.clef && !tab) {
-          const next = system.measures.length ? slotNextClef(score, slot, m.index + 1) : clef;
-          stave.setEndClef(vfClef(next), 'small', next === 'treble-8vb' ? '8vb' : undefined);
+        const courtesy = tab ? null : clefChangeAt(staff, m.index + 1);
+        if (m.end.clef && courtesy) {
+          const g = clefGlyph(courtesy);
+          stave.setEndClef(g.type, 'small', g.annotation);
         }
         if (m.end.key !== null && !tab) {
           stave.setEndKeySignature(keyName(m.end.key), keyName(m.end.cancelKey ?? 0));
@@ -469,16 +473,6 @@ export function drawSystem(
 
   (ctx as unknown as { closeGroup(): void }).closeGroup();
   return { group, elements, overflow };
-}
-
-function slotNextClef(score: Score, slot: StaffSlot, measure: number): Clef {
-  const staff = score.parts[slot.partIndex]!.staves[slot.staffIndex]!;
-  let clef: Clef = staff.clef;
-  for (let i = 1; i <= measure && i < staff.measures.length; i++) {
-    const c = staff.measures[i]?.clef;
-    if (c) clef = c;
-  }
-  return clef;
 }
 
 function drawConnectors(
