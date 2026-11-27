@@ -386,7 +386,7 @@ public sealed class AuthSessionTests(PostgresFixture postgres) : IClassFixture<P
         using TestApp app = await StartAsync();
         Guid? created = await WithDbAsync(app, async db =>
             await new Polymnia.Infrastructure.Users.UserProvisioner(db, TimeProvider.System)
-                .SignInAsync(app.Google.Subject, "Ada", null, cancellationToken: TestContext.Current.CancellationToken));
+                .SignInAsync(app.Google.Subject, "Ada", null, int.MaxValue, cancellationToken: TestContext.Current.CancellationToken));
         Guid userId = created!.Value;
         var store = app.Services.GetRequiredService<DbTicketStore>();
         var identity = new System.Security.Claims.ClaimsIdentity(

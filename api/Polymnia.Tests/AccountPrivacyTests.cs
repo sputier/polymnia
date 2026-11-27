@@ -259,10 +259,12 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         app.Google.Subject = other;
         using HttpResponseMessage callback = await browser.GetAsync(reauth.Headers.Location!.OriginalString);
 
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        Assert.Equal("/?signin=failed", callback.Headers.Location!.OriginalString);
         Assert.Equal(0L, await CountAsync("SELECT count(*) FROM users WHERE google_subject = @s", ("s", other)));
-        // No session of the other account was issued.
+        // No session of the other account was issued: the person is still signed in as themselves.
         using HttpResponseMessage me = await browser.GetAsync("/api/me");
-        Assert.NotEqual(HttpStatusCode.OK, me.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, me.StatusCode);
         Assert.Equal(0L, await CountAsync("SELECT count(*) FROM users WHERE google_subject = @s", ("s", other)));
     }
 

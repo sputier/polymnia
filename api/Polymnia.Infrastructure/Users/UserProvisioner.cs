@@ -19,7 +19,7 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
         string googleSubject,
         string? displayName,
         string? avatarUrl,
-        int? maxNewAccountsPerDay = null,
+        int maxNewAccountsPerDay,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(googleSubject);
@@ -65,7 +65,9 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
             {
                 await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
-                // One lock for the whole instance: the count and the insert of a registration cannot interleave.
+                // One lock for the whole instance: the count and the insert of a registration cannot interleave. Waiting is
+                // bounded (SQLSTATE 55P03 after 5 s, the sign-in then fails closed): a stuck holder cannot pile up connections.
+                await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'", cancellationToken);
                 await db.Database.ExecuteSqlInterpolatedAsync(
                     $"SELECT pg_advisory_xact_lock(hashtextextended('polymnia.registrations', 0))", cancellationToken);
 
@@ -77,13 +79,10 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
                     continue;
                 }
 
-                if (maxNewAccountsPerDay is { } cap)
+                DateTimeOffset since = now - TimeSpan.FromDays(1);
+                if (await db.RegistrationEvents.AsNoTracking().CountAsync(e => e.CreatedAt > since, cancellationToken) >= maxNewAccountsPerDay)
                 {
-                    DateTimeOffset since = now - TimeSpan.FromDays(1);
-                    if (await db.RegistrationEvents.AsNoTracking().CountAsync(e => e.CreatedAt > since, cancellationToken) >= cap)
-                    {
-                        return null;
-                    }
+                    return null;
                 }
 
                 db.Users.Add(user);

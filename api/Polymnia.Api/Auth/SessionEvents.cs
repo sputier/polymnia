@@ -27,7 +27,7 @@ internal static class SessionEvents
         string? subject = google.FindFirstValue("sub");
         if (string.IsNullOrWhiteSpace(subject))
         {
-            context.Fail("Missing subject.");
+            FailSignIn(context, "MissingSubject");
             return;
         }
 
@@ -40,7 +40,7 @@ internal static class SessionEvents
                 : null;
             if (knownSubject is null || knownSubject != subject)
             {
-                context.Fail("Re-authentication with a different account.");
+                FailSignIn(context, "ReauthDifferentAccount");
                 return;
             }
         }
@@ -59,12 +59,24 @@ internal static class SessionEvents
             return;
         }
 
-        Guid? created = await provisioner.SignInAsync(
-            subject,
-            google.FindFirstValue("name"),
-            google.FindFirstValue("picture"),
-            authOptions.Registration.MaxNewAccountsPerDay,
-            context.HttpContext.RequestAborted);
+        Guid? created;
+        try
+        {
+            created = await provisioner.SignInAsync(
+                subject,
+                google.FindFirstValue("name"),
+                google.FindFirstValue("picture"),
+                authOptions.Registration.MaxNewAccountsPerDay,
+                context.HttpContext.RequestAborted);
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == Npgsql.PostgresErrorCodes.LockNotAvailable)
+        {
+            // The registration lock was not obtained in time: fail closed with the generic "sign-in failed" answer.
+            AuthLog.RegistrationLockTimeout(audit);
+            FailSignIn(context, "RegistrationLockTimeout");
+            return;
+        }
+
         if (created is not { } userId)
         {
             CloseRegistration(context, audit, "instance");
@@ -170,6 +182,18 @@ internal static class SessionEvents
         ArgumentNullException.ThrowIfNull(context);
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Ends the sign-in on the generic "sign-in failed" page. <c>context.Fail</c> is not enough in a TicketReceived handler:
+    /// the remote handler would still sign the Google principal in (which then fails with a 500), so the response is handled here.
+    /// </summary>
+    private static void FailSignIn(TicketReceivedContext context, string reason)
+    {
+        ILogger logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
+        AuthLog.SignInFailed(logger, reason);
+        context.Response.Redirect("/?signin=failed");
+        context.HandleResponse();
     }
 
     private static void CloseRegistration(TicketReceivedContext context, ILogger audit, string scope)

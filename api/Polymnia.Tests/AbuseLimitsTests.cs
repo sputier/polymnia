@@ -301,6 +301,63 @@ public sealed class AbuseLimitsTests(PostgresFixture postgres) : IClassFixture<P
         Assert.Single(results.Distinct());
     }
 
+    [Fact]
+    public async Task The_cleanup_purges_registration_events_older_than_two_days_and_keeps_the_rest()
+    {
+        using TestApp app = await StartAsync();
+        await ResetRegistrationsAsync(app);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        using (IServiceScope scope = app.Services.CreateScope())
+        {
+            Polymnia.Infrastructure.PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.PolymniaDbContext>();
+            db.RegistrationEvents.AddRange(
+                new Polymnia.Core.Users.RegistrationEvent { CreatedAt = now - TimeSpan.FromDays(3) },
+                new Polymnia.Core.Users.RegistrationEvent { CreatedAt = now - TimeSpan.FromDays(2) - TimeSpan.FromMinutes(1) },
+                new Polymnia.Core.Users.RegistrationEvent { CreatedAt = now - TimeSpan.FromHours(30) },
+                new Polymnia.Core.Users.RegistrationEvent { CreatedAt = now });
+            await db.SaveChangesAsync(Ct);
+        }
+
+        var cleanup = new SessionCleanupService(
+            app.Services.GetRequiredService<IServiceScopeFactory>(),
+            TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<SessionCleanupService>.Instance);
+        await cleanup.PurgeAsync(Ct);
+
+        using IServiceScope check = app.Services.CreateScope();
+        Assert.Equal(2, await check.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.PolymniaDbContext>().RegistrationEvents.CountAsync(Ct));
+    }
+
+    [Fact]
+    public async Task A_new_sign_in_fails_closed_when_the_registration_lock_is_not_available_and_works_again_after()
+    {
+        using TestApp app = await StartAsync();
+        await ResetRegistrationsAsync(app);
+
+        await using var holder = new Npgsql.NpgsqlConnection(postgres.ConnectionString);
+        await holder.OpenAsync(Ct);
+        await using (Npgsql.NpgsqlTransaction held = await holder.BeginTransactionAsync(Ct))
+        {
+            await using (var lockCommand = new Npgsql.NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended('polymnia.registrations', 0))", holder, held))
+            {
+                await lockCommand.ExecuteNonQueryAsync(Ct);
+            }
+
+            var blocked = new TestBrowser(app);
+            using HttpResponseMessage failed = await SignInAsync(app, blocked, "sub-" + Guid.NewGuid().ToString("N"), "10.7.7.7");
+            Assert.Equal(HttpStatusCode.Redirect, failed.StatusCode);
+            Assert.Equal("/?signin=failed", failed.Headers.Location!.OriginalString);
+            Assert.Null(blocked.SessionCookie);
+            Assert.Contains(app.Logs.Entries, e => e.EventId.Name == "AuthRegistrationLockTimeout");
+        }
+
+        var later = new TestBrowser(app);
+        using (await SignInAsync(app, later, "sub-" + Guid.NewGuid().ToString("N"), "10.7.7.8"))
+        {
+            Assert.NotNull(later.SessionCookie);
+        }
+    }
+
     // ---- database size alert ---------------------------------------------------------------------------------
 
     [Fact]
