@@ -8,7 +8,8 @@ namespace Polymnia.Api.Contact;
 internal sealed class ContactLogThrottle(TimeSpan window, TimeProvider clock)
 {
     private readonly Lock _gate = new();
-    private DateTimeOffset _next = DateTimeOffset.MinValue;
+    // Monotonic: a wall-clock step backwards (NTP, a resumed VM) must not silence the log.
+    private long _nextAt = long.MinValue;
     private int _pending;
 
     /// <summary>Counts one event. Returns <c>true</c>, with the number of events since the last line, when a line is due.</summary>
@@ -17,14 +18,14 @@ internal sealed class ContactLogThrottle(TimeSpan window, TimeProvider clock)
         lock (_gate)
         {
             _pending++;
-            DateTimeOffset now = clock.GetUtcNow();
-            if (now < _next)
+            long now = clock.GetTimestamp();
+            if (_nextAt != long.MinValue && now < _nextAt)
             {
                 count = 0;
                 return false;
             }
 
-            _next = now + window;
+            _nextAt = now + (long)(window.TotalSeconds * clock.TimestampFrequency);
             count = _pending;
             _pending = 0;
             return true;

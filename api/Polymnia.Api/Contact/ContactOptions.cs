@@ -54,13 +54,14 @@ internal sealed class ContactOptions
         {
             content = File.ReadAllText(options.SmtpPasswordFile.Trim()).TrimEnd('\r', '\n');
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            // Neither the path nor the content is in the message.
-            throw new InvalidOperationException("Contact:SmtpPasswordFile could not be read (missing file or permissions).", ex);
+            // No inner exception: its message would name the path. Neither the path nor the content is reported.
+            throw new InvalidOperationException("Contact:SmtpPasswordFile could not be read (missing file, bad path or permissions).");
         }
 
-        if (content.Length > 0)
+        // A file of blanks is an empty file: the variable stays.
+        if (!string.IsNullOrWhiteSpace(content))
         {
             options.SmtpPassword = content;
         }

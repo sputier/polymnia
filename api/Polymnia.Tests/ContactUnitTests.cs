@@ -154,6 +154,36 @@ public sealed class ContactUnitTests
         }
     }
 
+    [Theory]
+    [InlineData(0x3164)] // Hangul filler
+    [InlineData(0x115F)]
+    [InlineData(0x2800)] // Braille blank
+    [InlineData(0x034F)] // combining grapheme joiner
+    public void Blank_looking_fillers_are_dropped_and_a_message_of_fillers_is_empty(int codePoint)
+    {
+        Assert.Equal("ab", ContactText.Clean("a" + (char)codePoint + "b"));
+        Assert.Equal(string.Empty, ContactText.Clean(((char)codePoint).ToString()));
+    }
+
+    [Fact]
+    public void A_password_file_of_blanks_is_an_empty_file()
+    {
+        string file = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(file, "  \n");
+            var options = new ContactOptions { SmtpPassword = "from-the-variable", SmtpPasswordFile = file };
+
+            ContactOptions.ReadPasswordFile(options);
+
+            Assert.Equal("from-the-variable", options.SmtpPassword);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
     [Fact]
     public void A_missing_smtp_password_file_stops_the_start_without_naming_the_path()
     {
@@ -163,7 +193,8 @@ public sealed class ContactUnitTests
         InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => ContactOptions.ReadPasswordFile(options));
 
         Assert.Contains("Contact:SmtpPasswordFile", ex.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(missing, ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(missing, ex.ToString(), StringComparison.Ordinal);
+        Assert.Null(ex.InnerException);
     }
 
     [Theory]

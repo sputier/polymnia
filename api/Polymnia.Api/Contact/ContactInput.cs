@@ -123,7 +123,7 @@ internal static class ContactText
         StringBuilder clean = new(text.Length);
         foreach (Rune rune in text.EnumerateRunes())
         {
-            if (Rune.GetUnicodeCategory(rune) != UnicodeCategory.Format)
+            if (Rune.GetUnicodeCategory(rune) != UnicodeCategory.Format && !IsInvisibleFiller(rune.Value))
             {
                 clean.Append(rune.ToString());
             }
@@ -131,6 +131,10 @@ internal static class ContactText
 
         return clean.ToString().Trim();
     }
+
+    /// <summary>Blank-looking characters outside category Cf: the Hangul fillers, the Braille blank and the combining grapheme joiner.</summary>
+    private static bool IsInvisibleFiller(int codePoint) =>
+        codePoint is 0x115F or 0x1160 or 0x3164 or 0xFFA0 or 0x2800 or 0x034F;
 
     private static bool IsForbidden(char c) =>
         char.IsLowSurrogate(c) || (char.IsControl(c) && c is not ('\n' or '\t')) || (int)c is 0xFFFE or 0xFFFF or 0x2028 or 0x2029;
