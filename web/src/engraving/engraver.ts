@@ -116,6 +116,8 @@ export class Engraver {
   private readonly cursorLayer: SVGGElement;
   private cursor: SVGRectElement | undefined;
   private readonly cache = new LayoutCache();
+  /** Size last given to the SVG (width x height). */
+  private size = '';
   private entries: (Entry | undefined)[] = [];
   private job: Job | undefined;
   /** Smoothed cost of engraving one system, ms. */
@@ -164,9 +166,15 @@ export class Engraver {
     }
 
     const height = Math.max(layout.height, 1);
-    this.svg.setAttribute('width', String(width));
-    this.svg.setAttribute('height', String(height));
-    this.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    // Only when the size changed: setting an attribute to the same value still invalidates the
+    // layout of the whole SVG, which a keystroke would then pay for in the next forced layout.
+    const size = `${width}x${height}`;
+    if (size !== this.size) {
+      this.size = size;
+      this.svg.setAttribute('width', String(width));
+      this.svg.setAttribute('height', String(height));
+      this.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    }
 
     // Reuse what is unchanged (cheap: signatures only), remember what must be engraved.
     const previous = this.entries.filter((e): e is Entry => e !== undefined);
@@ -326,7 +334,8 @@ export class Engraver {
     };
     if (idle && job.urgent === 0) {
       job.handle = idle(run, { timeout: 120 });
-      job.cancel = cancelIdle;
+      // Called as a method of the job it would throw "Illegal invocation": keep `this` as the window.
+      job.cancel = (h) => cancelIdle?.call(globalThis, h);
     } else {
       job.handle = setTimeout(() => run(), 0) as unknown as number;
       job.cancel = (h) => clearTimeout(h);

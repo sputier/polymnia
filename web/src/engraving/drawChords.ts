@@ -50,6 +50,9 @@ export function drawChordsOf(
   const placed = m.shape.chords[slotIndex];
   if (!placed || placed.length === 0) return;
   const byId = new Map(chords.map((c) => [c.id, c]));
+  // One save for the whole measure: it clones the context state, which is not cheap.
+  ctx.save();
+  font = '';
   for (const slotChord of placed) {
     const chord = byId.get(slotChord.id);
     if (!chord) continue;
@@ -71,17 +74,28 @@ export function drawChordsOf(
     }
     closeGroup(ctx);
   }
-}
-
-function drawLabel(ctx: RenderContext, label: ChordLabel, x: number, y: number): void {
-  ctx.save();
-  for (const run of label.runs) {
-    if (run.font === 'music') ctx.setFont('Bravura', `${run.size}px`, 'normal');
-    else ctx.setFont('Inter, system-ui, sans-serif', `${run.size}px`, 'normal');
-    ctx.fillText(run.text, x + run.x, y + run.dy);
-  }
   ctx.restore();
 }
+
+/** The font the context holds, to skip setting it again for every run. */
+let font = '';
+
+function setFont(ctx: RenderContext, family: string, size: number): void {
+  const key = `${family}/${size}`;
+  if (key === font) return;
+  font = key;
+  ctx.setFont(family, `${size}px`, 'normal');
+}
+
+/** Text of a symbol: one text element per run (root, quality, raised extension...). */
+function drawLabel(ctx: RenderContext, label: ChordLabel, x: number, y: number): void {
+  for (const run of label.runs) {
+    setFont(ctx, run.font === 'music' ? 'Bravura' : TEXT_FONT, run.size);
+    ctx.fillText(run.text, x + run.x, y + run.dy);
+  }
+}
+
+const TEXT_FONT = 'Inter, system-ui, sans-serif';
 
 /** Fretboard diagram: strings are vertical (lowest on the left), the nut is at the top. */
 function drawDiagram(
@@ -104,7 +118,6 @@ function drawDiagram(
   const height = rows * fretGap;
   const sx = (string: number) => gx + (n - string) * gap;
 
-  ctx.save();
   ctx.setLineWidth(0.8);
   ctx.beginPath();
   for (let s = 1; s <= n; s++) {
@@ -169,11 +182,10 @@ function drawDiagram(
   });
 
   if (shape.base > 1) {
-    ctx.setFont('Inter, system-ui, sans-serif', '9px', 'normal');
+    setFont(ctx, TEXT_FONT, 9);
     const label = String(shape.base);
     ctx.fillText(label, gx - 3 - label.length * 5.4, gy + fretGap * 0.5 + 3.2);
   }
-  ctx.restore();
   closeGroup(ctx);
 }
 

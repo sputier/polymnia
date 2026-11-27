@@ -138,6 +138,10 @@ describe('ChordEntry', () => {
     open();
     const user = userEvent.setup();
     await user.type(await screen.findByRole('textbox'), 'G');
+    // Right after it opens, a blur is the browser's own (a click on a symbol), not the user's.
+    await user.click(document.body);
+    expect(pos()).not.toBeNull();
+    await new Promise((r) => setTimeout(r, 300));
     await user.click(document.body);
     expect(chords()).toEqual(['0:0:G']);
     expect(pos()).toBeNull();
@@ -145,6 +149,7 @@ describe('ChordEntry', () => {
     const again = await screen.findByRole('textbox');
     await user.clear(again);
     await user.type(again, 'zz');
+    await new Promise((r) => setTimeout(r, 300));
     await user.click(document.body);
     expect(chords()).toEqual(['0:0:G']);
     expect(pos()).toBeNull();

@@ -6,6 +6,9 @@ import { formatChord, parseChord, type Score } from '../score';
 import { positionLabel } from './entry/describe';
 import type { ChordEntryPos, EditorStore } from './entry/editorStore';
 
+/** The focus the browser takes away right after a click that opened the field is given back. */
+const GRACE_MS = 250;
+
 interface ChordEntryProps {
   store: EditorStore;
   entry: ChordEntryPos;
@@ -22,13 +25,22 @@ export function ChordEntry({ store, entry, score, engraver }: ChordEntryProps) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const done = useRef(false);
+  // A click on a symbol opens the field, then the browser moves the focus to the page: that first
+  // blur is not the user leaving the field.
+  const born = useRef(0);
   const hintId = useId();
   const [text, setText] = useState(() => store.chordTextAt(entry));
-  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  // Known from the layout at once when the field opens, so that it can take the focus.
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(() =>
+    engraver
+      ? (chordAnchor(engraver.layout, entry.staffId, entry.measure, entry.tick) ?? null)
+      : null,
+  );
   const where = `${entry.staffId}/${entry.measure}/${entry.tick}`;
 
   // Focused and selected for overtyping. A new position remounts the field (the key in the editor).
   useEffect(() => {
+    born.current = performance.now();
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
@@ -37,8 +49,10 @@ export function ChordEntry({ store, entry, score, engraver }: ChordEntryProps) {
   // before this component in the tree, so its effect has already run).
   useEffect(() => {
     if (!engraver) return;
-    const place = () =>
-      setAnchor(chordAnchor(engraver.layout, entry.staffId, entry.measure, entry.tick) ?? null);
+    const place = () => {
+      const next = chordAnchor(engraver.layout, entry.staffId, entry.measure, entry.tick) ?? null;
+      setAnchor((old) => (old && next && old.x === next.x && old.y === next.y ? old : next));
+    };
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
@@ -113,6 +127,13 @@ export function ChordEntry({ store, entry, score, engraver }: ChordEntryProps) {
         onBlur={() => {
           // Leaving the field keeps what is valid, drops what is not.
           if (done.current || !store.getState().chordEntry) return;
+          if (performance.now() - born.current < GRACE_MS) {
+            requestAnimationFrame(() => {
+              inputRef.current?.focus();
+              inputRef.current?.select();
+            });
+            return;
+          }
           if (typed === '' || parsed) store.commitChord(text);
           store.closeChordEntry();
         }}

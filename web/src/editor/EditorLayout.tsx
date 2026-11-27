@@ -8,6 +8,8 @@ import { ScoreView } from '../engraving/ScoreView';
 import { useI18n } from '../i18n/i18n';
 import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
+// Not lazy: the keys typed right after Alt+K must find the field.
+import { ChordEntry } from './ChordEntry';
 import { Inspector, describeWarnings } from './Inspector';
 import { InstrumentsPanel } from './InstrumentsPanel';
 import { instrumentName } from './instrumentUi';
@@ -29,9 +31,6 @@ import { TransportBar } from './TransportBar';
 import { useMediaQuery } from './useMediaQuery';
 import { useUiMode } from './uiMode';
 
-// The chord symbol field is a lazy chunk too, fetched in idle time like the dialogs.
-const loadChordEntry = () => import('./ChordEntry');
-const ChordEntry = lazy(() => loadChordEntry().then((m) => ({ default: m.ChordEntry })));
 const loadDialogs = () => import('./commands/CommandDialogs');
 const CommandDialogs = lazy(loadDialogs);
 // The on-screen piano and the MIDI input are a lazy chunk, fetched the first time the piano opens.
@@ -162,10 +161,7 @@ export function EditorLayout({
   // Command palette and cheat sheet (lazy chunk, fetched in idle time so the first open is instant).
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   useEffect(() => {
-    const load = () => {
-      void loadDialogs();
-      void loadChordEntry();
-    };
+    const load = () => void loadDialogs();
     if (typeof requestIdleCallback === 'function') {
       const id = requestIdleCallback(load);
       return () => cancelIdleCallback(id);
@@ -467,15 +463,13 @@ export function EditorLayout({
                 onHit={(hit, event) => store.click(hit, event.shiftKey)}
                 overlay={
                   state.chordEntry && (
-                    <Suspense fallback={null}>
-                      <ChordEntry
-                        key={`${state.chordEntry.staffId}/${state.chordEntry.measure}/${state.chordEntry.tick}`}
-                        store={store}
-                        entry={state.chordEntry}
-                        score={state.score}
-                        engraver={engraver}
-                      />
-                    </Suspense>
+                    <ChordEntry
+                      key={`${state.chordEntry.staffId}/${state.chordEntry.measure}/${state.chordEntry.tick}`}
+                      store={store}
+                      entry={state.chordEntry}
+                      score={state.score}
+                      engraver={engraver}
+                    />
                   )
                 }
               />

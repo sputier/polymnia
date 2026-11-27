@@ -197,6 +197,8 @@ function signature(state: EditorState): string {
       p.name,
       p.instrument,
       p.capo ?? 0,
+      p.chordDiagrams ?? '',
+      p.chordCapoShapes ? 1 : 0,
       (p.tuning ?? []).map(pitchName).join(','),
       p.staves.map((s) => `${s.id}:${s.type}`).join(','),
     ].join('/'),

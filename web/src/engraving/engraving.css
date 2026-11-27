@@ -69,8 +69,8 @@
 }
 
 /* Chord symbols and diagrams: the ink is the score's; the group is a target for the click. */
-.pm-score .pm-chord,
-.pm-score .pm-diagram {
+.pm-score .vf-pm-chord,
+.pm-score .vf-pm-diagram {
   cursor: text;
 }
 

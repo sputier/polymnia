@@ -18,6 +18,8 @@ interface Spec {
   readonly palette?: false;
   /** Hidden from the cheat sheet. */
   readonly sheet?: false;
+  /** Also fires while a text field or a checkbox has the focus (default: not). */
+  readonly allowInInput?: true;
   /** Where the command does something; the palette shows it disabled otherwise. */
   readonly enabled?: (store: EditorStore) => boolean;
   readonly run: (store: EditorStore) => boolean | void;
@@ -322,6 +324,8 @@ const specs: Spec[] = [
     keys: 'Alt+K',
     labelKey: 'shortcut.chordEntry',
     group: 'input',
+    // A checkbox of the instruments panel may have the focus: the chord field still opens.
+    allowInInput: true,
     run: (s) => s.openChordEntry(),
   },
   {
@@ -379,6 +383,7 @@ export function entryShortcuts(store: EditorStore): Shortcut[] {
     ...(spec.paletteLabelKey ? { paletteLabelKey: spec.paletteLabelKey } : {}),
     ...(spec.palette === false ? { palette: false } : {}),
     ...(spec.sheet === false ? { sheet: false } : {}),
+    ...(spec.allowInInput ? { allowInInput: true } : {}),
     ...(spec.enabled ? { enabled: () => spec.enabled?.(store) ?? true } : {}),
     handler: () => {
       // Arrow keys fall back to scrolling when there is nothing to move.
