@@ -167,6 +167,27 @@ export function EditorLayout({ saveState = 'saved', store: given }: EditorLayout
       handler: () => io.exportAs('mxl'),
     },
     {
+      id: 'file.exportMidi',
+      keys: 'Mod+Shift+U',
+      labelKey: 'command.exportMidi',
+      group: 'file',
+      handler: () => io.exportAs('midi'),
+    },
+    {
+      id: 'file.exportPdf',
+      keys: 'Mod+Shift+F',
+      labelKey: 'command.exportPdf',
+      group: 'file',
+      handler: () => io.exportAs('pdf'),
+    },
+    {
+      id: 'file.exportPng',
+      keys: 'Mod+Shift+G',
+      labelKey: 'command.exportPng',
+      group: 'file',
+      handler: () => io.exportAs('png'),
+    },
+    {
       id: 'app.cheatSheet',
       keys: 'Question',
       labelKey: 'shortcut.cheatSheet',

@@ -5,6 +5,7 @@ import type { MessageKey } from '../i18n/en';
 import type { ImportErrorCode, ImportReport, ImportResult } from '../musicxml';
 import type { EditorStore } from './entry/editorStore';
 import type { ExportFormat } from './FileMenu';
+import { getPaper } from './paperPref';
 
 /** Same cap as the importer (`MUSICXML_LIMITS.maxInputBytes`), checked before loading the code. */
 const MAX_FILE_BYTES = 20_000_000;
@@ -13,7 +14,7 @@ type Dialog =
   | { kind: 'confirm'; file: string; result: ImportResult }
   | { kind: 'report'; report: ImportReport }
   | { kind: 'exportReport'; dropped: Readonly<Record<string, number>> }
-  | { kind: 'error'; code: ImportErrorCode | 'read' };
+  | { kind: 'error'; code: ImportErrorCode | 'read' | 'export' };
 
 function fileSlug(title: string): string {
   const slug = title
@@ -83,28 +84,69 @@ export function useMusicXmlIO(
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [message, setMessage] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<{ format: string; done: number; total: number } | null>(
+    null,
+  );
+
+  const finishExport = useCallback(
+    (
+      file: { bytes: Uint8Array<ArrayBuffer>; mime: string; extension: string },
+      dropped: Readonly<Record<string, number>>,
+    ) => {
+      const name = `${fileSlug(title)}.${file.extension}`;
+      download(file.bytes, file.mime, name);
+      setMessage(t('io.exported').replace('{name}', name));
+      if (Object.keys(dropped).length > 0) setDialog({ kind: 'exportReport', dropped });
+    },
+    [title, t],
+  );
 
   const exportAs = useCallback(
     (format: ExportFormat) => {
       void (async () => {
+        const score = store.getState().score;
+        const named = { ...score, meta: { ...score.meta, title } };
+        if (format === 'midi' || format === 'pdf' || format === 'png') {
+          const label = t(
+            format === 'midi'
+              ? 'io.exportMidi'
+              : format === 'pdf'
+                ? 'io.exportPdf'
+                : 'io.exportPng',
+          );
+          setMessage(t('io.exporting').replace('{format}', label));
+          setProgress({ format: label, done: 0, total: 0 });
+          try {
+            // The export code (encoder, page layout, PDF writer, canvas) loads on first use.
+            const exporter = await import('../export');
+            const file =
+              format === 'midi'
+                ? await exporter.exportMidi(named, title)
+                : await exporter[format === 'pdf' ? 'exportPdf' : 'exportPng'](
+                    named,
+                    title,
+                    getPaper(),
+                    (p) => setProgress({ format: label, ...p }),
+                  );
+            finishExport(file, file.dropped);
+          } catch {
+            setMessage('');
+            setDialog({ kind: 'error', code: 'export' });
+          } finally {
+            setProgress(null);
+          }
+          return;
+        }
         try {
           const { exportMusicXml } = await import('../musicxml');
-          const score = store.getState().score;
-          const file = timed('musicxml:export', () =>
-            exportMusicXml({ ...score, meta: { ...score.meta, title } }, format),
-          );
-          const name = `${fileSlug(title)}.${file.extension}`;
-          download(file.bytes, file.mime, name);
-          setMessage(t('io.exported').replace('{name}', name));
-          if (Object.keys(file.dropped).length > 0) {
-            setDialog({ kind: 'exportReport', dropped: file.dropped });
-          }
+          const file = timed('musicxml:export', () => exportMusicXml(named, format));
+          finishExport(file, file.dropped);
         } catch {
           setDialog({ kind: 'error', code: 'invalid-score' });
         }
       })();
     },
-    [store, title, t],
+    [store, title, t, finishExport],
   );
 
   const importFile = useCallback(
@@ -181,6 +223,21 @@ export function useMusicXmlIO(
       <div className="visually-hidden" role="status" aria-live="polite">
         {message}
       </div>
+      {progress && (
+        <div className="export-progress" role="status">
+          <span>{t('io.exporting').replace('{format}', progress.format)}</span>
+          {progress.total > 1 && (
+            <>
+              <progress value={progress.done} max={progress.total} aria-hidden="true" />
+              <span>
+                {t('io.exportProgress')
+                  .replace('{done}', String(progress.done))
+                  .replace('{total}', String(progress.total))}
+              </span>
+            </>
+          )}
+        </div>
+      )}
       {dragging && (
         <div className="drop-hint" aria-hidden="true">
           {t('io.dropHint')}

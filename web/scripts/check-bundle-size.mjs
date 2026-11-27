@@ -1,5 +1,6 @@
 // Fails when a budget is exceeded: the initial JavaScript (what index.html loads on the first
 // screen), the editor chunk (VexFlow + engraving, lazy, fonts excluded) and the Bravura font file.
+// The export chunk (MIDI, PDF, PNG; lazy, with the Bravura outlines) is budgeted too.
 // The playback chunk (Tone.js + audio engine, lazy) and the sample files are budgeted too. Also fails when a font is
 // embedded as a data URL in a JavaScript chunk (the CSP only allows same-origin font files).
 // Usage: npm run build && npm run size
@@ -11,6 +12,7 @@ import { gzipSync } from 'node:zlib';
 const BUDGET_KB = 150;
 const EDITOR_BUDGET_KB = 200; // gzip, the chunk that holds VexFlow (#33)
 const PLAYBACK_BUDGET_KB = 80; // gzip, the chunk that holds Tone.js (#10)
+const EXPORT_BUDGET_KB = 70; // gzip, the chunk with MIDI, PDF and PNG export (#14)
 const SAMPLES_BUDGET_KB = 3000; // all sample files together, as served (Ogg Opus)
 const BRAVURA_BUDGET_KB = 250; // woff2 bytes as served (1 KB = 1000 bytes)
 const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -54,6 +56,7 @@ const lazy = files.filter((f) => f.endsWith('.js') && !initial.has(`/assets/${f}
 
 let editorKb = 0;
 let playbackKb = 0;
+let exportKb = 0;
 for (const f of lazy) {
   const file = join(assets, f);
   const kb = gzipKb(file);
@@ -61,9 +64,11 @@ for (const f of lazy) {
   const isEditor = text.includes('vexflow-core');
   const isPlayback = text.includes('ToneAudioBuffer');
   if (isEditor) editorKb += kb;
+  const isExport = text.includes('midi-staff-over-15-channels');
   if (isPlayback) playbackKb += kb;
+  if (isExport) exportKb += kb;
   console.log(
-    `  lazy ${f.padEnd(40)} ${kb.toFixed(1)} KB gzip${isEditor ? '  (editor)' : ''}${isPlayback ? '  (playback)' : ''}`,
+    `  lazy ${f.padEnd(40)} ${kb.toFixed(1)} KB gzip${isEditor ? '  (editor)' : ''}${isPlayback ? '  (playback)' : ''}${isExport ? '  (export)' : ''}`,
   );
 }
 
@@ -110,5 +115,9 @@ console.log(`Playback chunk: ${playbackKb.toFixed(1)} KB gzip (budget ${PLAYBACK
 if (playbackKb === 0) fail('Playback chunk (Tone.js) not found: update this script.');
 if (playbackKb > PLAYBACK_BUDGET_KB)
   fail(`Playback chunk over budget by ${(playbackKb - PLAYBACK_BUDGET_KB).toFixed(1)} KB.`);
+console.log(`Export chunk: ${exportKb.toFixed(1)} KB gzip (budget ${EXPORT_BUDGET_KB} KB)`);
+if (exportKb === 0) fail('Export chunk (MIDI, PDF, PNG) not found: update this script.');
+if (exportKb > EXPORT_BUDGET_KB)
+  fail(`Export chunk over budget by ${(exportKb - EXPORT_BUDGET_KB).toFixed(1)} KB.`);
 console.log(`Bravura: budget ${BRAVURA_BUDGET_KB} KB woff2`);
 if (failed) process.exit(1);

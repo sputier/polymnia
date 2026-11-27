@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Icon } from '../components/Icon';
 import { useI18n } from '../i18n/i18n';
+import { setPaper, usePaper } from './paperPref';
 
-export type ExportFormat = 'musicxml' | 'mxl';
+export type ExportFormat = 'musicxml' | 'mxl' | 'midi' | 'pdf' | 'png';
 
 /** Import button: opens the file picker (the same path as a drop on the editor). */
 export function ImportButton({ onFile }: { onFile: (file: File) => void }) {
@@ -43,9 +44,10 @@ export function ExportMenu({ onExport }: { onExport: (format: ExportFormat) => v
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const paper = usePaper();
 
   const items = () =>
-    Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? []);
 
   useEffect(() => {
     if (!open) return;
@@ -132,6 +134,36 @@ export function ExportMenu({ onExport }: { onExport: (format: ExportFormat) => v
           <button type="button" role="menuitem" className="menu-item" onClick={() => choose('mxl')}>
             {t('io.exportMxl')}
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-item"
+            onClick={() => choose('midi')}
+          >
+            {t('io.exportMidi')}
+          </button>
+          <button type="button" role="menuitem" className="menu-item" onClick={() => choose('pdf')}>
+            {t('io.exportPdf')}
+          </button>
+          <button type="button" role="menuitem" className="menu-item" onClick={() => choose('png')}>
+            {t('io.exportPng')}
+          </button>
+          <div role="separator" className="menu-sep" />
+          {(['a4', 'letter'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              role="menuitemradio"
+              aria-checked={paper === p}
+              className="menu-item"
+              onClick={() => {
+                setPaper(p);
+                closeAndFocus();
+              }}
+            >
+              {t(p === 'a4' ? 'io.paperA4' : 'io.paperLetter')}
+            </button>
+          ))}
         </div>
       )}
     </div>
