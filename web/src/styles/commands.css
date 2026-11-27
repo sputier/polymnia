@@ -1,0 +1,283 @@
+/* Command palette, cheat sheet, focus mode. Colors come from tokens.css only. */
+
+/* Top bar trigger */
+.cmdk {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  min-width: 170px;
+  padding: 0 8px;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.cmdk:hover {
+  border-color: var(--accent);
+}
+
+.cmdk .l {
+  flex: 1;
+  text-align: left;
+}
+
+@media (max-width: 1099px) {
+  .cmdk {
+    min-width: 0;
+  }
+
+  .cmdk .l,
+  .cmdk .kbds {
+    display: none;
+  }
+}
+
+/* Dialogs */
+.dlg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 12px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  animation: dlg-fade 0.12s ease-out;
+}
+
+.dlg {
+  width: min(620px, 100%);
+  max-height: 76vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+@keyframes dlg-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Palette */
+.cmd-input {
+  flex: none;
+  width: 100%;
+  height: 50px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cmd-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 12px 12px 0 0;
+}
+
+.cmd-list {
+  flex: 1;
+  min-height: 0;
+  padding: 6px;
+  overflow: auto;
+}
+
+.cmd-group {
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 7px;
+}
+
+.cmd-row[aria-selected='true'] {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+}
+
+.cmd-row[aria-disabled='true'] {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.cmd-label {
+  flex: 1;
+}
+
+.cmd-tag {
+  font: 400 11px/1 var(--font-mono);
+  color: var(--muted);
+}
+
+.cmd-keys {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.cmd-empty {
+  margin: 0;
+  padding: 18px 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.cmd-foot {
+  display: flex;
+  flex: none;
+  gap: 14px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+
+.cmd-foot kbd {
+  margin-right: 3px;
+}
+
+/* Cheat sheet */
+.sheet {
+  width: min(860px, 100%);
+}
+
+.sheet-head {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px 8px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sheet-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+}
+
+.sheet-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 6px 28px;
+  padding: 12px 18px 18px;
+  overflow: auto;
+}
+
+.sheet-group {
+  break-inside: avoid;
+}
+
+.sheet-group h3 {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sheet-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet-group li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sheet-keys {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  color: var(--muted);
+}
+
+/* Focus mode: the score and a pill, nothing else. Not persisted. */
+.editor[data-focus] .etop,
+.editor[data-focus] .status,
+.editor[data-focus] .panel,
+.editor[data-focus] .scrim,
+.editor[data-focus] .palette,
+.editor[data-focus] .transport,
+.editor[data-focus] .hintbar {
+  display: none;
+}
+
+.focus-pill {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  box-shadow: var(--shadow);
+}
+
+@media print {
+  #root {
+    display: none;
+  }
+
+  .dlg-layer {
+    position: static;
+    padding: 0;
+    background: none;
+    animation: none;
+  }
+
+  .dlg {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .sheet-body {
+    overflow: visible;
+  }
+
+  .dlg-noprint {
+    display: none;
+  }
+}

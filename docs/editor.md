@@ -34,9 +34,12 @@ The choice is stored in `localStorage` (`polymnia.uiMode`; failures are ignored)
 | `Ctrl+B` (`Cmd+B` on macOS) | Show or hide the instruments panel |
 | `Ctrl+I` (`Cmd+I` on macOS) | Show or hide the inspector (Advanced only) |
 | `Alt+A` (`Option+A` on macOS) | Switch between Simple and Advanced |
-| `Esc` | Close the open panel (narrow screens), else leave note input |
 | `Space` | Play or pause (MuseScore behavior; a focused button keeps it) |
 | `Home` | Back to the start of the score |
+| `Ctrl+K` (`Cmd+K` on macOS) | Open the command palette (works while typing in a field) |
+| `Alt+F` (`Option+F` on macOS) | Focus mode |
+| `?` | Keyboard shortcut cheat sheet |
+| `Esc` | Leave focus mode, else close the open panel (narrow screens), else leave note input |
 
 Shortcuts do not fire while typing in a text field. Note-entry keys are listed in the next section.
 
@@ -53,7 +56,22 @@ useShortcuts([
 - `keys`: `Mod` is `Cmd` on macOS and `Ctrl` elsewhere; also `Alt`, `Shift` and a key (`B`, `Escape`, ...). Letters match the physical key, so `Alt+A` works on macOS.
 - `handler` may return `false` to leave the event untouched (no `preventDefault`).
 - `allowInInput: true` opts in to firing while typing in a field.
-- `shortcuts.list()` returns every registered shortcut (for the command palette); `formatKeys` and `<Kbd>` render platform-aware labels.
+- `shortcuts.list()` returns every registered shortcut (for the command palette and the cheat sheet); `formatKeys` and `<Kbd>` render platform-aware labels. `shortcuts.run(id)` runs one by id.
+- `group` (`input`, `edit`, `navigation`, `view`, `playback`, `file`, `help`) sets the section in the palette and the cheat sheet; a shortcut without one lands in "Other". Playback and file shortcuts should set their group when they register.
+- `paletteLabelKey` gives a distinct palette label when several shortcuts share a `labelKey` (the five durations). `palette: false` / `sheet: false` keep a shortcut out of the palette / cheat sheet (the 14 per-letter note keys are one cheat sheet row, "A–G", and no palette command). `enabled()` makes the palette show the command disabled (Undo with nothing to undo); the key itself still reaches the handler.
+- Named symbol keys (`Plus`, `Minus`, `Equal`, `Period`, `Question`) match the character produced and ignore Shift, so `?` works on QWERTY (Shift+/) and AZERTY (Shift+,).
+- While a modal dialog is open (`aria-modal="true"`) the registry ignores the keyboard: note keys never leak behind the palette.
+- Several shortcuts with the same group and label are one command (`Del` and `Backspace`; `Ctrl+Y` and `Ctrl+Shift+Z`). A test checks that no two shortcuts share a key combo; `Ctrl+K` is the palette (MuseScore uses it for chord symbols; Polymnia does not).
+
+## Command palette, focus mode, cheat sheet
+
+Code in `web/src/editor/commands/` (dialogs) and `web/src/shortcuts/` (`commands.ts`, `search.ts`, `recent.ts`). One lazy chunk (about 3 KB gzip), fetched in idle time after the editor mounts so the first opening is instant; the search and the dialogs stay out of the initial bundle.
+
+- **Palette** (`Ctrl+K` / `Cmd+K`, or the "Commands…" button in the top bar). Lists every command registered in the registry, with its key badges, under group headings; recently used commands come first (`localStorage`, key `polymnia.recentCommands`, 8 entries, failures ignored). Type to filter: accent- and case-insensitive, every word must match, matching is on the **French and English** labels whatever the interface language (`silence` and `rest` both find "Enter a rest"), with a tight subsequence fallback (`rst` finds `rest`). `↑`/`↓` (and `Home`/`End`) move, `Enter` runs, `Esc` or `Ctrl+K` closes, and focus goes back to where it was. Commands that do nothing in the current context are shown dimmed, announced as unavailable, skipped by the arrows and not run.
+- **Focus mode** (`Alt+F`, or the top bar button): hides the top bar, panels, note palette, shortcut strip and status bar; a small "Focus mode · Esc to exit" pill stays. `Esc` leaves it (before anything else `Esc` does). Not persisted.
+- **Cheat sheet** (`?`): every shortcut of the registry by group, in a dialog; the Print button prints the sheet alone (print stylesheet). `Ctrl+K` from the sheet goes to the palette.
+- **Accessibility**: the palette is an ARIA 1.2 combobox (`role="combobox"`, `aria-controls`, `aria-activedescendant`) over a `listbox` of `option`s in labelled `group`s, with a polite result count; both dialogs are `role="dialog"` with `aria-modal`, a name, a focus trap and focus restoration; animation is disabled under `prefers-reduced-motion`; everything is available in French and English.
+- **Performance** (`e2e/command-palette.spec.ts`): opening under 50 ms and a keystroke under 5 ms with the full registry (about 5 ms and 0.4 ms measured in Chromium).
 
 ## Note entry
 

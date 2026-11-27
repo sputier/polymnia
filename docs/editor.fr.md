@@ -34,9 +34,12 @@ Le choix est stocké dans `localStorage` (`polymnia.uiMode` ; les erreurs sont i
 | `Ctrl+B` (`Cmd+B` sur macOS) | Afficher ou masquer le panneau des instruments |
 | `Ctrl+I` (`Cmd+I` sur macOS) | Afficher ou masquer l'inspecteur (Avancé uniquement) |
 | `Alt+A` (`Option+A` sur macOS) | Basculer entre Simple et Avancé |
-| `Échap` | Fermer le panneau ouvert (écrans étroits), sinon quitter la saisie |
 | `Espace` | Lecture ou pause (comportement de MuseScore ; un bouton qui a le focus le garde) |
 | `Origine` (`Home`) | Retour au début de la partition |
+| `Ctrl+K` (`Cmd+K` sur macOS) | Ouvrir la palette de commandes (fonctionne aussi dans un champ texte) |
+| `Alt+F` (`Option+F` sur macOS) | Mode focus |
+| `?` | Aide-mémoire des raccourcis clavier |
+| `Échap` | Quitter le mode focus, sinon fermer le panneau ouvert (écrans étroits), sinon quitter la saisie |
 
 Les raccourcis ne se déclenchent pas pendant la saisie dans un champ texte. Les touches de saisie de notes sont listées dans la section suivante.
 
@@ -53,7 +56,22 @@ useShortcuts([
 - `keys` : `Mod` vaut `Cmd` sur macOS et `Ctrl` ailleurs ; aussi `Alt`, `Shift` et une touche (`B`, `Escape`, ...). Les lettres suivent la touche physique, donc `Alt+A` fonctionne sur macOS.
 - `handler` peut renvoyer `false` pour ne pas toucher à l'événement (pas de `preventDefault`).
 - `allowInInput: true` autorise le déclenchement pendant la saisie dans un champ.
-- `shortcuts.list()` renvoie tous les raccourcis (pour la palette de commandes) ; `formatKeys` et `<Kbd>` affichent des libellés adaptés à la plateforme.
+- `shortcuts.list()` renvoie tous les raccourcis (pour la palette de commandes et l'aide-mémoire) ; `formatKeys` et `<Kbd>` affichent des libellés adaptés à la plateforme. `shortcuts.run(id)` en exécute un par son id.
+- `group` (`input`, `edit`, `navigation`, `view`, `playback`, `file`, `help`) fixe la section dans la palette et l'aide-mémoire ; sans groupe, le raccourci tombe dans « Autres ». Les raccourcis de lecture et de fichier doivent indiquer leur groupe en s'enregistrant.
+- `paletteLabelKey` donne un libellé distinct dans la palette quand plusieurs raccourcis partagent un `labelKey` (les cinq durées). `palette: false` / `sheet: false` écartent un raccourci de la palette / de l'aide-mémoire (les 14 touches de notes forment une ligne « A–G » de l'aide-mémoire et aucune commande de palette). `enabled()` fait afficher la commande grisée dans la palette (Annuler sans rien à annuler) ; la touche, elle, atteint toujours le gestionnaire.
+- Les touches symboles nommées (`Plus`, `Minus`, `Equal`, `Period`, `Question`) correspondent au caractère produit et ignorent Maj, donc `?` fonctionne en QWERTY (Maj+/) comme en AZERTY (Maj+,).
+- Tant qu'un dialogue modal est ouvert (`aria-modal="true"`), le registre ignore le clavier : les touches de notes ne fuient pas derrière la palette.
+- Plusieurs raccourcis de même groupe et même libellé forment une seule commande (`Suppr` et `Retour arrière` ; `Ctrl+Y` et `Ctrl+Maj+Z`). Un test vérifie que deux raccourcis ne partagent jamais la même combinaison ; `Ctrl+K` est la palette (MuseScore l'utilise pour les chiffrages d'accords, pas Polymnia).
+
+## Palette de commandes, mode focus, aide-mémoire
+
+Code dans `web/src/editor/commands/` (dialogues) et `web/src/shortcuts/` (`commands.ts`, `search.ts`, `recent.ts`). Un seul chunk chargé à la demande (environ 3 Ko gzip), récupéré en temps d'inactivité après le montage de l'éditeur pour que la première ouverture soit immédiate ; la recherche et les dialogues restent hors du bundle initial.
+
+- **Palette** (`Ctrl+K` / `Cmd+K`, ou le bouton « Commandes… » de la barre du haut). Liste toutes les commandes enregistrées dans le registre, avec leurs touches, sous des titres de groupes ; les commandes récemment utilisées viennent en premier (`localStorage`, clé `polymnia.recentCommands`, 8 entrées, erreurs ignorées). La saisie filtre : sans accents ni casse, tous les mots doivent correspondre, sur les libellés **français et anglais** quelle que soit la langue de l'interface (`silence` et `rest` trouvent tous deux « Saisir un silence »), avec un repli sur une sous-séquence serrée (`rst` trouve `rest`). `↑`/`↓` (et `Début`/`Fin`) déplacent, `Entrée` exécute, `Échap` ou `Ctrl+K` ferme, et le focus revient où il était. Les commandes sans effet dans le contexte courant sont grisées, annoncées comme indisponibles, ignorées par les flèches et non exécutées.
+- **Mode focus** (`Alt+F`, ou le bouton de la barre du haut) : masque la barre du haut, les panneaux, la palette de saisie, la bande de raccourcis et la barre d'état ; une petite pastille « Mode focus · Échap pour quitter » reste. `Échap` le quitte (avant toute autre action d'`Échap`). Non persisté.
+- **Aide-mémoire** (`?`) : tous les raccourcis du registre par groupe, dans un dialogue ; le bouton Imprimer imprime l'aide-mémoire seul (feuille de style d'impression). `Ctrl+K` depuis l'aide-mémoire ouvre la palette.
+- **Accessibilité** : la palette est un combobox ARIA 1.2 (`role="combobox"`, `aria-controls`, `aria-activedescendant`) sur une `listbox` d'`option` dans des `group` nommés, avec un décompte poli des résultats ; les deux dialogues sont `role="dialog"` avec `aria-modal`, un nom, un piège à focus et la restauration du focus ; l'animation est désactivée sous `prefers-reduced-motion` ; tout est disponible en français et en anglais.
+- **Performance** (`e2e/command-palette.spec.ts`) : ouverture sous 50 ms et frappe sous 5 ms avec le registre complet (environ 5 ms et 0,4 ms mesurées dans Chromium).
 
 ## Saisie de notes
 

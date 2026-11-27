@@ -3,6 +3,8 @@ const PATHS = {
   close: 'M18 6L6 18M6 6l12 12',
   share: 'M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v13',
   download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
+  search: 'M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-4.3-4.3',
+  focus: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   panelLeft: 'M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zM9 4v16',
   panelRight: 'M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zM15 4v16',
   play: 'M7 4l13 8-13 8z',
