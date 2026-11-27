@@ -24,7 +24,7 @@ internal sealed class SecurityHeadersMiddleware(RequestDelegate next, IOptions<S
                 IHeaderDictionary headers = ctx.Response.Headers;
                 headers.ContentSecurityPolicy = self._contentSecurityPolicy;
                 headers.XContentTypeOptions = "nosniff";
-                // The public share endpoint has a credential in its path: nothing about it may ever be sent along.
+                // The public share endpoint takes a credential (X-Share-Token header): nothing about it may ever be sent along.
                 headers["Referrer-Policy"] = ctx.Request.Path.StartsWithSegments(Polymnia.Api.Sharing.ShareEndpoints.SharedPath, StringComparison.OrdinalIgnoreCase)
                     ? "no-referrer"
                     : "strict-origin-when-cross-origin";

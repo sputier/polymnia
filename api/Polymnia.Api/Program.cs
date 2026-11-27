@@ -22,6 +22,18 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = 1024 * 1024;
 });
 
+// The share token travels in a header, never in the path. Should a stale client still put one in a path
+// (/api/shared/<token>), the framework categories that write request paths stay at Warning whatever the configuration.
+foreach (string category in new[]
+{
+    "Microsoft.AspNetCore.Hosting.Diagnostics",
+    "Microsoft.AspNetCore.Routing",
+    "Microsoft.AspNetCore.StaticFiles",
+})
+{
+    builder.Logging.AddFilter(category, LogLevel.Warning);
+}
+
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddPolymniaHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPolymniaAuth(builder.Configuration, builder.Environment);

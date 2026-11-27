@@ -502,6 +502,8 @@ public sealed class ShareLinkTests(ScoreApiFixture fixture) : IClassFixture<Scor
             }
         }
 
+        // The scopes really were captured (the request path is in them, the token is not).
+        Assert.Contains(app.Logs.Entries, e => e.Scopes.Contains("RequestPath", StringComparison.Ordinal));
         Assert.Contains(app.Logs.Entries, e => e.EventId.Name == "ShareLinkCreated");
         Assert.Contains(app.Logs.Entries, e => e.EventId.Name == "ShareLinkRevoked");
     }
