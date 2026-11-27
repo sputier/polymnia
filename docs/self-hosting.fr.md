@@ -14,7 +14,7 @@ Faire tourner sa propre instance de Polymnia avec Docker Compose : l'application
 
 1. Récupérer le fichier compose et l'exemple de configuration : cloner le dépôt, ou télécharger `docker-compose.yml` et `.env.example`.
 2. `cp .env.example .env`
-3. Éditer `.env` : renseigner `POSTGRES_PASSWORD` (long, aléatoire, sans `;`, `"` ni espace : `openssl rand -hex 24`), `POLYMNIA_ALLOWED_HOSTS` (votre nom d'hôte) et `POLYMNIA_VERSION` (une version exacte comme `1.0.0`, voir les [releases](https://github.com/sputier/polymnia/releases)).
+3. Éditer `.env` : renseigner `POSTGRES_PASSWORD` (long, aléatoire, sans `;`, `"` ni espace : `openssl rand -hex 24`), `POLYMNIA_ALLOWED_HOSTS` (votre nom d'hôte), les trois valeurs de connexion Google (`POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET`, voir [Authentification](authentication.fr.md)) et `POLYMNIA_VERSION` (une version exacte comme `1.0.0`, voir les [releases](https://github.com/sputier/polymnia/releases)).
 4. `docker compose up -d --wait`
 5. Vérifier : `curl -H "Host: <votre nom d'hôte>" http://127.0.0.1:8080/api/health` répond `Healthy`.
 
@@ -33,6 +33,7 @@ Tout passe par des variables d'environnement, renseignées dans `.env` pour le f
 | `POSTGRES_PASSWORD` | aucun, obligatoire | Mot de passe de la base |
 | `POSTGRES_USER`, `POSTGRES_DB` | `polymnia` | Utilisateur et nom de la base |
 | `POLYMNIA_ALLOWED_HOSTS` | aucun, obligatoire | Noms d'hôte acceptés par l'application, séparés par `;` (correspond à `AllowedHosts`) |
+| `POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET` | aucun, obligatoire | Connexion Google : origine publique `https` de l'application et client OAuth, voir [Authentification](authentication.fr.md). L'application refuse de démarrer sans eux |
 | `POLYMNIA_IMAGE`, `POLYMNIA_VERSION` | `ghcr.io/sputier/polymnia`, `latest` | Image à exécuter |
 | `POLYMNIA_BIND`, `POLYMNIA_PORT` | `127.0.0.1`, `8080` | Adresse d'écoute de l'application sur l'hôte |
 | `POLYMNIA_FORWARDED_HEADERS` | `false` | Faire confiance à `X-Forwarded-For` et `X-Forwarded-Proto` du reverse proxy |

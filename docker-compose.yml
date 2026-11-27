@@ -14,6 +14,10 @@ x-polymnia: &polymnia
     # Host names the app answers to, separated by ";". Required: there is no permissive default.
     AllowedHosts: ${POLYMNIA_ALLOWED_HOSTS:?Set POLYMNIA_ALLOWED_HOSTS in .env (see .env.example)}
     ConnectionStrings__Polymnia: Host=db;Database=${POSTGRES_DB:-polymnia};Username=${POSTGRES_USER:-polymnia};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    # Google sign-in (docs/authentication.md). Required: Production refuses to start without them.
+    Auth__PublicBaseUrl: ${POLYMNIA_PUBLIC_BASE_URL:?Set POLYMNIA_PUBLIC_BASE_URL in .env (see .env.example)}
+    Auth__Google__ClientId: ${POLYMNIA_GOOGLE_CLIENT_ID:?Set POLYMNIA_GOOGLE_CLIENT_ID in .env (see .env.example)}
+    Auth__Google__ClientSecret: ${POLYMNIA_GOOGLE_CLIENT_SECRET:?Set POLYMNIA_GOOGLE_CLIENT_SECRET in .env (see .env.example)}
     # Behind a reverse proxy only. Only the compose network is trusted as a proxy source.
     ForwardedHeaders__Enabled: ${POLYMNIA_FORWARDED_HEADERS:-false}
     ForwardedHeaders__KnownNetworks__0: ${POLYMNIA_SUBNET:-172.31.250.0/24}

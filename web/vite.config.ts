@@ -4,6 +4,11 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // The API and the app share one origin in production: do the same in development, so that the
+    // session cookie and the antiforgery header work unchanged (see docs/authentication.md).
+    proxy: { '/api': { target: 'http://localhost:5080' } },
+  },
   build: {
     target: 'es2022',
     sourcemap: false,

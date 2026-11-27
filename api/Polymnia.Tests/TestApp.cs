@@ -1,5 +1,12 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Polymnia.Infrastructure;
 
 namespace Polymnia.Tests;
 
@@ -13,19 +20,30 @@ internal sealed class TestApp : WebApplicationFactory<Program>
     public const string AssetBody = "console.log('polymnia');";
     public const string UnreachableConnectionString = "Host=127.0.0.1;Port=1;Database=polymnia_unused;Username=u;Password=p;Timeout=1";
 
+    public const string PublicBaseUrl = "https://polymnia.example";
+
+    /// <summary>The identity the fake Google returns at the next sign-in.</summary>
+    public FakeGoogleIdentity Google { get; } = new();
+
     private readonly string _environment;
     private readonly string _connectionString;
     private readonly Dictionary<string, string?> _settings;
     private readonly string _webRoot;
+    private readonly bool _configureAuth;
+    private readonly bool _fakeGoogle;
 
     public TestApp(
         string environment = "Production",
         string? connectionString = null,
-        Dictionary<string, string?>? settings = null)
+        Dictionary<string, string?>? settings = null,
+        bool configureAuth = true,
+        bool fakeGoogle = true)
     {
         _environment = environment;
         _connectionString = connectionString ?? UnreachableConnectionString;
         _settings = settings ?? [];
+        _configureAuth = configureAuth;
+        _fakeGoogle = fakeGoogle;
         _webRoot = Path.Combine(Path.GetTempPath(), "polymnia-tests-" + Guid.NewGuid().ToString("N"));
 
         Directory.CreateDirectory(Path.Combine(_webRoot, "assets"));
@@ -41,6 +59,14 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         AllowAutoRedirect = false,
     });
 
+    /// <summary>Applies the migrations (the database must be the test container).</summary>
+    public async Task MigrateAsync()
+    {
+        using IServiceScope scope = Services.CreateScope();
+        PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
+        await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -49,6 +75,42 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         builder.UseWebRoot(_webRoot);
         builder.UseSetting("ConnectionStrings:Polymnia", _connectionString);
         builder.UseSetting("https_port", "443");
+        if (_configureAuth)
+        {
+            // Dummy values: no call to Google is ever made.
+            builder.UseSetting("Auth:PublicBaseUrl", PublicBaseUrl);
+            builder.UseSetting("Auth:Google:ClientId", "test-client-id.apps.googleusercontent.com");
+            builder.UseSetting("Auth:Google:ClientSecret", "test-client-secret");
+        }
+
+        builder.ConfigureTestServices(services =>
+        {
+            if (!_configureAuth)
+            {
+                return;
+            }
+
+            if (_fakeGoogle)
+            {
+                FakeGoogleHandler.Install(services, Google);
+            }
+            else
+            {
+                // Real OpenID Connect handler, without discovery over the network.
+                services.PostConfigure<OpenIdConnectOptions>("Google", options =>
+                {
+                    var configuration = new OpenIdConnectConfiguration
+                    {
+                        Issuer = "https://accounts.example",
+                        AuthorizationEndpoint = "https://accounts.example/authorize",
+                        TokenEndpoint = "https://accounts.example/token",
+                    };
+                    options.Configuration = configuration;
+                    options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
+                });
+            }
+        });
+
         foreach ((string key, string? value) in _settings)
         {
             builder.UseSetting(key, value);

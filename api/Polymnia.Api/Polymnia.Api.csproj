@@ -7,6 +7,9 @@
     <ProjectReference Include="..\Polymnia.Infrastructure\Polymnia.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Polymnia.Tests" />
   </ItemGroup>
 </Project>

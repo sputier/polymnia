@@ -83,12 +83,13 @@ Build the front end, then copy its output (`index.html`, `assets/`, ...) into `a
 - `index.html` and every other file get `Cache-Control: no-cache`.
 - A `GET`/`HEAD` that matches nothing and has no file extension returns `index.html` (client-side routes). Unknown `/api/*` routes return a 404 ProblemDetails, never the SPA. Missing files (`/assets/x.js`) are 404.
 
-For front-end development with hot reload, use the Vite dev server and its proxy to `http://localhost:5080` (see the Front end section).
+For front-end development with hot reload, run `npm run dev` in `web/`: the Vite dev server (`http://localhost:5173`) proxies `/api` to `http://localhost:5080`, so the browser sees one origin, as in production. Google sign-in needs a Google OAuth client: see [Authentication](authentication.md) ("Local setup"). Without one the API still starts in Development, with sign-in disabled (`503` on `/api/auth/login`).
 
 ### Endpoints
 
 - `GET /api/health`: liveness, `200 Healthy`, no dependency check.
 - `GET /api/health/ready`: readiness, checks the database. Body is only `Healthy` or `Unhealthy` (`503`); details stay in the server logs. The result is cached for 5 seconds so the public endpoint cannot exhaust the connection pool. Both health endpoints are exempt from HTTPS redirection (orchestrator probes use plain HTTP).
+- `GET /api/me` (`401` when anonymous), `GET /api/auth/login`, `GET /api/auth/antiforgery`, `POST /api/auth/logout`: see [Authentication](authentication.md). Every unsafe method under `/api` needs the `X-XSRF-TOKEN` header.
 - Client-side route segments must not contain a dot (a path with an extension is treated as a missing file and returns 404). Responses under `/api` are `Cache-Control: no-store` unless an endpoint overrides it.
 - In production, use `SSL Mode=VerifyFull` in the connection string when the database is not on the same host.
 
@@ -102,7 +103,7 @@ For front-end development with hot reload, use the Vite dev server and its proxy
 
 #### Content Security Policy
 
-The default is `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`. If a feature needs a relaxation (for example `style-src 'unsafe-inline'` for a library that writes inline styles, or `worker-src blob:`), override `Security:ContentSecurityPolicy` in configuration, keep it as narrow as possible, and document the reason here.
+The default is `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`. If a feature needs a relaxation (for example `style-src 'unsafe-inline'` for a library that writes inline styles, or `worker-src blob:`), override `Security:ContentSecurityPolicy` in configuration, keep it as narrow as possible, and document the reason here.
 
 ### Behind a reverse proxy
 

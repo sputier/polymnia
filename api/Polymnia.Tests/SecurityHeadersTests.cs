@@ -30,7 +30,7 @@ public sealed class SecurityHeadersTests : IDisposable
         using HttpResponseMessage response = await client.GetAsync(path, TestContext.Current.CancellationToken);
 
         Assert.Equal(
-            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; " +
+            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; " +
             "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
             Single(response, "Content-Security-Policy"));
         Assert.Equal("nosniff", Single(response, "X-Content-Type-Options"));

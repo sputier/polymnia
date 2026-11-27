@@ -138,6 +138,10 @@ jobs:
           {
             echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
             echo "POLYMNIA_ALLOWED_HOSTS=localhost"
+            # Dummy Google settings: Production refuses to start without them; no call to Google is made.
+            echo "POLYMNIA_PUBLIC_BASE_URL=https://localhost"
+            echo "POLYMNIA_GOOGLE_CLIENT_ID=ci-dummy-client-id.apps.googleusercontent.com"
+            echo "POLYMNIA_GOOGLE_CLIENT_SECRET=ci-dummy-client-secret"
             echo "POLYMNIA_IMAGE=polymnia"
             echo "POLYMNIA_VERSION=ci"
           } > .env

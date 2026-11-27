@@ -1,0 +1,107 @@
+/* Sign-in screen and account menu. Colors come from the design tokens, except the Google button,
+   which follows Google's branding guidelines (fixed light and dark variants). */
+
+.signin {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100%;
+}
+
+.signin-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  max-width: 720px;
+  padding: 48px clamp(16px, 6vw, 96px);
+}
+
+.signin-main h1 {
+  margin: 0;
+  font-size: clamp(34px, 4.4vw, 54px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.signin-main .lead {
+  margin: 0 0 16px;
+  max-width: 44ch;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.signin-error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.signin-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+kbd {
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.btn-google {
+  --g-bg: #ffffff;
+  --g-ink: #1f1f1f;
+  --g-border: #747775;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 500;
+  color: var(--g-ink);
+  text-decoration: none;
+  background: var(--g-bg);
+  border: 1px solid var(--g-border);
+  border-radius: 999px;
+}
+
+.btn-google:hover {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+}
+
+:root[data-theme='dark'] .btn-google {
+  --g-bg: #131314;
+  --g-ink: #e3e3e3;
+  --g-border: #8e918f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .btn-google {
+    --g-bg: #131314;
+    --g-ink: #e3e3e3;
+    --g-border: #8e918f;
+  }
+}
+
+.account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-name {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar {
+  border-radius: 50%;
+}

@@ -1,3 +1,4 @@
+import { AccountMenu } from './auth/AccountMenu';
 import { LanguageSwitch } from './components/LanguageSwitch';
 import { ThemeSwitch } from './components/ThemeSwitch';
 import { EditorLayout } from './editor/EditorLayout';
@@ -17,6 +18,7 @@ function Home() {
       <header className="toolbar">
         <span className="brand">{t('app.name')}</span>
         <div className="toolbar-actions">
+          <AccountMenu />
           <LanguageSwitch />
           <ThemeSwitch />
         </div>

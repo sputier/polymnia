@@ -40,7 +40,8 @@ public sealed class HealthTests : IDisposable
 
         using HttpResponseMessage response = await client.PostAsync("/api/health", content: null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        // The antiforgery check runs before routing: an unsafe method is refused whatever the route.
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

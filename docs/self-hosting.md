@@ -14,7 +14,7 @@ Run your own Polymnia with Docker Compose: the application and PostgreSQL 17, co
 
 1. Get the compose file and the example configuration: clone the repository, or download `docker-compose.yml` and `.env.example`.
 2. `cp .env.example .env`
-3. Edit `.env`: set `POSTGRES_PASSWORD` (long, random, no `;`, `"` or spaces: `openssl rand -hex 24`), `POLYMNIA_ALLOWED_HOSTS` (your host name) and `POLYMNIA_VERSION` (an exact version such as `1.0.0`, see the [releases](https://github.com/sputier/polymnia/releases)).
+3. Edit `.env`: set `POSTGRES_PASSWORD` (long, random, no `;`, `"` or spaces: `openssl rand -hex 24`), `POLYMNIA_ALLOWED_HOSTS` (your host name), the three Google sign-in values (`POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET`, see [Authentication](authentication.md)) and `POLYMNIA_VERSION` (an exact version such as `1.0.0`, see the [releases](https://github.com/sputier/polymnia/releases)).
 4. `docker compose up -d --wait`
 5. Check: `curl -H "Host: <your host name>" http://127.0.0.1:8080/api/health` answers `Healthy`.
 
@@ -33,6 +33,7 @@ Everything is an environment variable, set in `.env` for the compose file.
 | `POSTGRES_PASSWORD` | none, required | Database password |
 | `POSTGRES_USER`, `POSTGRES_DB` | `polymnia` | Database user and name |
 | `POLYMNIA_ALLOWED_HOSTS` | none, required | Host names the app answers to, separated by `;` (maps to `AllowedHosts`) |
+| `POLYMNIA_PUBLIC_BASE_URL`, `POLYMNIA_GOOGLE_CLIENT_ID`, `POLYMNIA_GOOGLE_CLIENT_SECRET` | none, required | Google sign-in: public `https` origin of the app and the OAuth client, see [Authentication](authentication.md). The app refuses to start without them |
 | `POLYMNIA_IMAGE`, `POLYMNIA_VERSION` | `ghcr.io/sputier/polymnia`, `latest` | Image to run |
 | `POLYMNIA_BIND`, `POLYMNIA_PORT` | `127.0.0.1`, `8080` | Where the app listens on the host |
 | `POLYMNIA_FORWARDED_HEADERS` | `false` | Trust `X-Forwarded-For` and `X-Forwarded-Proto` from the reverse proxy |
