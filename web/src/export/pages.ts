@@ -125,10 +125,15 @@ export function textWidth(text: string, size: number): number {
 }
 
 /** Cuts `text` so it fits `max` points at `size`, with an ellipsis. */
-export function fitText(text: string, size: number, max: number): string {
-  if (textWidth(text, size) <= max) return text;
+export function fitText(
+  text: string,
+  size: number,
+  max: number,
+  measure: (text: string, size: number) => number = textWidth,
+): string {
+  if (measure(text, size) <= max) return text;
   let out = text;
-  while (out.length > 1 && textWidth(`${out}...`, size) > max) out = out.slice(0, -1);
+  while (out.length > 1 && measure(`${out}...`, size) > max) out = out.slice(0, -1);
   return `${out}...`;
 }
 
@@ -143,6 +148,7 @@ export function buildPage(
   score: Score,
   title: string,
   dropped: Record<string, number>,
+  measure: (text: string, size: number) => number = textWidth,
 ): Page {
   const { width, height } = PAPER_SIZES[plan.paper];
   const items: Item[] = [];
@@ -153,7 +159,7 @@ export function buildPage(
   if (index === 0) {
     const inner = width - 2 * MARGIN_X;
     if (title.trim() !== '') {
-      const text = fitText(title.trim(), 20, inner);
+      const text = fitText(title.trim(), 20, inner, measure);
       items.push({
         kind: 'text',
         x: width / 2,
@@ -170,7 +176,7 @@ export function buildPage(
         x: width - MARGIN_X,
         y: MARGIN_TOP + 38,
         size: 11,
-        text: fitText(composer, 11, inner),
+        text: fitText(composer, 11, inner, measure),
         align: 'end',
       });
     }

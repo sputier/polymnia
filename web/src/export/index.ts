@@ -5,7 +5,16 @@
 import { zipSync } from 'fflate';
 import type { Score } from '../score';
 import { encodeMidi } from './midi';
-import { buildPage, planPages, printGeometry, type Page, type PagePlan, type Paper } from './pages';
+import {
+  buildPage,
+  planPages,
+  printGeometry,
+  textWidth,
+  type Page,
+  type PagePlan,
+  type Paper,
+} from './pages';
+import { loadTextFont, measurer } from './textFont';
 import { buildPdf } from './pdf';
 import { renderPng } from './png';
 
@@ -104,6 +113,7 @@ async function eachPage(
   onProgress: ((p: Progress) => void) | undefined,
   consume: (page: Page, index: number) => Promise<void> | void,
   staffSpaceMm?: number,
+  measure?: (text: string, size: number) => number,
 ): Promise<{ pages: number; dropped: Record<string, number> }> {
   const engraved = await engrave(score, paper, staffSpaceMm);
   const dropped: Record<string, number> = {};
@@ -112,7 +122,7 @@ async function eachPage(
     onProgress?.({ done: 0, total });
     for (let i = 0; i < total; i++) {
       await tick();
-      const page = buildPage(engraved.plan, engraved.svg, i, score, title, dropped);
+      const page = buildPage(engraved.plan, engraved.svg, i, score, title, dropped, measure);
       await consume(page, i);
       onProgress?.({ done: i + 1, total });
     }
@@ -131,6 +141,15 @@ export function exportPdf(
 ): Promise<ExportFile> {
   return timed('export:pdf', async () => {
     const pages: Page[] = [];
+    // Text outside WinAnsi is drawn with Inter outlines, loaded only when there is such text. The
+    // score's own texts are known now (so the title fits with the right widths); other text (part
+    // abbreviations, and whatever the engraver adds) is checked once the pages are built.
+    let font = await loadTextFont([
+      title,
+      score.meta.title,
+      score.meta.composer,
+      ...score.parts.map((p) => p.name),
+    ]);
     const { dropped } = await eachPage(
       score,
       title,
@@ -140,12 +159,18 @@ export function exportPdf(
         pages.push(page);
       },
       staffSpaceMm,
+      measurer(font, textWidth),
     );
-    const bytes = buildPdf(pages, {
-      title: title || score.meta.title,
-      author: score.meta.composer,
-      creator: 'Polymnia',
-    });
+    font ??= await loadTextFont(
+      pages.flatMap((p) => p.items.flatMap((i) => (i.kind === 'text' ? [i.text] : []))),
+    );
+    const bytes = buildPdf(
+      pages,
+      { title: title || score.meta.title, author: score.meta.composer, creator: 'Polymnia' },
+      font,
+    );
+    for (const cp of font?.missing ?? [])
+      dropped[`pdf-text-U+${cp.toString(16).toUpperCase().padStart(4, '0')}`] = 1;
     return { bytes, mime: 'application/pdf', extension: 'pdf', dropped, pages: pages.length };
   });
 }
