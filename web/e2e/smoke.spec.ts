@@ -2,6 +2,16 @@ import { expect, test } from '@playwright/test';
 
 test.use({ locale: 'en-US', colorScheme: 'light' });
 
+// The app is behind the sign-in screen: the API is mocked as signed in (see auth.spec.ts for the rest).
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/me', (route) =>
+    route.fulfill({
+      json: { id: 'u1', displayName: 'Ada Lovelace', avatarUrl: null, preferredLanguage: null },
+    }),
+  );
+  await page.route('**/api/auth/antiforgery', (route) => route.fulfill({ status: 204 }));
+});
+
 test('loads, switches theme and language without reload', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Polymnia' })).toBeVisible();
@@ -33,6 +43,12 @@ test('loads, switches theme and language without reload', async ({ page }) => {
 test('follows the OS dark preference on first visit', async ({ browser }) => {
   const context = await browser.newContext({ colorScheme: 'dark', locale: 'fr-FR' });
   const page = await context.newPage();
+  await page.route('**/api/me', (route) =>
+    route.fulfill({
+      json: { id: 'u1', displayName: 'Ada Lovelace', avatarUrl: null, preferredLanguage: null },
+    }),
+  );
+  await page.route('**/api/auth/antiforgery', (route) => route.fulfill({ status: 204 }));
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr');

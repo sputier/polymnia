@@ -131,6 +131,18 @@ export const en = {
   'shortcut.redo': 'Redo',
   'shortcut.copy': 'Copy',
   'shortcut.paste': 'Paste',
+  'auth.headline': 'Write. Hear. Share.',
+  'auth.lead':
+    'Compose a score with your keyboard, hear it right away, share it with a link. In the browser, nothing to install.',
+  'auth.signInWithGoogle': 'Sign in with Google',
+  'auth.hint': 'to sign in',
+  'auth.free': 'Free and open source (MIT license)',
+  'auth.failed': 'Sign-in did not complete. Please try again.',
+  'auth.loading': 'Loading...',
+  'auth.error': 'The server is not reachable. Check your connection and try again.',
+  'auth.retry': 'Try again',
+  'auth.signOut': 'Sign out',
+  'auth.account': 'Account',
 } as const;
 
 export type MessageKey = keyof typeof en;

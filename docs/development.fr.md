@@ -83,12 +83,13 @@ Compiler le front end, puis copier sa sortie (`index.html`, `assets/`, ...) dans
 - `index.html` et tous les autres fichiers reçoivent `Cache-Control: no-cache`.
 - Un `GET`/`HEAD` qui ne correspond à rien et sans extension de fichier renvoie `index.html` (routes côté client). Les routes `/api/*` inconnues renvoient un ProblemDetails 404, jamais la SPA. Les fichiers absents (`/assets/x.js`) renvoient 404.
 
-Pour développer le front avec rechargement à chaud, utiliser le serveur Vite et son proxy vers `http://localhost:5080` (voir la section Front end).
+Pour développer le front avec rechargement à chaud, lancer `npm run dev` dans `web/` : le serveur Vite (`http://localhost:5173`) transmet `/api` à `http://localhost:5080`, le navigateur ne voit donc qu'une origine, comme en production. La connexion Google exige un client OAuth Google : voir [Authentification](authentication.fr.md) (« Installation locale »). Sans client, l'API démarre quand même en Development, connexion désactivée (`503` sur `/api/auth/login`).
 
 ### Endpoints
 
 - `GET /api/health` : liveness, `200 Healthy`, sans vérification de dépendance.
 - `GET /api/health/ready` : readiness, vérifie la base. Le corps est uniquement `Healthy` ou `Unhealthy` (`503`) ; les détails restent dans les logs serveur. Le résultat est mis en cache 5 secondes pour qu'un endpoint public ne puisse pas épuiser le pool de connexions. Les deux endpoints de santé sont exemptés de la redirection HTTPS (les sondes d'orchestrateur utilisent HTTP simple).
+- `GET /api/me` (`401` si anonyme), `GET /api/auth/login`, `GET /api/auth/antiforgery`, `POST /api/auth/logout` : voir [Authentification](authentication.fr.md). Toute méthode non sûre sous `/api` exige l'en-tête `X-XSRF-TOKEN`.
 - Les segments de route côté client ne doivent pas contenir de point (un chemin avec extension est traité comme un fichier absent et renvoie 404). Les réponses sous `/api` sont en `Cache-Control: no-store` sauf si un endpoint en décide autrement.
 - En production, utiliser `SSL Mode=VerifyFull` dans la chaîne de connexion quand la base n'est pas sur la même machine.
 
@@ -102,7 +103,7 @@ Pour développer le front avec rechargement à chaud, utiliser le serveur Vite e
 
 #### Content Security Policy
 
-La valeur par défaut est `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`. Si une fonctionnalité exige un assouplissement (par exemple `style-src 'unsafe-inline'` pour une bibliothèque qui écrit des styles en ligne, ou `worker-src blob:`), surcharger `Security:ContentSecurityPolicy` dans la configuration, rester aussi restrictif que possible et documenter la raison ici.
+La valeur par défaut est `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`. Si une fonctionnalité exige un assouplissement (par exemple `style-src 'unsafe-inline'` pour une bibliothèque qui écrit des styles en ligne, ou `worker-src blob:`), surcharger `Security:ContentSecurityPolicy` dans la configuration, rester aussi restrictif que possible et documenter la raison ici.
 
 ### Derrière un reverse proxy
 

@@ -135,9 +135,21 @@ jobs:
       # Same file a self-hoster uses: db -> migrate (one-shot) -> app, each with its health check.
       - name: Start the stack and probe it
         run: |
+          # Throw-away certificate for the Data Protection keys (required outside Development).
+          mkdir -p secrets
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" -subj "/CN=polymnia-ci" -days 2
+          printf 'ci-throwaway\n' > secrets/polymnia-keys.password
+          openssl pkcs12 -export -inkey "$RUNNER_TEMP/key.pem" -in "$RUNNER_TEMP/cert.pem" -out secrets/polymnia-keys.pfx -passout file:secrets/polymnia-keys.password
+          # Owned by the container user (UID 1654), read-only for it, nobody else (compose bind-mounts the files as they are).
+          sudo chown 1654:1654 secrets/polymnia-keys.pfx secrets/polymnia-keys.password
+          sudo chmod 0400 secrets/polymnia-keys.pfx secrets/polymnia-keys.password
           {
             echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
             echo "POLYMNIA_ALLOWED_HOSTS=localhost"
+            # Dummy Google settings: Production refuses to start without them; no call to Google is made.
+            echo "POLYMNIA_PUBLIC_BASE_URL=https://localhost"
+            echo "POLYMNIA_GOOGLE_CLIENT_ID=ci-dummy-client-id.apps.googleusercontent.com"
+            echo "POLYMNIA_GOOGLE_CLIENT_SECRET=ci-dummy-client-secret"
             echo "POLYMNIA_IMAGE=polymnia"
             echo "POLYMNIA_VERSION=ci"
           } > .env

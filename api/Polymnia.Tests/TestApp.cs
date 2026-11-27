@@ -1,7 +1,42 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Polymnia.Infrastructure;
 
 namespace Polymnia.Tests;
+
+/// <summary>
+/// TestServer has no client address. Gives every request one (loopback, or the one in <c>X-Test-Client-Ip</c>),
+/// as Kestrel or the forwarded-headers middleware would.
+/// </summary>
+internal sealed class ClientIpStartupFilter : Microsoft.AspNetCore.Hosting.IStartupFilter
+{
+    public const string Header = "X-Test-Client-Ip";
+
+    public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        return app =>
+        {
+            app.Use(async (context, nextMiddleware) =>
+            {
+                context.Connection.RemoteIpAddress = System.Net.IPAddress.TryParse(context.Request.Headers[Header], out System.Net.IPAddress? ip)
+                    ? ip
+                    : System.Net.IPAddress.Loopback;
+                await nextMiddleware();
+            });
+            next(app);
+        };
+    }
+}
 
 /// <summary>
 /// Test host. Uses a throw-away web root and, unless told otherwise, a connection string that points
@@ -13,19 +48,36 @@ internal sealed class TestApp : WebApplicationFactory<Program>
     public const string AssetBody = "console.log('polymnia');";
     public const string UnreachableConnectionString = "Host=127.0.0.1;Port=1;Database=polymnia_unused;Username=u;Password=p;Timeout=1";
 
+    public const string PublicBaseUrl = "https://polymnia.example";
+
+    /// <summary>The identity the fake Google returns at the next sign-in.</summary>
+    public FakeGoogleIdentity Google { get; } = new();
+
+    /// <summary>Stand-in for Google when the real OpenID Connect handler is used (<c>fakeGoogle: false</c>).</summary>
+    public OidcTestServer Oidc { get; } = new();
+
+    /// <summary>Every log entry of the host.</summary>
+    internal LogCapture Logs { get; } = new();
+
     private readonly string _environment;
     private readonly string _connectionString;
     private readonly Dictionary<string, string?> _settings;
     private readonly string _webRoot;
+    private readonly bool _configureAuth;
+    private readonly bool _fakeGoogle;
 
     public TestApp(
         string environment = "Production",
         string? connectionString = null,
-        Dictionary<string, string?>? settings = null)
+        Dictionary<string, string?>? settings = null,
+        bool configureAuth = true,
+        bool fakeGoogle = true)
     {
         _environment = environment;
         _connectionString = connectionString ?? UnreachableConnectionString;
         _settings = settings ?? [];
+        _configureAuth = configureAuth;
+        _fakeGoogle = fakeGoogle;
         _webRoot = Path.Combine(Path.GetTempPath(), "polymnia-tests-" + Guid.NewGuid().ToString("N"));
 
         Directory.CreateDirectory(Path.Combine(_webRoot, "assets"));
@@ -41,6 +93,14 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         AllowAutoRedirect = false,
     });
 
+    /// <summary>Applies the migrations (the database must be the test container).</summary>
+    public async Task MigrateAsync()
+    {
+        using IServiceScope scope = Services.CreateScope();
+        PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<PolymniaDbContext>();
+        await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -49,6 +109,55 @@ internal sealed class TestApp : WebApplicationFactory<Program>
         builder.UseWebRoot(_webRoot);
         builder.UseSetting("ConnectionStrings:Polymnia", _connectionString);
         builder.UseSetting("https_port", "443");
+        if (_environment != "Development")
+        {
+            // Required outside Development: a real host list, never "*".
+            builder.UseSetting("AllowedHosts", "polymnia.example;localhost");
+        }
+
+        if (_configureAuth)
+        {
+            if (_environment != "Development")
+            {
+                // Required outside Development: the Data Protection keys are encrypted with a certificate.
+                builder.UseSetting("DataProtection:CertificatePath", TestCertificate.Path);
+                builder.UseSetting("DataProtection:CertificatePassword", TestCertificate.Password);
+            }
+
+            // Dummy values: no call to Google is ever made.
+            builder.UseSetting("Auth:PublicBaseUrl", PublicBaseUrl);
+            builder.UseSetting("Auth:Google:ClientId", "test-client-id.apps.googleusercontent.com");
+            builder.UseSetting("Auth:Google:ClientSecret", "test-client-secret");
+        }
+
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, ClientIpStartupFilter>();
+            if (!_configureAuth)
+            {
+                return;
+            }
+
+            if (_fakeGoogle)
+            {
+                FakeGoogleHandler.Install(services, Google);
+            }
+            else
+            {
+                // Real OpenID Connect handler. No discovery over the network: static configuration and keys,
+                // and a token endpoint served by OidcTestServer.
+                services.PostConfigure<OpenIdConnectOptions>("Google", options =>
+                {
+                    OpenIdConnectConfiguration configuration = Oidc.CreateConfiguration();
+                    options.Configuration = configuration;
+                    options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
+                    options.Backchannel = new HttpClient(Oidc.Handler);
+                });
+            }
+        });
+        builder.ConfigureLogging(logging => logging.AddProvider(Logs));
+        builder.UseSetting("Logging:LogLevel:Microsoft.EntityFrameworkCore.Database.Command", "Information");
+
         foreach ((string key, string? value) in _settings)
         {
             builder.UseSetting(key, value);
@@ -58,6 +167,11 @@ internal sealed class TestApp : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
+        if (disposing)
+        {
+            Oidc.Dispose();
+        }
+
         if (disposing && Directory.Exists(_webRoot))
         {
             try

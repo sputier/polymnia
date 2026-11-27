@@ -2,6 +2,16 @@ import { expect, test } from '@playwright/test';
 
 test.use({ locale: 'en-US', colorScheme: 'light' });
 
+// The app is behind the sign-in screen: the API is mocked as signed in.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/me', (route) =>
+    route.fulfill({
+      json: { id: 'u1', displayName: 'Ada Lovelace', avatarUrl: null, preferredLanguage: null },
+    }),
+  );
+  await page.route('**/api/auth/antiforgery', (route) => route.fulfill({ status: 204 }));
+});
+
 test.describe('editor shell (desktop)', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -78,6 +88,8 @@ test.describe('editor shell (desktop)', () => {
 
   test('reaches every top bar control with the keyboard', async ({ page }) => {
     await page.goto('/#/editor');
+    // The session check runs first: wait for the top bar before using the keyboard.
+    await expect(page.getByRole('link', { name: 'Back to home' })).toBeVisible();
     const names = [
       'Back to home',
       'Instruments panel',
@@ -89,6 +101,7 @@ test.describe('editor shell (desktop)', () => {
       'Switch to dark theme',
       'EN English',
       'FR Français',
+      'Sign out',
     ];
     for (const name of names) {
       await page.keyboard.press('Tab');

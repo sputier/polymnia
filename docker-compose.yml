@@ -14,9 +14,24 @@ x-polymnia: &polymnia
     # Host names the app answers to, separated by ";". Required: there is no permissive default.
     AllowedHosts: ${POLYMNIA_ALLOWED_HOSTS:?Set POLYMNIA_ALLOWED_HOSTS in .env (see .env.example)}
     ConnectionStrings__Polymnia: Host=db;Database=${POSTGRES_DB:-polymnia};Username=${POSTGRES_USER:-polymnia};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    # Google sign-in (docs/authentication.md). Required: Production refuses to start without them.
+    Auth__PublicBaseUrl: ${POLYMNIA_PUBLIC_BASE_URL:?Set POLYMNIA_PUBLIC_BASE_URL in .env (see .env.example)}
+    Auth__Google__ClientId: ${POLYMNIA_GOOGLE_CLIENT_ID:?Set POLYMNIA_GOOGLE_CLIENT_ID in .env (see .env.example)}
+    Auth__Google__ClientSecret: ${POLYMNIA_GOOGLE_CLIENT_SECRET:?Set POLYMNIA_GOOGLE_CLIENT_SECRET in .env (see .env.example)}
+    # The Data Protection keys (stored in the database) are encrypted with this certificate. Required: see
+    # docs/authentication.md for the one-line openssl command that creates it.
+    DataProtection__CertificatePath: /run/secrets/polymnia_keys
+    # The password is read from a Docker secret file, not from the environment (`docker inspect` would show it).
+    DataProtection__CertificatePasswordFile: /run/secrets/polymnia_keys_password
     # Behind a reverse proxy only. Only the compose network is trusted as a proxy source.
     ForwardedHeaders__Enabled: ${POLYMNIA_FORWARDED_HEADERS:-false}
     ForwardedHeaders__KnownNetworks__0: ${POLYMNIA_SUBNET:-172.31.250.0/24}
+  secrets:
+    # Plain `docker compose` bind-mounts file secrets and ignores uid/gid/mode (tested: the container user could not
+    # read the files). The host files must therefore belong to the container user (UID 1654) with mode 0400:
+    # `sudo chown 1654:1654 secrets/polymnia-keys.* && sudo chmod 0400 secrets/polymnia-keys.*` (docs/authentication.md).
+    - polymnia_keys
+    - polymnia_keys_password
   read_only: true
   tmpfs:
     - /tmp
@@ -69,6 +84,14 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+
+secrets:
+  polymnia_keys:
+    # PKCS#12 file (password protected).
+    file: ${POLYMNIA_KEYS_CERT_FILE:-./secrets/polymnia-keys.pfx}
+  polymnia_keys_password:
+    # Text file holding the password of the PKCS#12 file (a trailing newline is ignored).
+    file: ${POLYMNIA_KEYS_CERT_PASSWORD_FILE:-./secrets/polymnia-keys.password}
 
 networks:
   default:

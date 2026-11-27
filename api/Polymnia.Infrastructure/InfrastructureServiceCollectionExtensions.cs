@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Polymnia.Infrastructure.Users;
 
 namespace Polymnia.Infrastructure;
 
@@ -30,6 +32,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddDbContextPool<PolymniaDbContext>(options => options.UseNpgsql(
             connectionString,
             npgsql => npgsql.MigrationsAssembly(typeof(PolymniaDbContext).Assembly.FullName)));
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<UserProvisioner>();
 
         return services;
     }

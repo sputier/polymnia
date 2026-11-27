@@ -1,4 +1,5 @@
 import { Icon } from '../components/Icon';
+import { AccountMenu } from '../auth/AccountMenu';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ModeToggle } from '../components/ModeToggle';
 import { SaveStatus, type SaveState } from '../components/SaveStatus';
@@ -72,6 +73,7 @@ export function TopBar(props: TopBarProps) {
       </button>
       <ThemeSwitch />
       <LanguageSwitch />
+      <AccountMenu />
       {advanced && (
         <button
           type="button"

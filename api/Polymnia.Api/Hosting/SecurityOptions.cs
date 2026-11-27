@@ -7,7 +7,7 @@ internal sealed class SecurityOptions
 
     /// <summary>Baseline policy: same-origin only, no inline script or style, no plugins, no framing.</summary>
     public const string DefaultContentSecurityPolicy =
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; " +
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; font-src 'self'; " +
         "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
 
     /// <summary>

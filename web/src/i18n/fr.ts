@@ -134,4 +134,16 @@ export const fr: Messages = {
   'shortcut.redo': 'Rétablir',
   'shortcut.copy': 'Copier',
   'shortcut.paste': 'Coller',
+  'auth.headline': "J'écris, j'écoute, je partage.",
+  'auth.lead':
+    "Composez une partition au clavier, entendez-la tout de suite, partagez-la d'un lien. Dans le navigateur, sans rien installer.",
+  'auth.signInWithGoogle': 'Se connecter avec Google',
+  'auth.hint': 'pour se connecter',
+  'auth.free': 'Libre et gratuit (licence MIT)',
+  'auth.failed': "La connexion n'a pas abouti. Veuillez réessayer.",
+  'auth.loading': 'Chargement...',
+  'auth.error': 'Le serveur est injoignable. Vérifiez votre connexion et réessayez.',
+  'auth.retry': 'Réessayer',
+  'auth.signOut': 'Se déconnecter',
+  'auth.account': 'Compte',
 };
