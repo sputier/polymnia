@@ -84,3 +84,16 @@ Le budget de 50 ms est tenu pour get et liste. Il n'est pas tenu pour un `PUT` d
 ## Authentification et CSRF
 
 Les endpoints exigent le cookie de session décrit dans [Authentication](authentication.fr.md) ; l'identifiant utilisateur est sa claim `NameIdentifier` (un GUID). Toute méthode non sûre (`POST`, `PUT`, `PATCH`, `DELETE`) doit porter le jeton antiforgery dans l'en-tête `X-XSRF-TOKEN`, `duplicate` et `DELETE` compris (`400` sinon, avant toute lecture) ; un test le vérifie. `scores.owner_id` est une clé étrangère vers `users.id` avec `ON DELETE CASCADE` : supprimer un utilisateur supprime ses partitions.
+
+## Liens de partage
+
+Liens en lecture seule vers une partition, décrits dans [sharing.fr.md](sharing.fr.md) :
+
+| Méthode et chemin               | Rôle                                                                                                                                 | Succès                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `GET /api/scores/{id}/share`    | Propriétaire : état `{ active, createdAt }`. Jamais le jeton.                                                                        | `200`                        |
+| `POST /api/scores/{id}/share`   | Propriétaire : crée le lien (révoque l'actif). Seule réponse qui porte le jeton en clair : jamais compressée, `no-store`.            | `201` `{ token, createdAt }` |
+| `DELETE /api/scores/{id}/share` | Propriétaire : révoque le lien actif. Idempotent.                                                                                    | `204`                        |
+| `GET /api/shared` + header `X-Share-Token` | Public, sans session : le document de la partition. Jeton inconnu, révoqué ou mal formé : le même `404`. `no-store`, `noindex`, `no-referrer`. | `200` document               |
+
+Les endpoints du propriétaire suivent les règles ci-dessus (session, antiforgery, `404` par propriétaire, budgets par utilisateur). L'endpoint public est limité par adresse client (IPv4, ou `/64` IPv6) : 60 requêtes par minute (`RateLimiting:Shared:PermitLimit`, `WindowSeconds`) et 32 en flux simultanées (`MaxConcurrentReads`), `429` avec `Retry-After` au-delà. `share_links.score_id` est une clé étrangère vers `scores.id` avec `ON DELETE CASCADE`.

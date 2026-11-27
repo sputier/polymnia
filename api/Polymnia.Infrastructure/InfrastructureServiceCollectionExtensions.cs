@@ -39,6 +39,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<UserProvisioner>();
         services.AddSingleton<IScoreContentValidator, ScoreContentValidator>();
         services.AddScoped<ScoreStore>();
+        services.AddScoped<Sharing.ShareStore>();
 
         return services;
     }

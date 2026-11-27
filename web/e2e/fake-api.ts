@@ -108,6 +108,72 @@ export class FakeApi {
       }),
     );
     await page.route('**/api/scores**', (route) => this.handle(route));
+    await page.route('**/api/shared', (route) => this.handleShared(route));
+  }
+
+  /** Share links (docs/sharing.md): at most one active token per score, the token is only returned on creation. */
+  readonly shares = new Map<string, { token: string; createdAt: string; revoked: boolean }[]>();
+  /** Requests of the public endpoint, with the cookies and referrer they carried. */
+  readonly sharedRequests: { path: string; cookie: string | null; referer: string | null }[] = [];
+
+  private activeShare(id: string) {
+    return this.shares.get(id)?.find((s) => !s.revoked);
+  }
+
+  private shareAction(route: Route, id: string, method: string) {
+    if (method === 'GET') {
+      const active = this.activeShare(id);
+      return route.fulfill({ json: { active: !!active, createdAt: active?.createdAt ?? null } });
+    }
+    if (method === 'POST') {
+      const list = this.shares.get(id) ?? [];
+      for (const s of list) s.revoked = true;
+      const token = Array.from(
+        { length: 43 },
+        () =>
+          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'[
+            Math.floor(Math.random() * 64)
+          ],
+      ).join('');
+      const created = { token, createdAt: this.tick(), revoked: false };
+      list.push(created);
+      this.shares.set(id, list);
+      return route.fulfill({
+        status: 201,
+        json: { token, createdAt: created.createdAt },
+        headers: { 'Cache-Control': 'no-store' },
+      });
+    }
+    if (method === 'DELETE') {
+      for (const s of this.shares.get(id) ?? []) s.revoked = true;
+      return route.fulfill({ status: 204 });
+    }
+    return route.fulfill({ status: 405 });
+  }
+
+  private async handleShared(route: Route): Promise<void> {
+    const request = route.request();
+    const headers = request.headers();
+    const token = headers['x-share-token'] ?? '';
+    this.sharedRequests.push({
+      path: new URL(request.url()).pathname + new URL(request.url()).search,
+      cookie: headers['cookie'] ?? null,
+      referer: headers['referer'] ?? null,
+    });
+    for (const [id, list] of this.shares) {
+      if (list.some((s) => s.token === token && !s.revoked)) {
+        return route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+          body: JSON.stringify(this.scores.get(id)!.doc),
+        });
+      }
+    }
+    return route.fulfill({
+      status: 404,
+      headers: { 'Content-Type': 'application/problem+json' },
+      body: JSON.stringify({ title: 'Not Found', status: 404 }),
+    });
   }
 
   private summary(s: Stored) {
@@ -171,6 +237,7 @@ export class FakeApi {
     const stored = this.scores.get(id);
     if (!stored) return route.fulfill({ status: 404, json: { title: 'Not found' } });
 
+    if (action === 'share') return this.shareAction(route, id, method);
     if (action === 'duplicate' && method === 'POST') {
       const copy = structuredClone(stored.doc) as { meta: { title: string } };
       copy.meta.title = `${copy.meta.title} (copy)`;

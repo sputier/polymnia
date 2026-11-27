@@ -21,6 +21,8 @@ public sealed class PolymniaDbContext(DbContextOptions<PolymniaDbContext> option
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<Score> Scores => Set<Score>();
 
+    public DbSet<Polymnia.Core.Sharing.ShareLink> ShareLinks => Set<Polymnia.Core.Sharing.ShareLink>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);

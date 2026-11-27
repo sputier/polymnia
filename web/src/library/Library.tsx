@@ -14,7 +14,8 @@ import type { Shortcut } from '../shortcuts/registry';
 import { useShortcuts } from '../shortcuts/useShortcuts';
 import { cancelDelete, scheduleDelete, UNDO_WINDOW_MS } from './deferredDelete';
 import { NewScoreDialog } from './NewScoreDialog';
-import { RenameDialog, ShareDialog } from './dialogs';
+import { LibraryShare } from '../sharing/LibraryShare';
+import { RenameDialog } from './dialogs';
 import { ScoreCard, type CardAction } from './ScoreCard';
 import { describeFailure } from './text';
 import { useLibrary } from './useLibrary';
@@ -381,7 +382,11 @@ export function Library() {
         />
       )}
       {modal?.kind === 'share' && (
-        <ShareDialog title={modal.score.title} onClose={() => setModal(null)} />
+        <LibraryShare
+          scoreId={modal.score.id}
+          title={modal.score.title}
+          onClose={() => setModal(null)}
+        />
       )}
       {palette && (
         <Suspense fallback={null}>

@@ -7,7 +7,8 @@ import { useMemo, useSyncExternalStore } from 'react';
 export type Route =
   | { readonly name: 'library' }
   | { readonly name: 'editor' }
-  | { readonly name: 'score'; readonly id: string };
+  | { readonly name: 'score'; readonly id: string }
+  | { readonly name: 'shared'; readonly token: string };
 
 // Hash routing: three screens do not justify a router dependency.
 function read(): string {
@@ -18,6 +19,10 @@ export function parseRoute(hash: string): Route {
   const path = hash.split('?')[0] ?? '';
   const score = /^#\/scores\/([^/]+)\/?$/.exec(path);
   if (score) return { name: 'score', id: decodeURIComponent(score[1]!) };
+  // The public viewer of a share link (docs/sharing.md). The token is in the fragment, which a browser never sends:
+  // it stays out of server logs and of Referer.
+  const shared = /^#\/s\/([A-Za-z0-9_-]{1,128})\/?$/.exec(path);
+  if (shared) return { name: 'shared', token: shared[1]! };
   if (path.startsWith('#/editor')) return { name: 'editor' };
   return { name: 'library' };
 }
@@ -33,6 +38,8 @@ export function useRoute(): Route {
 }
 
 export const ROUTE_HREF = { home: '#/', editor: '#/editor' } as const;
+
+export const sharedHref = (token: string): string => `#/s/${encodeURIComponent(token)}`;
 
 export const scoreHref = (id: string): string => `#/scores/${encodeURIComponent(id)}`;
 

@@ -1,0 +1,96 @@
+/* Share dialog and public viewer (docs/sharing.md). Colors come from tokens.css (light and dark). */
+.dlg-share {
+  width: min(560px, 100%);
+}
+
+.share-row {
+  display: flex;
+  gap: 8px;
+}
+
+.share-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.share-message {
+  min-height: 1.2em;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.share-problem {
+  color: var(--danger);
+}
+
+.share-export h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.share-export-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.btn.danger {
+  color: var(--danger);
+}
+
+/* Public viewer: the score and the playback bar, nothing else. */
+.viewer {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.viewer-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.viewer-bar .sp {
+  flex: 1;
+}
+
+.viewer-brand {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.viewer-brand:hover,
+.viewer-brand:focus-visible {
+  text-decoration: underline;
+}
+
+.viewer-badge {
+  padding: 1px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.viewer-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (max-width: 600px) {
+  .share-row {
+    flex-direction: column;
+  }
+}

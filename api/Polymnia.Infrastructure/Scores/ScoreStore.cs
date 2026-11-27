@@ -86,23 +86,43 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
             }
         }
 
-        return await OpenContentAsync(owner, id, ct);
+        return await OpenContentAsync(
+            "SELECT version, convert_to(content::text, 'UTF8') FROM scores WHERE owner_id = $1 AND id = $2",
+            [owner, id],
+            ct);
+    }
+
+    /// <summary>
+    /// The content of the score behind an active share link, found by the SHA-256 hash of its token. Revoked or unknown:
+    /// <see cref="ScoreOutcome.NotFound"/>. No owner is involved: the token is the only credential.
+    /// </summary>
+    public Task<ScoreResult<ScoreContent>> OpenSharedContentAsync(byte[] tokenHash, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(tokenHash);
+        return OpenContentAsync(
+            """
+            SELECT s.version, convert_to(s.content::text, 'UTF8')
+            FROM share_links l JOIN scores s ON s.id = l.score_id
+            WHERE l.token_hash = $1 AND l.revoked_at IS NULL
+            """,
+            [tokenHash],
+            ct);
     }
 
     // The document goes from PostgreSQL to the response as bytes: no 2 MB UTF-16 string on the large object heap.
-    private async Task<ScoreResult<ScoreContent>> OpenContentAsync(Guid owner, Guid id, CancellationToken ct)
+    private async Task<ScoreResult<ScoreContent>> OpenContentAsync(string sql, object[] values, CancellationToken ct)
     {
         await db.Database.OpenConnectionAsync(ct);
         NpgsqlCommand? command = null;
         System.Data.Common.DbDataReader? reader = null;
         try
         {
-            command = new NpgsqlCommand(
-                "SELECT version, convert_to(content::text, 'UTF8') FROM scores WHERE owner_id = $1 AND id = $2",
-                (NpgsqlConnection)db.Database.GetDbConnection())
+            command = new NpgsqlCommand(sql, (NpgsqlConnection)db.Database.GetDbConnection());
+            foreach (object value in values)
             {
-                Parameters = { new() { Value = owner }, new() { Value = id } },
-            };
+                command.Parameters.Add(new NpgsqlParameter { Value = value });
+            }
+
             reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SequentialAccess, ct);
             if (!await reader.ReadAsync(ct))
             {

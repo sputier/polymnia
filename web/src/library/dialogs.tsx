@@ -46,24 +46,3 @@ export function RenameDialog({
     </Dialog>
   );
 }
-
-/** Placeholder: sharing by link arrives with its own issue. */
-export function ShareDialog({ title, onClose }: { title: string; onClose: () => void }) {
-  const { t } = useI18n();
-  return (
-    <Dialog className="dlg-form" labelledBy="share-title" onClose={onClose}>
-      <div className="dlg-body">
-        <h2 id="share-title">{t('share.title')}</h2>
-        <p>
-          <strong>{title}</strong>
-        </p>
-        <p>{t('share.soon')}</p>
-        <div className="dlg-actions">
-          <button type="button" className="btn primary" data-autofocus onClick={onClose}>
-            {t('dialog.close')}
-          </button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}

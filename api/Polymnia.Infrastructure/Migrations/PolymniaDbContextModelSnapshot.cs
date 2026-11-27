@@ -101,6 +101,44 @@ namespace Polymnia.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Polymnia.Core.Sharing.ShareLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid>("ScoreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("score_id");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("token_hash");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "ScoreId" }, "ux_share_links_score_id_active")
+                        .IsUnique()
+                        .HasFilter("revoked_at IS NULL");
+
+                    b.HasIndex(new[] { "TokenHash" }, "ux_share_links_token_hash")
+                        .IsUnique();
+
+                    b.ToTable("share_links", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_share_links_hash_length", "octet_length(token_hash) = 32");
+                        });
+                });
+
             modelBuilder.Entity("Polymnia.Core.Users.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -191,6 +229,15 @@ namespace Polymnia.Infrastructure.Migrations
                     b.HasOne("Polymnia.Core.Users.User", null)
                         .WithMany()
                         .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Polymnia.Core.Sharing.ShareLink", b =>
+                {
+                    b.HasOne("Polymnia.Core.Scores.Score", null)
+                        .WithMany()
+                        .HasForeignKey("ScoreId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

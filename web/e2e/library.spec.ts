@@ -148,12 +148,14 @@ test.describe('library', () => {
     await expect(card(page, 'Stays')).toBeVisible();
   });
 
-  test('share opens a placeholder', async ({ page }) => {
+  test('share opens the share dialog', async ({ page }) => {
     const fake = new FakeApi();
     fake.add('Shared');
     await setup(page, fake);
     await openCardMenu(page, 'Shared', 'Share');
-    await expect(page.getByRole('dialog', { name: 'Share' })).toContainText('coming soon');
+    await expect(page.getByRole('dialog', { name: 'Share' })).toContainText(
+      'This score is not shared',
+    );
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });

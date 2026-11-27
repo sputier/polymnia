@@ -191,10 +191,10 @@ export function ScoreEditorRoute({ id }: { id: string }) {
       </main>
     );
   }
-  return <OpenScore key={id} session={loaded.session} />;
+  return <OpenScore key={id} id={id} session={loaded.session} />;
 }
 
-function OpenScore({ session }: { session: Session }) {
+function OpenScore({ id, session }: { id: string; session: Session }) {
   const { t } = useI18n();
   const { store, queue } = session;
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot);
@@ -245,6 +245,7 @@ function OpenScore({ session }: { session: Session }) {
         onTitleChange={changeTitle}
         onSaveNow={() => void queue.flush()}
         onBeforeLeave={beforeLeave}
+        scoreId={id}
       />
       <SaveNotices
         status={snapshot.status}

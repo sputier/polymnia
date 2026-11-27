@@ -1,6 +1,7 @@
 using Polymnia.Api.Auth;
 using Polymnia.Api.Hosting;
 using Polymnia.Api.Scores;
+using Polymnia.Api.Sharing;
 using Polymnia.Api.Spa;
 using Polymnia.Infrastructure;
 
@@ -21,10 +22,23 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = 1024 * 1024;
 });
 
+// The share token travels in a header, never in the path. Should a stale client still put one in a path
+// (/api/shared/<token>), the framework categories that write request paths stay at Warning whatever the configuration.
+foreach (string category in new[]
+{
+    "Microsoft.AspNetCore.Hosting.Diagnostics",
+    "Microsoft.AspNetCore.Routing",
+    "Microsoft.AspNetCore.StaticFiles",
+})
+{
+    builder.Logging.AddFilter(category, LogLevel.Warning);
+}
+
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddPolymniaHosting(builder.Configuration, builder.Environment);
 builder.Services.AddPolymniaAuth(builder.Configuration, builder.Environment);
 builder.Services.AddScoreApi(builder.Configuration, builder.Environment);
+builder.Services.AddShareApi(builder.Configuration);
 
 WebApplication app = builder.Build();
 
@@ -40,6 +54,7 @@ app.UseScoreApi();
 app.MapPolymniaEndpoints();
 app.MapAuthEndpoints();
 app.MapScoreApi();
+app.MapShareEndpoints();
 app.MapSpaFallback();
 
 await app.RunAsync();
