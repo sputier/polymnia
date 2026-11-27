@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLanguage } from '../i18n/i18n';
@@ -122,6 +122,39 @@ describe('EditorLayout', () => {
     await user.click(toggle);
     await user.click(screen.getByRole('button', { name: 'Close panel' }));
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('switches between the score and the chord sheet, and a measure takes back to the score (#60)', async () => {
+    const user = userEvent.setup();
+    render(<EditorLayout />);
+    expect(screen.getByTestId('score-view')).toBeInTheDocument();
+    const group = screen.getByRole('group', { name: 'View' });
+    await user.click(within(group).getByRole('button', { name: 'Chord sheet' }));
+    expect(await screen.findByRole('table', { name: /Chord sheet/ })).toBeInTheDocument();
+    expect(screen.queryByTestId('score-view')).toBeNull();
+    // The export menu offers the sheet.
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(screen.getByRole('menuitem', { name: 'Chord sheet (PDF)' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Chord sheet (PNG)' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: /^Measure 2:/ }));
+    expect(screen.getByTestId('score-view')).toBeInTheDocument();
+    expect(within(group).getByRole('button', { name: 'Score' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(screen.queryByRole('menuitem', { name: 'Chord sheet (PDF)' })).toBeNull();
+  });
+
+  it('Alt+V toggles the chord sheet (#60)', async () => {
+    const user = userEvent.setup();
+    render(<EditorLayout />);
+    await user.keyboard('{Alt>}v{/Alt}');
+    expect(await screen.findByRole('table', { name: /Chord sheet/ })).toBeInTheDocument();
+    await user.keyboard('{Alt>}v{/Alt}');
+    expect(screen.getByTestId('score-view')).toBeInTheDocument();
   });
 
   it('is translated to French', () => {

@@ -9,6 +9,7 @@ Three ways to get a score out of Polymnia as a file, next to [MusicXML](musicxml
 | Action           | How                                                                                                                                                                                                             |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Export a file    | Top bar **Export** menu: MIDI (`.mid`), PDF, PNG images. Also the command palette (group "File") and `Ctrl/Cmd+Shift+U` (MIDI), `Ctrl/Cmd+Shift+F` (PDF), `Ctrl/Cmd+Shift+G` (PNG)                              |
+| Export the chord sheet | In the chord sheet view, **Chord sheet (PDF)** and **Chord sheet (PNG)** at the top of the Export menu, see [Chord sheet](#chord-sheet) |
 | Choose the paper | Same menu, **Paper: A4** or **Paper: Letter** (checked item). Default from the browser language: Letter for en-US, en-CA, es-MX and a few others, A4 elsewhere. Remembered in `localStorage` (`polymnia.paper`) |
 | Follow progress  | A small panel (bottom right, `role="status"`) shows "Page 3 of 11" for PDF and PNG; the live region announces the start and the file name                                                                       |
 
@@ -63,6 +64,16 @@ So (a) does not satisfy "embed Bravura correctly" without extra machinery, and (
 `png.ts`. Each page is drawn on a `<canvas>` from the **same items** with `Path2D` (white paper, black ink) and encoded with `canvas.toBlob`. Resolution is **2x** the CSS pixel size of the page (96 dpi x 2 = 192 dpi): Letter is 1632 x 2112 px, A4 1587 x 2245 px. Because the glyphs are paths, no font has to be loaded, and there is no SVG-to-image round trip (which would not draw the music font anyway: an SVG used as an image cannot load web fonts, and the Content-Security-Policy does not allow `blob:` images). Same page layout as the PDF.
 
 One page gives one `.png`; several pages give one `.zip` (`fflate`, stored without recompression since PNG is compressed) of `page-NN.png`, numbered with leading zeros so that they sort.
+
+## Chord sheet
+
+While the [chord sheet view](editor.md#chord-sheet-view-60) is shown, the Export menu starts with **Chord sheet (PDF)** and **Chord sheet (PNG)** (palette commands "Export the chord sheet as PDF / PNG", no key, enabled in that view only). Files are named like the others (`Long-piece.pdf`). Code: `export/sheetPages.ts` (pages), `exportChordSheet` in `export/index.ts`.
+
+- **Same page model, no engraver.** The sheet is built directly as `Page`s of drawing items in points, so the PDF writer, the PNG renderer, the paper choice (A4 or Letter), the title block (title centered, composer right), the page numbers and the Unicode text layer of the score export are reused unchanged. Chord names are plain text (Helvetica; a name beyond WinAnsi, or a title in Cyrillic, goes through the Inter outlines of [Unicode text](#pdf) like any other text), written with the chord naming option in force (`Rém7` in French): the PDF text of the sheet is searchable.
+- **Layout.** The grid is four cells per row across the printable width, 38 pt high, measure number in the corner, chords 15 pt (smaller when a measure has several chords, down to 8 pt; the beat of each is printed under it), `%` for a repeat. Rows are never split across pages. Then the heading "Chord diagrams - part name (Capo n)" and the diagrams of the chords used, 64 pt cells as many per row as fit, caption under each (`D (C)` with capo shapes). The heading never ends a page on its own. Diagrams are drawn from the same geometry as the screen (`chords/sheetDiagram.ts`: lines, dots, barre, fret number) as vector paths; the part is the one chosen in the view (the first with strings by default), with its tuning and capo; a score with no part with strings has no diagram section.
+- **PNG.** Same renderer (2x), one image or a ZIP of `page-NN.png`.
+- **Cost.** The sheet needs neither VexFlow nor the engraver chunk: only the export chunk (and the chord library, fetched when diagrams are printed). `export:sheet-pdf` and `export:sheet-png` are User Timing measures like the other exports.
+- **Tests.** `sheetPages.test.ts` (names, `%`, beats, naming option, diagrams, no diagram for a piano, page breaks within the margins, valid PDF); Playwright `e2e/chord-sheet.spec.ts` (the PDF text contains the chord names, `%` and the diagrams heading, French names, a PNG, menu items only in the sheet view).
 
 ## Security and CSP
 

@@ -5,6 +5,7 @@ import type { MessageKey } from '../i18n/en';
 import type { ImportErrorCode, ImportReport, ImportResult } from '../musicxml';
 import type { EditorStore } from './entry/editorStore';
 import type { ExportFormat } from './FileMenu';
+import { getChordNaming } from '../engraving/chordNaming';
 import { getPaper } from './paperPref';
 
 /** Same cap as the importer (`MUSICXML_LIMITS.maxInputBytes`), checked before loading the code. */
@@ -79,6 +80,8 @@ export function useMusicXmlIO(
   store: EditorStore,
   title: string,
   setTitle: (title: string) => void,
+  /** The part chosen for the diagrams of the chord sheet (read when the sheet is exported). */
+  getSheetPart?: () => string | undefined,
 ): MusicXmlIO {
   const { t } = useI18n();
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -106,28 +109,54 @@ export function useMusicXmlIO(
       void (async () => {
         const score = store.getState().score;
         const named = { ...score, meta: { ...score.meta, title } };
-        if (format === 'midi' || format === 'pdf' || format === 'png') {
+        if (
+          format === 'midi' ||
+          format === 'pdf' ||
+          format === 'png' ||
+          format === 'sheetPdf' ||
+          format === 'sheetPng'
+        ) {
           const label = t(
             format === 'midi'
               ? 'io.exportMidi'
               : format === 'pdf'
                 ? 'io.exportPdf'
-                : 'io.exportPng',
+                : format === 'png'
+                  ? 'io.exportPng'
+                  : format === 'sheetPdf'
+                    ? 'io.exportSheetPdf'
+                    : 'io.exportSheetPng',
           );
           setMessage(t('io.exporting').replace('{format}', label));
           setProgress({ format: label, done: 0, total: 0 });
           try {
             // The export code (encoder, page layout, PDF writer, canvas) loads on first use.
             const exporter = await import('../export');
+            const onProgress = (p: { done: number; total: number }) =>
+              setProgress({ format: label, ...p });
             const file =
               format === 'midi'
                 ? await exporter.exportMidi(named, title)
-                : await exporter[format === 'pdf' ? 'exportPdf' : 'exportPng'](
-                    named,
-                    title,
-                    getPaper(),
-                    (p) => setProgress({ format: label, ...p }),
-                  );
+                : format === 'sheetPdf' || format === 'sheetPng'
+                  ? await exporter.exportChordSheet(
+                      format === 'sheetPdf' ? 'pdf' : 'png',
+                      named,
+                      title,
+                      getPaper(),
+                      {
+                        naming: getChordNaming(),
+                        partId: getSheetPart?.(),
+                        diagramsLabel: t('sheet.diagrams'),
+                        capoLabel: (fret) => t('sheet.capo').replace('{fret}', String(fret)),
+                      },
+                      onProgress,
+                    )
+                  : await exporter[format === 'pdf' ? 'exportPdf' : 'exportPng'](
+                      named,
+                      title,
+                      getPaper(),
+                      onProgress,
+                    );
             finishExport(file, file.dropped);
           } catch {
             setMessage('');
@@ -146,7 +175,7 @@ export function useMusicXmlIO(
         }
       })();
     },
-    [store, title, t, finishExport],
+    [store, title, t, finishExport, getSheetPart],
   );
 
   const importFile = useCallback(

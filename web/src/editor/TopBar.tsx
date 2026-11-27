@@ -4,6 +4,7 @@ import { formatKeys } from '../shortcuts/registry';
 import { AccountMenu } from '../auth/AccountMenu';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ModeToggle } from '../components/ModeToggle';
+import { ViewToggle, type View } from '../components/ViewToggle';
 import { SaveStatus, type SaveState } from '../components/SaveStatus';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { useI18n } from '../i18n/i18n';
@@ -17,6 +18,8 @@ interface TopBarProps {
   saveState: SaveState;
   mode: UiMode;
   onModeChange: (mode: UiMode) => void;
+  view: View;
+  onViewChange: (view: View) => void;
   leftOpen: boolean;
   onToggleLeft: () => void;
   rightOpen: boolean;
@@ -89,6 +92,7 @@ export function TopBar(props: TopBarProps) {
       >
         <Icon name="focus" />
       </button>
+      <ViewToggle view={props.view} onChange={props.onViewChange} />
       <ModeToggle mode={props.mode} onChange={props.onModeChange} />
       <ImportButton onFile={props.onImportFile} />
       <button
@@ -106,7 +110,7 @@ export function TopBar(props: TopBarProps) {
         <Icon name="share" />
         <span className="lbl">{t('editor.share')}</span>
       </button>
-      <ExportMenu onExport={props.onExport} />
+      <ExportMenu onExport={props.onExport} sheet={props.view === 'sheet'} />
       <button
         type="button"
         className="btn ghost icon"

@@ -7,7 +7,8 @@ import type { SaveState } from '../components/SaveStatus';
 import { ScoreView } from '../engraving/ScoreView';
 import { useI18n } from '../i18n/i18n';
 import type { Shortcut } from '../shortcuts/registry';
-import { CommandDialogs } from '../route/chunks';
+import { ChordSheet, CommandDialogs } from '../route/chunks';
+import { useSheetView } from '../components/useSheetView';
 import { useShortcuts } from '../shortcuts/useShortcuts';
 // Not lazy: the keys typed right after Alt+K must find the field.
 import { ChordEntry } from './ChordEntry';
@@ -136,7 +137,18 @@ export function EditorLayout({
   const [localTitle, setLocalTitle] = useState('');
   const title = givenTitle ?? localTitle;
   const setTitle = onTitleChange ?? setLocalTitle;
-  const io = useMusicXmlIO(store, title, setTitle);
+  const sheetView = useSheetView(engraver);
+  const { view } = sheetView;
+  const sheet = view === 'sheet';
+  const io = useMusicXmlIO(store, title, setTitle, () => sheetView.sheetPart);
+  // The chord entry field lives on the engraved score: it closes when the sheet takes its place.
+  useEffect(() => {
+    if (sheet && state.chordEntry) store.closeChordEntry();
+  }, [sheet, state.chordEntry, store]);
+  const openMeasure = (index: number) => {
+    store.goToMeasure(index);
+    sheetView.openMeasure(index);
+  };
   // null = "not chosen yet": open on wide screens, closed as an overlay.
   const [leftChoice, setLeftChoice] = useState<boolean | null>(null);
   const [rightChoice, setRightChoice] = useState<boolean | null>(null);
@@ -243,6 +255,22 @@ export function EditorLayout({
       handler: () => io.exportAs('png'),
     },
     {
+      id: 'file.exportSheetPdf',
+      keys: '',
+      labelKey: 'command.exportSheetPdf',
+      group: 'file',
+      enabled: () => sheet,
+      handler: () => io.exportAs('sheetPdf'),
+    },
+    {
+      id: 'file.exportSheetPng',
+      keys: '',
+      labelKey: 'command.exportSheetPng',
+      group: 'file',
+      enabled: () => sheet,
+      handler: () => io.exportAs('sheetPng'),
+    },
+    {
       id: 'file.share',
       keys: 'Mod+Shift+L',
       labelKey: 'shortcut.share',
@@ -271,6 +299,14 @@ export function EditorLayout({
       group: 'view',
       allowInInput: true,
       handler: () => setFocus(!focus),
+    },
+    {
+      id: 'view.chordSheet',
+      keys: 'Alt+V',
+      labelKey: 'shortcut.chordSheet',
+      group: 'view',
+      allowInInput: true,
+      handler: sheetView.toggleView,
     },
     {
       id: 'editor.togglePiano',
@@ -435,6 +471,8 @@ export function EditorLayout({
         saveState={saveState}
         mode={mode}
         onModeChange={setMode}
+        view={view}
+        onViewChange={sheetView.setView}
         leftOpen={leftOpen}
         onToggleLeft={toggleLeft}
         rightOpen={rightOpen}
@@ -466,30 +504,47 @@ export function EditorLayout({
         <main className="center">
           <TransportBar controller={playback} selection={state.selection} />
           <div className="score-area">
-            <Palette store={store} state={state} advanced={advanced} />
+            {!sheet && <Palette store={store} state={state} advanced={advanced} />}
             <section className="paper" aria-label={t('paper.label')}>
               <h1 className="ptitle">{title || t('editor.untitled')}</h1>
-              <ScoreView
-                {...(fixture ? {} : { score: state.score })}
-                selection={highlighted}
-                warnings={warnings}
-                liveMessage={liveMessage}
-                onEngraver={setEngraver}
-                onHit={(hit, event) => store.click(hit, event.shiftKey)}
-                overlay={
-                  state.chordEntry && (
-                    <ChordEntry
-                      key={`${state.chordEntry.staffId}/${state.chordEntry.measure}/${state.chordEntry.tick}`}
-                      store={store}
-                      entry={state.chordEntry}
-                      score={state.score}
-                      engraver={engraver}
-                    />
-                  )
-                }
-              />
+              {sheet ? (
+                <Suspense
+                  fallback={
+                    <p className="muted" role="status">
+                      {t('sheet.loading')}
+                    </p>
+                  }
+                >
+                  <ChordSheet
+                    score={state.score}
+                    onMeasure={openMeasure}
+                    partId={sheetView.sheetPart}
+                    onPartChange={sheetView.setSheetPart}
+                  />
+                </Suspense>
+              ) : (
+                <ScoreView
+                  {...(fixture ? {} : { score: state.score })}
+                  selection={highlighted}
+                  warnings={warnings}
+                  liveMessage={liveMessage}
+                  onEngraver={setEngraver}
+                  onHit={(hit, event) => store.click(hit, event.shiftKey)}
+                  overlay={
+                    state.chordEntry && (
+                      <ChordEntry
+                        key={`${state.chordEntry.staffId}/${state.chordEntry.measure}/${state.chordEntry.tick}`}
+                        store={store}
+                        entry={state.chordEntry}
+                        score={state.score}
+                        engraver={engraver}
+                      />
+                    )
+                  }
+                />
+              )}
             </section>
-            <ShortcutStrip />
+            {!sheet && <ShortcutStrip />}
           </div>
           {pianoLoaded && (
             <Suspense fallback={null}>

@@ -19,9 +19,9 @@ export const PAPER_SIZES: Readonly<
 };
 
 export const MARGIN_X = 48;
-const MARGIN_TOP = 48;
-const MARGIN_BOTTOM = 52;
-const TITLE_BLOCK = 58;
+export const MARGIN_TOP = 48;
+export const MARGIN_BOTTOM = 52;
+export const TITLE_BLOCK = 58;
 /** Printed staff space (distance between two staff lines) in millimetres: usual for A4 scores. */
 export const DEFAULT_STAFF_SPACE_MM = 1.75;
 /** A staff space is 10 engraving px. */
@@ -157,29 +157,7 @@ export function buildPage(
   const first = systems.length > 0 ? plan.layout.systems[systems[0]!]!.y : 0;
   let top = MARGIN_TOP;
   if (index === 0) {
-    const inner = width - 2 * MARGIN_X;
-    if (title.trim() !== '') {
-      const text = fitText(title.trim(), 20, inner, measure);
-      items.push({
-        kind: 'text',
-        x: width / 2,
-        y: MARGIN_TOP + 18,
-        size: 20,
-        text,
-        align: 'middle',
-      });
-    }
-    const composer = score.meta.composer.trim();
-    if (composer !== '') {
-      items.push({
-        kind: 'text',
-        x: width - MARGIN_X,
-        y: MARGIN_TOP + 38,
-        size: 11,
-        text: fitText(composer, 11, inner, measure),
-        align: 'end',
-      });
-    }
+    items.push(...titleBlock(width, score, title, measure));
     top += TITLE_BLOCK;
   }
   const spread = systemSpread(plan, index);
@@ -192,13 +170,45 @@ export function buildPage(
     for (const [name, n] of Object.entries(converted.dropped))
       dropped[name] = (dropped[name] ?? 0) + n;
   }
-  items.push({
+  items.push(pageNumber(width, height, index, plan.pages.length));
+  return { width, height, items };
+}
+
+/** The title (centered) and the composer (right) at the top of the first page. */
+export function titleBlock(
+  width: number,
+  score: Score,
+  title: string,
+  measure: (text: string, size: number) => number = textWidth,
+): Item[] {
+  const items: Item[] = [];
+  const inner = width - 2 * MARGIN_X;
+  if (title.trim() !== '') {
+    const text = fitText(title.trim(), 20, inner, measure);
+    items.push({ kind: 'text', x: width / 2, y: MARGIN_TOP + 18, size: 20, text, align: 'middle' });
+  }
+  const composer = score.meta.composer.trim();
+  if (composer !== '') {
+    items.push({
+      kind: 'text',
+      x: width - MARGIN_X,
+      y: MARGIN_TOP + 38,
+      size: 11,
+      text: fitText(composer, 11, inner, measure),
+      align: 'end',
+    });
+  }
+  return items;
+}
+
+/** `n / total` at the foot of a page. */
+export function pageNumber(width: number, height: number, index: number, total: number): Item {
+  return {
     kind: 'text',
     x: width / 2,
     y: height - MARGIN_BOTTOM / 2 + 4,
     size: 9,
-    text: `${index + 1} / ${plan.pages.length}`,
+    text: `${index + 1} / ${total}`,
     align: 'middle',
-  });
-  return { width, height, items };
+  };
 }

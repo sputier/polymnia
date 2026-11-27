@@ -80,6 +80,21 @@ describe('key map (every row of the issue table)', () => {
     expect(store.getState().cursor).toEqual({ measure: 0, tick: 960 });
   });
 
+  it('goToMeasure selects the first event of the measure (or puts the cursor on an empty one)', () => {
+    press('N', '5', 'C', 'D', 'E', 'F', 'G');
+    store.toggleInputMode();
+    expect(store.goToMeasure(1)).toBe(true);
+    const state = store.getState();
+    expect(state.mode).toBe('select');
+    expect(state.selection).toEqual([events(1)[0]!.id]);
+    expect(state.cursor.measure).toBe(1);
+
+    expect(store.goToMeasure(3)).toBe(true);
+    expect(store.getState().selection).toEqual([events(3)[0]!.id]); // a measure of rests: its rest
+    expect(store.goToMeasure(9)).toBe(false);
+    expect(store.goToMeasure(-1)).toBe(false);
+  });
+
   it('A to G enter notes with the nearest octave', () => {
     press('N', '5', 'C', 'D', 'E', 'F', 'G', 'A', 'B');
     // First note near the middle line (B4 on treble) is C5; then every step stays within a fourth.

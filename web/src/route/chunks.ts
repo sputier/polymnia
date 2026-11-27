@@ -25,6 +25,12 @@ export const SharedViewer = preloadable(
   (m) => m.SharedViewer,
 );
 
+/** The chord sheet view (#60): the grid of measures and the diagrams, fetched when the view is first chosen. */
+export const ChordSheet = preloadable(
+  () => import('../chords/ChordSheet'),
+  (m) => m.ChordSheet,
+);
+
 /** The command palette and the shortcut sheet (Ctrl+K), in the library and in the editor. */
 export const CommandDialogs = preloadable(
   () => import('../editor/commands/CommandDialogs'),

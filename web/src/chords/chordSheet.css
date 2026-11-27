@@ -1,0 +1,186 @@
+/* Chord sheet view (#60): the grid of measures and the diagrams of the chords used. */
+.chord-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 8px 0 16px;
+  color: var(--score-ink);
+}
+
+.sheet-grid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border: 1px solid var(--score-ink);
+}
+
+.sheet-grid td,
+.sheet-grid th {
+  padding: 0;
+  border: 1px solid var(--border);
+}
+
+.sheet-grid td {
+  height: 64px;
+}
+
+.sheet-col-head {
+  width: 32px;
+}
+
+.sheet-rowhead {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  text-align: center;
+  background: transparent;
+}
+
+.sheet-pad {
+  background: var(--panel2);
+}
+
+.sheet-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 64px;
+  padding: 14px 4px 4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.sheet-cell:hover {
+  background: var(--accent-soft);
+}
+
+.sheet-cell:focus-visible {
+  outline-offset: -3px;
+}
+
+.sheet-num {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.sheet-chords {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.sheet-chord {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.sheet-beat {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.sheet-repeat {
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--muted);
+}
+
+.sheet-empty {
+  margin: 8px 0 16px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.sheet-diagrams-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.sheet-diagrams h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sheet-part {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sheet-part select {
+  height: 28px;
+  padding: 0 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.sheet-part-name {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sheet-diagram-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 20px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sheet-diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  min-width: 64px;
+  margin: 0;
+}
+
+.sheet-diagram figcaption {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sheet-nodiagram {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .sheet-grid td {
+    height: 56px;
+  }
+
+  .sheet-chord {
+    font-size: 16px;
+  }
+}

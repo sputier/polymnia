@@ -3,7 +3,7 @@ import { Icon } from '../components/Icon';
 import { useI18n } from '../i18n/i18n';
 import { setPaper, usePaper } from './paperPref';
 
-export type ExportFormat = 'musicxml' | 'mxl' | 'midi' | 'pdf' | 'png';
+export type ExportFormat = 'musicxml' | 'mxl' | 'midi' | 'pdf' | 'png' | 'sheetPdf' | 'sheetPng';
 
 /** Import button: opens the file picker (the same path as a drop on the editor). */
 export function ImportButton({ onFile }: { onFile: (file: File) => void }) {
@@ -38,7 +38,14 @@ export function ImportButton({ onFile }: { onFile: (file: File) => void }) {
 }
 
 /** Export button with a menu (WAI-ARIA menu button): arrows, Home/End, Escape, click outside. */
-export function ExportMenu({ onExport }: { onExport: (format: ExportFormat) => void }) {
+export function ExportMenu({
+  onExport,
+  sheet = false,
+}: {
+  onExport: (format: ExportFormat) => void;
+  /** The chord sheet is on screen: its PDF and PNG are offered first. */
+  sheet?: boolean;
+}) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -123,6 +130,27 @@ export function ExportMenu({ onExport }: { onExport: (format: ExportFormat) => v
           aria-label={t('editor.export')}
           onKeyDown={onMenuKey}
         >
+          {sheet && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="menu-item"
+                onClick={() => choose('sheetPdf')}
+              >
+                {t('io.exportSheetPdf')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="menu-item"
+                onClick={() => choose('sheetPng')}
+              >
+                {t('io.exportSheetPng')}
+              </button>
+              <div role="separator" className="menu-sep" />
+            </>
+          )}
           <button
             type="button"
             role="menuitem"

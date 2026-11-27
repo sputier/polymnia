@@ -1035,6 +1035,33 @@ export class EditorStore {
     });
   }
 
+  /**
+   * Puts the cursor at the start of measure `index` (0 based) and selects its first event on the
+   * current staff and voice: what a click on a measure of the chord sheet does (#60).
+   */
+  goToMeasure(index: number): boolean {
+    const s = this.state;
+    if (index < 0 || index >= s.score.measures.length) return false;
+    const first = sequenceOf(s.score, s.staffId, s.voice).find((i) => i.measure === index);
+    if (first) {
+      this.set({
+        mode: 'select',
+        chordEntry: null,
+        ...this.selectPatch(s.score, [first.id], first.id, first.id),
+      });
+    } else {
+      this.set({
+        mode: 'select',
+        chordEntry: null,
+        selection: [],
+        anchor: null,
+        focus: null,
+        cursor: { measure: index, tick: 0 },
+      });
+    }
+    return true;
+  }
+
   // ---------------------------------------------------------------------------------------------
   // Editing the selection / the last entered note
   // ---------------------------------------------------------------------------------------------
