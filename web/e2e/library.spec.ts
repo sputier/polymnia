@@ -81,8 +81,12 @@ test.describe('library', () => {
 
   test('requires at least one instrument', async ({ page }) => {
     await setup(page, new FakeApi());
-    await page.keyboard.press('n');
     const dialog = page.getByRole('dialog', { name: 'New score' });
+    // The shortcut can be pressed before the library registered it: retry until the dialog opens.
+    await expect(async () => {
+      if (!(await dialog.isVisible())) await page.keyboard.press('n');
+      await expect(dialog).toBeVisible({ timeout: 1000 });
+    }).toPass();
     await dialog.getByRole('checkbox', { name: 'Piano' }).uncheck();
     await dialog.getByRole('button', { name: 'Create' }).click();
     await expect(dialog.getByRole('alert')).toHaveText('Pick at least one instrument.');
