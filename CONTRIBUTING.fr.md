@@ -16,8 +16,26 @@ Merci de votre intérêt pour Polymnia. Ce guide explique comment proposer une m
 2. Une pull request traite une seule issue.
 3. Ajoutez ou mettez à jour les tests automatisés. Une modification sans tests n'est pas terminée.
 4. Mettez à jour la documentation (README, `docs/`) dans la même pull request quand le comportement change, **en anglais et en français**.
-5. Lancez les vérifications en local (les commandes seront listées ici quand le squelette du projet existera).
+5. Lancez les vérifications en local (voir [Vérifications](#vérifications)).
 6. Ouvrez une pull request vers `main` et remplissez le modèle.
+
+## Priorités du projet : sécurité et performance d'abord
+
+La sécurité et la performance passent avant les nouvelles fonctionnalités. Une modification qui affaiblit la sécurité (secrets, injection, CORS ou CSP permissifs, entrées non validées) ou qui dépasse le budget de performance (JavaScript initial au-dessus de 150 Ko gzip, bibliothèques lourdes non chargées à la demande) n'est pas fusionnée tant qu'elle n'est pas corrigée.
+
+## Vérifications
+
+Front end, depuis `web/` (détails dans [docs/development.fr.md](docs/development.fr.md)) :
+
+```
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run size
+npm run test:e2e
+```
 
 ## Messages de commit
 

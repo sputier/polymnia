@@ -1,0 +1,63 @@
+/* Design tokens. Light is the default; dark follows the OS or data-theme="dark". */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f4f5f8;
+  --panel: #ffffff;
+  --panel2: #eef0f4;
+  --border: #dde1e8;
+  --ink: #171b24;
+  --muted: #586070;
+  --accent: #4f46e5;
+  --accent-ink: #ffffff;
+  --play: #c2410c;
+  --ok: #15803d;
+  --warn: #b45309;
+  --danger: #b42318;
+  --paper: #ffffff;
+  --score-ink: #171b24;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0d0f14;
+  --panel: #151922;
+  --panel2: #1c212c;
+  --border: #2a313e;
+  --ink: #e7eaf1;
+  --muted: #9aa4b5;
+  --accent: #9b94ff;
+  --accent-ink: #0d0f14;
+  --play: #ffa75c;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #ff8a80;
+  --paper: #1a1f2a;
+  --score-ink: #e7eaf1;
+}
+
+/* No-JS fallback: follow the OS when theme-init.js did not run. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #0d0f14;
+    --panel: #151922;
+    --panel2: #1c212c;
+    --border: #2a313e;
+    --ink: #e7eaf1;
+    --muted: #9aa4b5;
+    --accent: #9b94ff;
+    --accent-ink: #0d0f14;
+    --play: #ffa75c;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --danger: #ff8a80;
+    --paper: #1a1f2a;
+    --score-ink: #e7eaf1;
+  }
+}
+
+:root {
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
+}
