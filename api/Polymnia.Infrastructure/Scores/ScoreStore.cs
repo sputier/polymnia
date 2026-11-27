@@ -300,6 +300,7 @@ public sealed class ScoreStore(PolymniaDbContext db, TimeProvider clock, IOption
         try
         {
             await using NpgsqlCommand command = new() { Connection = (NpgsqlConnection)db.Database.GetDbConnection() };
+            command.CommandTimeout = 10;
             command.CommandText = PatchSql(plan, command.Parameters, owner, id, expectedVersion, now);
 
             string? title = null;

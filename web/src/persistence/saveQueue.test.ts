@@ -15,6 +15,9 @@ function setup(overrides: Partial<ConstructorParameters<typeof SaveQueue>[0]> = 
     saveContent: vi.fn<SaveBackend['saveContent']>((_text, version) =>
       Promise.resolve({ version: version + 1 }),
     ),
+    savePatch: vi.fn<NonNullable<SaveBackend['savePatch']>>((_patch, version) =>
+      Promise.resolve({ version: version + 1 }),
+    ),
     rename: vi.fn<SaveBackend['rename']>((_title, version) =>
       Promise.resolve({ version: version + 1 }),
     ),

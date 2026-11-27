@@ -155,7 +155,7 @@ public sealed class ScorePatchPlannerTests
     public void A_patch_that_needs_too_many_edits_is_refused()
     {
         string insert = $$$"""{"op":"insertMeasure","index":0,"info":{"id":"nID"},"staffMeasures":[{"staffId":"s1","value":{{{Rest}}}},{"staffId":"s2","value":{{{Rest}}}},{"staffId":"s3","value":{{{Rest}}}}]}""";
-        string ops = string.Join(',', Enumerable.Range(0, 70).Select(i => insert.Replace("nID", "n" + i, StringComparison.Ordinal)));
+        string ops = string.Join(',', Enumerable.Range(0, 20).Select(i => insert.Replace("nID", "n" + i, StringComparison.Ordinal)));
 
         PatchPlan plan = ScorePatchPlanner.Plan(Shape(), Parse("{\"ops\":[" + ops + "]}"));
 

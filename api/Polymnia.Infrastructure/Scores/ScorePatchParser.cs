@@ -287,10 +287,10 @@ public sealed class ScorePatchParser : IScorePatchParser
         }
     }
 
-    private static string Short(string text) => text.Length <= 32 ? text : text[..32];
+    private static string Short(string text) => text.Length <= 32 ? text : text[..(char.IsHighSurrogate(text[31]) ? 31 : 32)];
 
     private static ScorePatchParseResult Fail(string error) =>
-        new(null, error.Length <= MaxErrorLength ? error : error[..MaxErrorLength]);
+        new(null, error.Length <= MaxErrorLength ? error : error[..(char.IsHighSurrogate(error[MaxErrorLength - 1]) ? MaxErrorLength - 1 : MaxErrorLength)]);
 
     private sealed class PatchFormatException(string message) : Exception(message);
 }

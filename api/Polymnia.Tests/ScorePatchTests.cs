@@ -318,9 +318,9 @@ public sealed class ScorePatchTests(ScoreApiFixture fixture) : IClassFixture<Sco
         (Guid id, string etag) = await CreateAsync(client);
         JsonNode expected = Parse(Small);
         Gen gen = new(3);
-        // 4 staves: each insertMeasure is 5 edits; 52 of them exceed 256.
+        // 4 staves: each insertMeasure is 5 edits; 14 of them exceed 64.
         List<JsonNode> ops = [];
-        for (int i = 0; i < 52; i++)
+        for (int i = 0; i < 14; i++)
         {
             JsonNode op = gen.InsertMeasure(expected, 0);
             ops.Add(op);

@@ -31,13 +31,13 @@ public static class ScoreLimits
     public const int MaxPatchBytes = 1024 * 1024;
 
     /// <summary>Maximum number of operations in one patch.</summary>
-    public const int MaxPatchOps = 256;
+    public const int MaxPatchOps = 64;
 
     /// <summary>
     /// Maximum number of document edits one patch expands to (an inserted measure costs one per staff). Every edit
     /// rewrites the stored document inside PostgreSQL, so this bounds the work of one request.
     /// </summary>
-    public const int MaxPatchEdits = 256;
+    public const int MaxPatchEdits = 64;
 
     /// <summary>Default maximum number of scores one user can own.</summary>
     public const int DefaultMaxScoresPerUser = 200;

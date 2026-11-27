@@ -14,6 +14,7 @@ In Development, the OpenAPI document is served at `/openapi/v1.json`. It is not 
 | `GET /api/scores/{id}`               | The score document, with its `ETag`. Honors `If-None-Match`.                                                                                                               | `200` document, or `304`                                             |
 | `POST /api/scores`                   | Create a score from a score document (the request body is the document). The title is `meta.title`.                                                                        | `201` summary, `Location`, `ETag`                                    |
 | `PUT /api/scores/{id}`               | Replace the document. Requires `If-Match`.                                                                                                                                 | `200` `{ id, title, schemaVersion, version, updatedAt }`, new `ETag` |
+| `PATCH /api/scores/{id}/content`     | Incremental update: body `{ "ops": [...] }`, the changed measures, parts and metadata instead of the whole document (see [Incremental updates](#incremental-updates)). Requires `If-Match`. | `200` same shape as `PUT`, new `ETag`                                |
 | `PATCH /api/scores/{id}`             | Rename: body `{ "title": "..." }`. Also rewrites `meta.title` in the stored document. Requires `If-Match`.                                                                 | `200` same shape as `PUT`, new `ETag`                                |
 | `POST /api/scores/{id}/duplicate`    | Copy the score, titled "<title> (copy)".                                                                                                                                   | `201` summary, `Location`, `ETag`                                    |
 | `DELETE /api/scores/{id}`            | Delete the score.                                                                                                                                                          | `204`                                                                |
@@ -28,7 +29,7 @@ Every query is filtered by the owner id taken from the session, never from the r
 
 Each score has a `version`, a counter that starts at 1 and increases on every change (content or title). It is the `ETag` (`"3"`).
 
-- `PUT` and `PATCH` require `If-Match` with the `ETag` you last received. Missing: `428`. Not an `ETag` (`*`, text): `400`. A version that is not the current one: `409` (the problem `type` is `urn:polymnia:problem:version-conflict`). Reload the score with `GET`, merge, retry.
+- `PUT` and both `PATCH` endpoints require `If-Match` with the `ETag` you last received (for an incremental update it is the base version of the operations). Missing: `428`. Not an `ETag` (`*`, text): `400`. A version that is not the current one: `409` (the problem `type` is `urn:polymnia:problem:version-conflict`). Reload the score with `GET`, merge, retry.
 - `GET` with `If-None-Match` equal to the current `ETag` returns `304` without reading the document (a version-only query).
 - Updates are one atomic SQL statement conditioned on the version: two concurrent updates with the same version cannot both succeed.
 
@@ -46,11 +47,39 @@ Each score has a `version`, a counter that starts at 1 and increases on every ch
 
 The schema file is embedded in the API assembly. Generic JSON Schema libraries took 150 to 300 ms to validate a 1 MB score (measured with two of them), which alone breaks the 50 ms budget of the update endpoint. The server therefore uses a small compiled evaluator (`CompiledSchema`) for the keywords the schema uses. It refuses to load a schema that uses a keyword it does not implement, and a test compares it with an independent, complete implementation (LateApexEarlySpeed.Json.Schema, BSD-3-Clause) on valid and invalid documents. One deliberate difference: ids ending with a line break are refused (the reference implementation lets them through).
 
+## Incremental updates
+
+`PATCH /api/scores/{id}/content` saves a few changed measures without sending, parsing or storing again the rest of the score. The body is `{ "ops": [ ... ] }`; each operation replaces, inserts or deletes a **whole unit addressed by its stable id** (never by position, never field by field), so the server never has to guess what a position meant. The base version is the `If-Match` header: the operations apply to exactly that version of the document, or the answer is `409` and nothing changed.
+
+| `op`                                                  | Effect                                                                                                                                                                                  |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setMeta` `{ meta }`                                  | Replace `meta` (title, composer, tempo). The title is trimmed and stored in the column too, like a full save.                                                                           |
+| `setMeasureInfo` `{ measureId, value }`               | Replace the `MeasureInfo` of that measure (`value.id` is `measureId`).                                                                                                                  |
+| `setStaffMeasure` `{ staffId, measureId, value }`     | Replace the measure of one staff at the position of that measure.                                                                                                                       |
+| `insertMeasure` `{ index, info, staffMeasures }`      | Insert a measure at `index`: its `MeasureInfo` and one staff measure `{ staffId, value }` for every staff of the score, each staff once. `index` is the position once earlier operations are applied. |
+| `deleteMeasure` `{ measureId }`                       | Delete the measure from the score and from every staff. The last measure cannot be deleted.                                                                                             |
+| `replacePart` `{ partId, value }`                     | Replace a whole part (header, staves, measures); `value.id` is `partId`.                                                                                                                |
+| `insertPart` `{ index, value }` / `deletePart` `{ partId }` | Insert a part at `index` / delete it (not the last one).                                                                                                                          |
+| `setSlurs` `{ slurs }`                                | Replace the whole slur list.                                                                                                                                                            |
+
+Operations apply in order, in one transaction: if one cannot be applied, none is (`400`, nothing changed). A **fragment** (`value`, `meta`, `slurs`, `info`) is validated by the same compiled schema as a full document, against the matching schema definition, so a patch cannot store anything a full save would refuse. What a fragment alone cannot tell is checked against the shape of the stored document (its measure, part and staff ids and counts, read without loading the document):
+
+- every id an operation names must exist (`measureId`, `staffId`, `partId`), a new measure, part or staff id must not;
+- every staff keeps exactly one measure per measure of the score (a part you insert or replace must have as many measures per staff as the score has), and `insertMeasure` carries a measure for every staff;
+- the array limits of the schema hold after each operation (2000 measures, 32 parts, at least one measure and one part);
+- if the stored document reuses an id for several measures, parts or staves, or has a staff that does not have one measure per measure (a full save does not check it), no patch can address it: the answer is `400` and the client saves the whole document, which sets a consistent base.
+
+The body is strict: only the documented properties, no duplicate property, UTF-8 without a byte order mark, nesting at most 32 levels. Errors are `400` (invalid body, operation or fragment, id that does not exist, structure refused), `409` (base version is not the current one), `413` (body over the limit, or the patched document over the stored size limit), `428` and `415` as for `PUT`. As for `PUT`, a malformed body is refused first (`400`, it says nothing about any score); then a score owned by someone else, or missing, is `404` whatever ids the operations name.
+
+The update is one SQL statement conditioned on the version, like `PUT`: the document is rewritten inside PostgreSQL (`jsonb_set`, `jsonb_insert` and `#-` on bound parameters, never concatenated into the statement) and never travels to the API. The client keeps the full `PUT` for the first save, for an import, after a conflict, and whenever the changes are too many or too big to be worth sending (see [library.md](library.md)); a `400` or `413` answer to a patch makes it send the whole document.
+
 ## Limits
 
 | Limit                                              | Value                                                                                                              |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Score body                                         | 4 MiB                                                                                                              |
+| Incremental update body (after decompression)      | 1 MiB, at most 64 operations expanding to at most 64 document edits (an inserted measure is one per staff)       |
+| Stored document after a patch                      | 12 MiB of binary `jsonb` (about 3 times what a full save accepts; the binary form of a score is about 1.6 times its JSON) |
 | Writes (create, update, rename, duplicate, delete) | 120 per minute and per user (`RateLimiting:ScoreWrites:PermitLimit`, `WindowSeconds`)                              |
 | Scores per user                                    | 200 (`Scores:MaxScoresPerUser`), `409` beyond for create and duplicate (`type` `urn:polymnia:problem:score-limit`) |
 | Page size                                          | 100                                                                                                                |
@@ -78,8 +107,10 @@ Errors are `application/problem+json` (RFC 9457) without stack traces: `400` inv
 | `GET` list (20 scores)           | about 8 ms   |
 | `PUT` score                      | about 128 ms |
 | `PUT` score, gzip body (61 KB)   | about 132 ms |
+| `PATCH` content, 1 measure (580 B) | about 35 to 44 ms |
+| `PATCH` content, 3 measures in 3 staves (1 KB) | about 65 to 72 ms |
 
-The 50 ms budget is met for get and list. It is not met for a full-document `PUT` of 1 MB on this setup: about 55 ms is the transfer of 1 MB to the database through the Docker Desktop port proxy alone (a bare `SELECT length($1)`), about 30 ms is PostgreSQL parsing the document as `jsonb`, and about 27 ms is validation. Sending the body gzip-compressed does not change it (the wire to the API is not the bottleneck here). A Linux host with a local database removes the first part. Reducing the rest means not sending the whole document on each save (incremental updates), which is a design change for the editor.
+The 50 ms budget is met for get and list. It is not met for a full-document `PUT` of 1 MB on this setup: about 55 ms is the transfer of 1 MB to the database through the Docker Desktop port proxy alone (a bare `SELECT length($1)`), about 30 ms is PostgreSQL parsing the document as `jsonb`, and about 27 ms is validation. Sending the body gzip-compressed does not change it (the wire to the API is not the bottleneck here). A Linux host with a local database removes the first part. An incremental update does not send the document: PostgreSQL rewrites it in place with `jsonb_set` (about 15 ms per megabyte and per rewrite, measured), so one changed measure meets the budget and each further measure in another staff adds about 15 ms. A full `PUT` stays for first saves and conflicts.
 
 ## Authentication and CSRF
 

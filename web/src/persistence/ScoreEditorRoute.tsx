@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ApiError } from '../api/client';
-import { isNetworkError, loadScore, renameScore, saveScore } from '../api/scores';
+import { isNetworkError, loadScore, patchScore, renameScore, saveScore } from '../api/scores';
 import { EditorLayout } from '../editor/EditorLayout';
 import { EditorStore } from '../editor/entry/editorStore';
 import { useI18n } from '../i18n/i18n';
 import { deserialize, serialize, type Score } from '../score';
 import { SaveNotices } from './SaveNotices';
 import { SaveQueue, settleSaves, type SaveBackend } from './saveQueue';
+import { ScoreSync } from './scoreSync';
 import { ROUTE_HREF } from '../route/useRoute';
 
 /** The title the server accepts: trimmed, no control characters, at most 200 characters, never empty. */
@@ -38,10 +39,15 @@ type Loaded =
   | { kind: 'error'; reason: 'not-found' | 'corrupt' | 'failed' }
   | { kind: 'ready'; session: Session };
 
-function backendFor(id: string): SaveBackend {
+function backendFor(id: string, sync: ScoreSync): SaveBackend {
   return {
     saveContent: (text, version) => saveScore(id, text, version),
-    rename: (title, version) => renameScore(id, title, version),
+    savePatch: (patch, version) => patchScore(id, patch, version),
+    rename: async (title, version) => {
+      const saved = await renameScore(id, title, version);
+      sync.renamed(title);
+      return saved;
+    },
     currentVersion: async () => (await loadScore(id)).version,
   };
 }
@@ -72,13 +78,14 @@ function useScoreSession(
 
         const store = new EditorStore(score);
         titleRef.current = score.meta.title;
-        const content = (): string =>
-          serialize(
-            withTitle(store.getState().score, storedTitle(titleRef.current, untitledRef.current)),
-          );
+        const current = (): Score =>
+          withTitle(store.getState().score, storedTitle(titleRef.current, untitledRef.current));
+        // What the server holds, so a save sends only what changed (docs/library.md, "Incremental saves").
+        const sync = new ScoreSync(score);
         queue = new SaveQueue({
-          backend: backendFor(id),
-          getContent: content,
+          backend: backendFor(id, sync),
+          getContent: () => serialize(current()),
+          plan: (full) => sync.plan(current(), full),
           getTitle: () => storedTitle(titleRef.current, untitledRef.current),
           version,
         });
@@ -94,6 +101,7 @@ function useScoreSession(
         const reload = async () => {
           const fresh = await loadScore(id);
           const replaced = deserialize(fresh.text);
+          sync.reset(replaced);
           paused = true;
           try {
             store.loadScore(replaced);

@@ -73,7 +73,7 @@ A pitch is **spelled**, not a MIDI number: `{ step: 'C'..'B', alter: -2..2, octa
 
 Every edit is a command (`commands/`): `interface Command { name; apply(score): Score; invert(before): Command }`. `apply` is pure and deterministic (ids included) and returns the **same reference** when nothing changes. `invert(before)` returns the command that restores `before` exactly (a snapshot jump; structural sharing makes the snapshot nearly free). `History` keeps unlimited undo and redo stacks; a command that throws a `CommandError` leaves it untouched.
 
-**Structural sharing.** A command copies only the path from the root to the change (score, part, staff, measure array, staff measure, voice). Everything else keeps its reference identity, so renderers and React can skip unchanged measures with `===`.
+**Structural sharing.** A command copies only the path from the root to the change (score, part, staff, measure array, staff measure, voice). Everything else keeps its reference identity, so renderers and React can skip unchanged measures with `===`, and the autosave diffs two scores in time proportional to what changed and sends only the changed measures ([library.md](library.md#incremental-saves)).
 
 | Command                                                              | Behavior                                                                                                                                                       |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
