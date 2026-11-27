@@ -31,7 +31,21 @@ internal static class SessionEvents
             return;
         }
 
-        UserProvisioner provisioner = context.HttpContext.RequestServices.GetRequiredService<UserProvisioner>();
+        // Re-authentication must be by the same Google account as the session that asked for it.
+        if (context.Properties?.Items.TryGetValue(AuthDefaults.ReauthProperty, out string? expected) == true)
+        {
+            PolymniaDbContext db = context.HttpContext.RequestServices.GetRequiredService<PolymniaDbContext>();
+            string? knownSubject = Guid.TryParse(expected, CultureInfo.InvariantCulture, out Guid expectedId)
+                ? await db.Users.Where(u => u.Id == expectedId).Select(u => u.GoogleSubject).FirstOrDefaultAsync(context.HttpContext.RequestAborted)
+                : null;
+            if (knownSubject is null || knownSubject != subject)
+            {
+                context.Fail("Re-authentication with a different account.");
+                return;
+            }
+        }
+
+        UserProvisioner provisioner =context.HttpContext.RequestServices.GetRequiredService<UserProvisioner>();
         Guid userId = await provisioner.SignInAsync(
             subject,
             google.FindFirstValue("name"),

@@ -183,10 +183,10 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
     public async Task An_old_sign_in_must_sign_in_again_before_deleting_and_then_can()
     {
         fixture.Postgres.SkipIfUnavailable();
-        // A 3 second window instead of 10 minutes keeps the test short.
+        // A 5 second window instead of 10 minutes keeps the test short.
         using var app = new TestApp(
             connectionString: fixture.Postgres.ConnectionString,
-            settings: new() { ["Auth:RecentSignInWindow"] = "00:00:03" });
+            settings: new() { ["Auth:RecentSignInWindow"] = "00:00:05" });
         app.Google.Subject = "sub-" + Guid.NewGuid().ToString("N");
         var browser = new TestBrowser(app);
         using (await browser.SignInAsync())
@@ -198,7 +198,7 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         Guid id = (await me.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("id").GetGuid();
 
         // Fresh session: the deletion goes through only after the window, so first prove the window itself works.
-        await Task.Delay(TimeSpan.FromSeconds(3.5), Ct);
+        await Task.Delay(TimeSpan.FromSeconds(5.5), Ct);
         app.Logs.Clear();
         using HttpResponseMessage refused = await browser.SendAsync(HttpMethod.Delete, "/api/me", xsrfHeader: token);
 
@@ -222,6 +222,28 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
         Assert.Equal(0L, await CountAsync("SELECT count(*) FROM users WHERE id = @id", ("id", id)));
         Assert.Equal(0L, await CountAsync("SELECT count(*) FROM user_sessions WHERE user_id = @id", ("id", id)));
+    }
+
+    [Fact]
+    public async Task Signing_in_again_with_a_different_google_account_is_refused_and_creates_no_user()
+    {
+        TestApp app = App;
+        app.Google.Subject = "sub-" + Guid.NewGuid().ToString("N");
+        var browser = new TestBrowser(app);
+        using (await browser.SignInAsync())
+        {
+        }
+
+        using HttpResponseMessage reauth = await browser.GetAsync("/api/auth/login?reauth=true");
+        string other = "sub-other-" + Guid.NewGuid().ToString("N");
+        app.Google.Subject = other;
+        using HttpResponseMessage callback = await browser.GetAsync(reauth.Headers.Location!.OriginalString);
+
+        Assert.Equal(0L, await CountAsync("SELECT count(*) FROM users WHERE google_subject = @s", ("s", other)));
+        // No session of the other account was issued.
+        using HttpResponseMessage me = await browser.GetAsync("/api/me");
+        Assert.NotEqual(HttpStatusCode.OK, me.StatusCode);
+        Assert.Equal(0L, await CountAsync("SELECT count(*) FROM users WHERE google_subject = @s", ("s", other)));
     }
 
     [Theory]
@@ -460,6 +482,12 @@ public sealed class AccountPrivacyTests(ScoreApiFixture fixture) : IClassFixture
         if (Environment.GetEnvironmentVariable("POLYMNIA_PERF_REPORT") is { Length: > 0 } reportFile)
         {
             await File.AppendAllTextAsync(reportFile, report + Environment.NewLine, Ct);
+        }
+
+        // The 200 MB of rows go away with the account (also exercises the cascade on a large library).
+        using (HttpResponseMessage cleanup = await client.DeleteAsync("/api/me", Ct))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, cleanup.StatusCode);
         }
 
         Assert.Equal(max + 1, entries);

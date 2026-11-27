@@ -379,7 +379,10 @@ internal static class AuthExtensions
         if (reauth == true)
         {
             // A fresh sign-in replaces the session (and its auth_time); the old session row dies with its expiry.
-            properties.Items[AuthDefaults.ReauthProperty] = "1";
+            // The value is the user who must come back: it travels in the protected OIDC state, and the callback
+            // refuses a different Google account (otherwise the person would delete a new, empty account).
+            properties.Items[AuthDefaults.ReauthProperty] =
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
         }
 
         return Results.Challenge(properties, [AuthDefaults.GoogleScheme]);

@@ -60,20 +60,23 @@ internal abstract class AccountRateLimitFilter : IEndpointFilter
         }
 
         AccountRateLimiters limiters = http.RequestServices.GetRequiredService<AccountRateLimiters>();
-        (RateLimitLease? first, RateLimitLease? second, RateLimitLease? third) = (null, null, null);
+        // Concurrency first, the budget last: a request refused for concurrency spends none of the budget.
+        List<RateLimitLease> held = [];
         try
         {
-            first = await Budget(limiters).AcquireAsync(user, 1, http.RequestAborted);
-            if (first.IsAcquired)
+            RateLimitLease? denied = await AcquireRunningAsync(limiters, user, held, http.RequestAborted);
+            if (denied is null)
             {
-                (second, third) = await Running(limiters, user, http.RequestAborted);
-                if (second is null || (second.IsAcquired && third!.IsAcquired))
+                RateLimitLease budget = await Budget(limiters).AcquireAsync(user, 1, http.RequestAborted);
+                held.Add(budget);
+                if (budget.IsAcquired)
                 {
                     return await next(context);
                 }
+
+                denied = budget;
             }
 
-            RateLimitLease denied = !first.IsAcquired ? first : (second is { IsAcquired: false } ? second : third!);
             int retryAfter = denied.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan delay)
                 ? Math.Max(1, (int)Math.Ceiling(delay.TotalSeconds))
                 : 60;
@@ -85,24 +88,41 @@ internal abstract class AccountRateLimitFilter : IEndpointFilter
         }
         finally
         {
-            first?.Dispose();
-            second?.Dispose();
-            third?.Dispose();
+            foreach (RateLimitLease lease in held)
+            {
+                lease.Dispose();
+            }
         }
     }
 
     protected abstract PartitionedRateLimiter<Guid> Budget(AccountRateLimiters limiters);
 
-    /// <summary>Extra concurrency leases held while the endpoint runs; <c>null</c> when there are none.</summary>
-    protected virtual ValueTask<(RateLimitLease?, RateLimitLease?)> Running(AccountRateLimiters limiters, Guid user, CancellationToken ct) =>
-        ValueTask.FromResult<(RateLimitLease?, RateLimitLease?)>((null, null));
+    /// <summary>
+    /// Acquires the concurrency leases held while the endpoint runs, adding each to <paramref name="held"/> as soon as
+    /// it exists (so none leaks). Returns the refused lease, or <c>null</c> when all were granted or there are none.
+    /// </summary>
+    protected virtual ValueTask<RateLimitLease?> AcquireRunningAsync(
+        AccountRateLimiters limiters, Guid user, List<RateLimitLease> held, CancellationToken ct) =>
+        ValueTask.FromResult<RateLimitLease?>(null);
 
     internal sealed class Export : AccountRateLimitFilter
     {
         protected override PartitionedRateLimiter<Guid> Budget(AccountRateLimiters limiters) => limiters.Exports;
 
-        protected override async ValueTask<(RateLimitLease?, RateLimitLease?)> Running(AccountRateLimiters limiters, Guid user, CancellationToken ct) =>
-            (await limiters.ExportConcurrency.AcquireAsync(user, 1, ct), await limiters.GlobalExports.AcquireAsync(1, ct));
+        protected override async ValueTask<RateLimitLease?> AcquireRunningAsync(
+            AccountRateLimiters limiters, Guid user, List<RateLimitLease> held, CancellationToken ct)
+        {
+            RateLimitLease perUser = await limiters.ExportConcurrency.AcquireAsync(user, 1, ct);
+            held.Add(perUser);
+            if (!perUser.IsAcquired)
+            {
+                return perUser;
+            }
+
+            RateLimitLease global = await limiters.GlobalExports.AcquireAsync(1, ct);
+            held.Add(global);
+            return global.IsAcquired ? null : global;
+        }
     }
 
     internal sealed class Delete : AccountRateLimitFilter
