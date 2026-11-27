@@ -15,26 +15,38 @@ The front end lives in [`web/`](../web): Vite, React and TypeScript (`strict`).
 
 Run them from `web/`.
 
-| Command                      | What it does                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- |
-| `npm ci`                     | Install the exact locked dependencies                                                             |
-| `npm run dev`                | Start the dev server                                                                              |
-| `npm run lint`               | ESLint and Prettier check                                                                         |
-| `npm run format`             | Format the code with Prettier                                                                     |
-| `npm run typecheck`          | TypeScript type check                                                                             |
-| `npm test`                   | Unit tests (Vitest and Testing Library)                                                           |
-| `npm run build`              | Type check and production build into `dist/`                                                      |
-| `npm run size`               | Check the bundle budget (run after `build`)                                                       |
-| `npm run bench`              | Score model benchmarks (Vitest bench, fails over budget)                                          |
-| `npm run test:e2e`           | Playwright tests (Chromium, builds and serves the app)                                            |
-| `npm run test:visual:update` | Regenerate the visual baselines in the Playwright Docker image (see [engraving.md](engraving.md)) |
-| `npm run test:visual:docker` | Check the visual baselines in that same image                                                     |
+| Command                                 | What it does                                                                                      |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `npm ci`                                | Install the exact locked dependencies                                                             |
+| `npm run dev`                           | Start the dev server                                                                              |
+| `npm run lint`                          | ESLint and Prettier check                                                                         |
+| `npm run format`                        | Format the code with Prettier                                                                     |
+| `npm run typecheck`                     | TypeScript type check                                                                             |
+| `npm test`                              | Unit tests (Vitest and Testing Library)                                                           |
+| `npm run build`                         | Type check and production build into `dist/`                                                      |
+| `npm run size`                          | Check the bundle budget (run after `build`)                                                       |
+| `npm run bench`                         | Score model benchmarks (Vitest bench, fails over budget)                                          |
+| `npm run test:e2e`, `npm run test:perf` | Functional Playwright tests (Chromium, builds and serves the app, parallel)                       |
+| `npm run test:perf`                     | Performance Playwright tests (`@perf`): one worker, no retry                                      |
+| `npm run test:visual:update`            | Regenerate the visual baselines in the Playwright Docker image (see [engraving.md](engraving.md)) |
+| `npm run test:visual:docker`            | Check the visual baselines in that same image                                                     |
 
 First run of the end-to-end tests: `npx playwright install chromium`.
 
 ### Performance budget
 
 Initial JavaScript for the first screen must stay at or below **150 KB gzip**. `npm run size` reads `dist/index.html`, sums the gzipped scripts it loads on first paint, and exits with an error above the budget. Heavy libraries (VexFlow, Tone.js, samples) must be lazy-loaded with dynamic `import()` so they never count towards the first screen.
+
+### Performance tests
+
+Every timing assertion lives in a test tagged `@perf` (`{ tag: '@perf' }`) and uses `web/e2e/perf-stats.ts`. Playwright has two projects: `chromium` (functional, parallel, `@perf` excluded, one retry on CI) and `perf` (only `@perf`, depends on `chromium`, no retry). `npm run test:perf` runs the `perf` project alone with `--workers=1`; in CI it runs after `npm run test:e2e` in the `web` job, so nothing else uses the machine while it measures. A retry would hide a regression, so there is none: a perf test must be stable instead.
+
+Each measurement discards warm-up iterations, takes 5 to 400 samples, prints a line such as `PERF engraving one edit: 60 samples, median 5.1 ms (budget 16), p95 8.0 ms (budget 32), max 9.3 ms` (also an annotation of the test), and asserts:
+
+- the **median** against the strict budget, the same everywhere;
+- the **p95** against twice the budget (`P95_FACTOR`, on every machine: a laptop also runs an IDE and a browser, and shared CI runners are about twice as slow as the reference laptop, see [engraving.md](engraving.md)).
+
+The keystroke median budget is the one exception to "same everywhere": 16 ms locally, 24 ms on CI (medians of 9 to 15 ms measured over 20 CI runners). A one-sample measurement (cold start) gets the CI factor (`CI_FACTOR`: 2 when `CI` is set) on its own budget. Reading a failure: a median over budget is a real regression; a p95 over budget alone points to a noisy tail, so rerun `npm run test:perf` locally before touching a budget. Nothing else should run during a measurement: use `PLAYWRIGHT_PORT` if another preview server holds port 4173.
 
 ### Design tokens and themes
 
@@ -135,7 +147,7 @@ Every pull request and every push to `main` runs [`ci.yml`](../.github/workflows
 
 | Job      | What it runs                                                                                                                           | Same thing locally                                                                                                                                                                                                             |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `web`    | lint, type check, unit tests, build, bundle budget, `npm audit` (runtime dependencies), Playwright                                     | from `web/`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e`                                                         |
+| `web`    | lint, type check, unit tests, build, bundle budget, `npm audit` (runtime dependencies), Playwright (functional, then performance)      | from `web/`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e`                                                         |
 | `api`    | restore, build with warnings as errors, tests, NuGet vulnerability audit                                                               | from the repository root: `dotnet build api/Polymnia.slnx -warnaserror`, `dotnet test --solution api/Polymnia.slnx` (integration tests need Docker), `dotnet list api/Polymnia.slnx package --vulnerable --include-transitive` |
 | `docker` | builds the production image (amd64), starts `docker-compose.yml` on it and probes the app, Trivy scan (fails on fixable CRITICAL/HIGH) | the "Test procedure" of [`self-hosting.md`](self-hosting.md)                                                                                                                                                                   |
 

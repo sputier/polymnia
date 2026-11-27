@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { unzlibSync, unzipSync } from 'fflate';
 import { expect, test, type Page } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
+import { expectBudget } from './perf-stats';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 900 } });
 
@@ -43,6 +44,8 @@ async function exportAs(page: Page, item: string): Promise<{ name: string; bytes
   const download = page.waitForEvent('download');
   await page.getByRole('menuitem', { name: item }).click();
   const file = await download;
+  // The menu closes asynchronously: opening it again too early would toggle it shut.
+  await expect(page.getByRole('menuitem', { name: item })).toBeHidden();
   return { name: file.suggestedFilename(), bytes: await readFile((await file.path())!) };
 }
 
@@ -86,7 +89,6 @@ test.describe('export', () => {
     expect(content.startsWith('1 g 0 0 612 792 re f')).toBe(true);
     expect(content).not.toMatch(/\b(rg|RG|k|K)\b/);
     expect(content).toContain('Tj'); // title, composer, page number
-    expect(await measureMs(page, 'export:pdf')).toBeLessThan(3000);
   });
 
   test('PDF: A4 when chosen in the menu', async ({ page }) => {
@@ -130,14 +132,6 @@ test.describe('export', () => {
     for (const f of Object.values(files)) {
       expect(Buffer.from(f.subarray(0, 8)).equals(PNG)).toBe(true);
     }
-    expect(await measureMs(page, 'export:png')).toBeLessThan(2000);
-  });
-
-  test('MIDI of a 100-measure score takes well under 50 ms', async ({ page }) => {
-    await importLong(page, 100);
-    await exportAs(page, 'MIDI (.mid)'); // loads the lazy chunk
-    await exportAs(page, 'MIDI (.mid)');
-    expect(await measureMs(page, 'export:midi')).toBeLessThan(50);
   });
 
   test('keyboard shortcuts export without the menu', async ({ page }) => {
@@ -218,5 +212,74 @@ test.describe('dark theme', () => {
     expect(content.startsWith('1 g 0 0 ')).toBe(true);
     expect(content).toContain('0 g 0 G');
     expect(content).not.toMatch(/\b(rg|RG|k|K)\b/);
+  });
+});
+
+/**
+ * Exports `warmup + samples` times and returns the User Timing duration of each sample. The
+ * browser download is stubbed (the anchor click does nothing, it is counted): Chromium on Linux
+ * stops delivering downloads after a burst of automatic ones, and the download itself is not what
+ * is measured. The functional tests above check the real files.
+ */
+async function exportDurations(
+  page: Page,
+  item: string,
+  measure: string,
+  warmup: number,
+  samples: number,
+): Promise<number[]> {
+  const out: number[] = [];
+  for (let i = 0; i < warmup + samples; i++) {
+    await page.getByRole('button', { name: 'Export' }).click();
+    await page.getByRole('menuitem', { name: item }).click();
+    await page.waitForFunction(
+      (n) => (window as unknown as { __downloads: number }).__downloads > n,
+      i,
+    );
+    await expect(page.getByRole('menuitem', { name: item })).toBeHidden();
+    if (i >= warmup) out.push(await measureMs(page, measure));
+  }
+  return out;
+}
+
+test.describe('export performance (100 measures)', { tag: '@perf' }, () => {
+  test.beforeEach(async ({ page }) => {
+    await mockSignedIn(page);
+    await page.addInitScript(() => {
+      const w = window as unknown as { __downloads: number };
+      w.__downloads = 0;
+      HTMLAnchorElement.prototype.click = function () {
+        if (this.hasAttribute('download')) w.__downloads++;
+      };
+    });
+    await page.goto('/#/editor');
+    await importLong(page, 100);
+    // The engraver must be idle: it would compete with the export.
+    await page.waitForFunction(
+      () =>
+        (window as unknown as { __polymnia?: { engraver?: { stats?: { complete?: boolean } } } })
+          .__polymnia?.engraver?.stats?.complete === true,
+    );
+  });
+
+  test('PDF median under 3 s', async ({ page }) => {
+    test.setTimeout(120_000);
+    // The first export loads the lazy chunk and warms the glyph cache.
+    expectBudget('export PDF', await exportDurations(page, 'PDF', 'export:pdf', 2, 5), {
+      medianMs: 3000,
+    });
+  });
+
+  test('PNG median under 2 s', async ({ page }) => {
+    test.setTimeout(120_000);
+    expectBudget('export PNG', await exportDurations(page, 'PNG images', 'export:png', 2, 5), {
+      medianMs: 2000,
+    });
+  });
+
+  test('MIDI median under 50 ms', async ({ page }) => {
+    expectBudget('export MIDI', await exportDurations(page, 'MIDI (.mid)', 'export:midi', 3, 12), {
+      medianMs: 50,
+    });
   });
 });

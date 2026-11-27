@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
 import { emptyScoreDoc, FakeApi } from './fake-api';
+import { expectBudget } from './perf-stats';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 800 } });
 
@@ -235,7 +236,7 @@ test.describe('library', () => {
   });
 });
 
-test.describe('library performance', () => {
+test.describe('library performance', { tag: '@perf' }, () => {
   test('renders 200 scores in under 100 ms', async ({ page }) => {
     const items = Array.from({ length: 200 }, (_, i) => ({
       id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
@@ -266,15 +267,19 @@ test.describe('library performance', () => {
     await page.route('**/api/scores**', (route) =>
       route.fulfill({ json: { items, page: 1, pageSize: 200, total: 200 } }),
     );
+    // 2 warm-up loads (discarded), then 8 samples: the init script runs again on each reload.
+    const samples: number[] = [];
     await page.goto('/#/');
-    await expect(page.getByRole('heading', { name: 'Score number 199' })).toBeAttached();
-    const ms = await page.evaluate(() => {
-      const w = window as unknown as { __answered: number; __rendered: number };
-      return w.__rendered - w.__answered;
-    });
-    test.info().annotations.push({ type: 'render-200-cards-ms', description: ms.toFixed(1) });
-    console.log(`render of 200 cards: ${ms.toFixed(1)} ms`);
+    for (let i = 0; i < 10; i++) {
+      if (i > 0) await page.reload();
+      await expect(page.getByRole('heading', { name: 'Score number 199' })).toBeAttached();
+      const ms = await page.evaluate(() => {
+        const w = window as unknown as { __answered: number; __rendered: number };
+        return w.__rendered - w.__answered;
+      });
+      if (i >= 2) samples.push(ms);
+    }
     await expect(page.getByRole('listitem')).toHaveCount(200);
-    expect(ms).toBeLessThan(100);
+    expectBudget('library render of 200 cards', samples, { medianMs: 100 });
   });
 });

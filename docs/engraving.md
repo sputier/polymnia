@@ -151,4 +151,4 @@ Measured in Chromium (Windows 11 laptop, production build), `benchmark100`: 100 
 | Editor chunk (VexFlow + engraving, no font)                                     | <= 200 KB gzip  | 180 KB (was 468 KB with the fonts)                                        |
 | Bravura font file                                                               | <= 250 KB woff2 | 247 KB, separate file, immutable cache                                    |
 
-The browser test asserts warm full render < 200 ms, cold < 600 ms (JIT, parallel workers, slower CI machines), edit median < 16 ms, keystroke p95 < 16 ms in the three scenarios above (32 ms on CI runners, about twice as slow as the reference laptop).
+The browser tests (`@perf`, project `perf`, see [development.md](development.md)) take warm-up iterations and many samples, assert the median against the strict budget and the p95 against twice the budget. They assert warm full render < 200 ms, cold < 600 ms (JIT, parallel workers, slower CI machines), edit median < 16 ms, keystroke median < 16 ms and p95 < 32 ms in the three scenarios above (CI runners are about twice as slow as the reference laptop).

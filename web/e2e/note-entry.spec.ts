@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
+import { expectBudget } from './perf-stats';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 900 } });
 
@@ -346,17 +347,11 @@ async function pressNoteKeys(
   );
 }
 
-function report(label: string, run: KeyRun): { median: number; p95: number } {
+function report(label: string, run: KeyRun): void {
   // Most keys must have rendered, otherwise the measurement means nothing.
   expect(run.times.length).toBeGreaterThanOrEqual(run.requested * 0.6);
-  const sorted = [...run.times].sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)]!;
-  const p95 = sorted[Math.floor(sorted.length * 0.95)]!;
-  const max = sorted[sorted.length - 1]!;
-  console.log(
-    `keystroke end-to-end (${label}): ${run.times.length} keys, median ${median.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms, max ${max.toFixed(1)} ms, systems drawn per edit max ${Math.max(...run.drawn)}`,
-  );
-  return { median, p95 };
+  console.log(`${label}: systems drawn per edit max ${Math.max(...run.drawn)}`);
+  expectBudget(`keystroke end-to-end (${label})`, run.times, { medianMs: KEYSTROKE_BUDGET_MS });
 }
 
 type EntryStore = {
@@ -369,14 +364,18 @@ type EntryStore = {
 };
 
 /**
- * p95 budget of a keystroke. Shared CI runners are about twice as slow as the reference laptop
- * (a single system takes 10 ms there), so CI gets twice the budget: still far under what a
- * full re-flow cost before #38.
+ * Budget of a keystroke: median under 16 ms on the reference laptop, 24 ms on CI (shared runners:
+ * medians of 9 to 15 ms measured over 20 runners), p95 under twice the median budget. Still far
+ * under what a full re-flow cost before #38. Every scenario warms up first (discarded keys) and
+ * takes at least 60 samples.
  */
-const KEYSTROKE_BUDGET_MS = process.env.CI ? 32 : 16;
+const KEYSTROKE_BUDGET_MS = process.env.CI ? 24 : 16;
+const WARMUP_KEYS = 12;
 
-test.describe('performance', () => {
-  test('a keystroke on a filled 100-measure score: p95 under 16 ms', async ({ page }) => {
+test.describe('performance', { tag: '@perf' }, () => {
+  test('a keystroke on a filled 100-measure score: median and p95 under budget', async ({
+    page,
+  }) => {
     await openEditor(page, '?new=100');
     // Fill the score programmatically (800 eighth notes), then edit at the start of it, on screen (off-screen systems are drawn in idle time).
     await page.evaluate(() => {
@@ -393,12 +392,14 @@ test.describe('performance', () => {
       () => window.__polymnia.score === window.__polymnia.store.getState().score,
     );
 
-    const run = await pressNoteKeys(page, 40, ['D', 'F', 'B', 'C']);
-    const { p95 } = report('100 measures, filled', run);
-    expect(p95).toBeLessThan(KEYSTROKE_BUDGET_MS);
+    await pressNoteKeys(page, WARMUP_KEYS, ['D', 'F', 'B', 'C']);
+    const run = await pressNoteKeys(page, 80, ['D', 'F', 'B', 'C']);
+    report('100 measures, filled', run);
   });
 
-  test('re-flow at the top of a filled 100-measure score: p95 under 16 ms', async ({ page }) => {
+  test('re-flow at the top of a filled 100-measure score: median and p95 under budget', async ({
+    page,
+  }) => {
     await openEditor(page, '?new=100');
     await page.evaluate(() => {
       const store = window.__polymnia.store as unknown as EntryStore;
@@ -414,12 +415,12 @@ test.describe('performance', () => {
     );
     // Sharps on the first 40 notes: the first measures widen, line breaks move, every system after
     // them is concerned while the ones on screen must be redrawn right away.
-    const run = await pressNoteKeys(page, 40, ['C', 'G', 'E', 'A'], true);
-    const { p95 } = report('100 measures, filled, re-flow at the top', run);
-    expect(p95).toBeLessThan(KEYSTROKE_BUDGET_MS);
+    await pressNoteKeys(page, WARMUP_KEYS, ['C', 'G', 'E', 'A'], true);
+    const run = await pressNoteKeys(page, 60, ['C', 'G', 'E', 'A'], true);
+    report('100 measures, filled, re-flow at the top', run);
   });
 
-  test('filling an empty 100-measure score: re-flows stay under 16 ms (p95)', async ({ page }) => {
+  test('filling an empty 100-measure score: re-flows stay under budget', async ({ page }) => {
     await openEditor(page, '?new=100');
     await page.evaluate(() => {
       const store = window.__polymnia.store as unknown as EntryStore;
@@ -427,8 +428,8 @@ test.describe('performance', () => {
       store.durationKey('4');
     });
     // 400 eighth notes: the first 50 measures, each widening as its rests become notes.
-    const run = await pressNoteKeys(page, 400, ['C', 'G', 'E', 'A']);
-    const { p95 } = report('100 measures, filling an empty score', run);
-    expect(p95).toBeLessThan(KEYSTROKE_BUDGET_MS);
+    await pressNoteKeys(page, WARMUP_KEYS, ['C', 'G', 'E', 'A']);
+    const run = await pressNoteKeys(page, 388, ['C', 'G', 'E', 'A']);
+    report('100 measures, filling an empty score', run);
   });
 });

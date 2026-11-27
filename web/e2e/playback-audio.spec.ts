@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockSignedIn } from './engraving-helpers';
+import { CI_FACTOR, expectBudget } from './perf-stats';
 
 // Real engine (Tone.js + the Ogg Opus samples, no mock): decoding works, the first note starts
 // within the budget cold and with a warm cache, and the samples are same-origin immutable files.
@@ -31,7 +32,8 @@ const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; " +
   "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
 
-test('plays with the real audio engine, cold then cached', async ({ page }) => {
+test('plays with the real audio engine, cold then cached', { tag: '@perf' }, async ({ page }) => {
+  test.setTimeout(90_000);
   await page.route('**/*', async (route) => {
     if (route.request().resourceType() !== 'document') return route.continue();
     const response = await route.fetch();
@@ -61,7 +63,8 @@ test('plays with the real audio engine, cold then cached', async ({ page }) => {
   expect(cold.error).toBeNull();
   expect(cold.status).toBe('playing');
   // Budget: first note under 3 s on a first load (local server: the real figure is in docs/playback.md).
-  expect(cold.startMs).toBeLessThan(3000);
+  // A cold start is one sample by nature (no warm-up possible): the CI factor applies.
+  expect(cold.startMs).toBeLessThan(3000 * CI_FACTOR);
   // Only the instrument that is used is downloaded, from the page's own origin.
   expect(sampleRequests.length).toBeGreaterThan(5);
   expect(sampleRequests.length).toBeLessThan(15);
@@ -78,7 +81,15 @@ test('plays with the real audio engine, cold then cached', async ({ page }) => {
   await page.reload();
   const warm = await playOnce(page);
   expect(warm.error).toBeNull();
-  expect(warm.startMs).toBeLessThan(1000);
+  // The first cached start is a warm-up; 5 more reloads give the samples (median under 1 s).
+  const warmSamples: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    await page.reload();
+    const again = await playOnce(page);
+    expect(again.error).toBeNull();
+    warmSamples.push(again.startMs);
+  }
+  expectBudget('first note, warm cache', warmSamples, { medianMs: 1000 });
   // The browser cache served the second round (the dev preview server sends validators).
   expect(sampleRequests.length).toBeGreaterThanOrEqual(before);
   console.log(

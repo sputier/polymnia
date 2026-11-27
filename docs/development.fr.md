@@ -15,26 +15,38 @@ Le front end se trouve dans [`web/`](../web) : Vite, React et TypeScript (`stric
 
 À lancer depuis `web/`.
 
-| Commande                     | Rôle                                                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `npm ci`                     | Installe exactement les dépendances verrouillées                                                              |
-| `npm run dev`                | Démarre le serveur de développement                                                                           |
-| `npm run lint`               | Vérifie ESLint et Prettier                                                                                    |
-| `npm run format`             | Formate le code avec Prettier                                                                                 |
-| `npm run typecheck`          | Vérification des types TypeScript                                                                             |
-| `npm test`                   | Tests unitaires (Vitest et Testing Library)                                                                   |
-| `npm run build`              | Vérifie les types et construit la version de production dans `dist/`                                          |
-| `npm run size`               | Vérifie le budget de poids (à lancer après `build`)                                                           |
-| `npm run bench`              | Benchmarks du modèle de partition (échoue au-delà du budget)                                                  |
-| `npm run test:visual:update` | Régénère les références visuelles dans l'image Docker de Playwright (voir [engraving.fr.md](engraving.fr.md)) |
-| `npm run test:visual:docker` | Vérifie les références visuelles dans cette même image                                                        |
-| `npm run test:e2e`           | Tests de fumée Playwright (Chromium, construit et sert l'application)                                         |
+| Commande                                | Rôle                                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `npm ci`                                | Installe exactement les dépendances verrouillées                                                              |
+| `npm run dev`                           | Démarre le serveur de développement                                                                           |
+| `npm run lint`                          | Vérifie ESLint et Prettier                                                                                    |
+| `npm run format`                        | Formate le code avec Prettier                                                                                 |
+| `npm run typecheck`                     | Vérification des types TypeScript                                                                             |
+| `npm test`                              | Tests unitaires (Vitest et Testing Library)                                                                   |
+| `npm run build`                         | Vérifie les types et construit la version de production dans `dist/`                                          |
+| `npm run size`                          | Vérifie le budget de poids (à lancer après `build`)                                                           |
+| `npm run bench`                         | Benchmarks du modèle de partition (échoue au-delà du budget)                                                  |
+| `npm run test:visual:update`            | Régénère les références visuelles dans l'image Docker de Playwright (voir [engraving.fr.md](engraving.fr.md)) |
+| `npm run test:visual:docker`            | Vérifie les références visuelles dans cette même image                                                        |
+| `npm run test:e2e`, `npm run test:perf` | Tests fonctionnels Playwright (Chromium, construit et sert l'application, en parallèle)                       |
+| `npm run test:perf`                     | Tests de performance Playwright (`@perf`) : un seul worker, sans nouvel essai                                 |
 
 Première exécution des tests de bout en bout : `npx playwright install chromium`.
 
 ### Budget de performance
 
 Le JavaScript initial du premier écran doit rester à **150 Ko gzip** ou moins. `npm run size` lit `dist/index.html`, additionne les scripts chargés au premier affichage (compressés en gzip) et échoue au-delà du budget. Les bibliothèques lourdes (VexFlow, Tone.js, échantillons) doivent être chargées à la demande avec `import()` dynamique, pour ne jamais compter dans le premier écran.
+
+### Tests de performance
+
+Toute assertion de temps est dans un test marqué `@perf` (`{ tag: '@perf' }`) et utilise `web/e2e/perf-stats.ts`. Playwright a deux projets : `chromium` (fonctionnel, en parallèle, sans les `@perf`, un nouvel essai en CI) et `perf` (uniquement les `@perf`, dépend de `chromium`, aucun nouvel essai). `npm run test:perf` lance le projet `perf` seul avec `--workers=1` ; en CI il passe après `npm run test:e2e` dans le job `web`, donc rien d'autre n'occupe la machine pendant la mesure. Un nouvel essai masquerait une régression : il n'y en a pas, un test de performance doit être stable.
+
+Chaque mesure écarte des itérations de chauffe, prend de 5 à 400 échantillons, affiche une ligne du type `PERF engraving one edit: 60 samples, median 5.1 ms (budget 16), p95 8.0 ms (budget 32), max 9.3 ms` (aussi en annotation du test) et vérifie :
+
+- la **médiane** contre le budget strict, identique partout ;
+- le **p95** contre le double du budget (`P95_FACTOR`, sur toutes les machines : un portable fait aussi tourner un IDE et un navigateur, et les runners CI partagés sont environ deux fois plus lents que le portable de référence, voir [engraving.fr.md](engraving.fr.md)).
+
+Le budget de médiane de la frappe est la seule exception à « identique partout » : 16 ms en local, 24 ms en CI (médianes de 9 à 15 ms mesurées sur 20 runners CI). Une mesure à un seul échantillon (démarrage à froid) applique le facteur CI (`CI_FACTOR` : 2 quand `CI` est définie) à son propre budget. Lire un échec : une médiane au-dessus du budget est une vraie régression ; un p95 seul au-dessus signale une queue bruitée, relancer `npm run test:perf` en local avant de toucher à un budget. Rien d'autre ne doit tourner pendant la mesure : `PLAYWRIGHT_PORT` change le port si un autre serveur de prévisualisation occupe 4173.
 
 ### Design tokens et thèmes
 
@@ -135,7 +147,7 @@ Chaque pull request et chaque push sur `main` lance [`ci.yml`](../.github/workfl
 
 | Job      | Ce qu'il lance                                                                                                                                          | En local                                                                                                                                                                                                                                    |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `web`    | lint, types, tests unitaires, build, budget de poids, `npm audit` (dépendances de production), Playwright                                               | depuis `web/` : `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e`                                                                   |
+| `web`    | lint, types, tests unitaires, build, budget de poids, `npm audit` (dépendances de production), Playwright (fonctionnels puis performance)               | depuis `web/` : `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm run size`, `npm audit --audit-level=high --omit=dev`, `npm run test:e2e`                                                                   |
 | `docker` | construit l'image de production (amd64), démarre `docker-compose.yml` dessus et sonde l'application, scan Trivy (échoue sur CRITICAL/HIGH corrigeables) | la « Procédure de test » de [`self-hosting.fr.md`](self-hosting.fr.md)                                                                                                                                                                      |
 | `api`    | restauration, build avec avertissements en erreurs, tests, audit des vulnérabilités NuGet                                                               | depuis la racine du dépôt : `dotnet build api/Polymnia.slnx -warnaserror`, `dotnet test --solution api/Polymnia.slnx` (les tests d'intégration demandent Docker), `dotnet list api/Polymnia.slnx package --vulnerable --include-transitive` |
 

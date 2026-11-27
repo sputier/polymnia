@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { mockSignedIn, openFixture, type EngravingStats } from './engraving-helpers';
+import { expectBudget } from './perf-stats';
 
 test.use({ locale: 'en-US', colorScheme: 'light', viewport: { width: 1280, height: 700 } });
 
@@ -48,50 +49,71 @@ test.describe('engraving fonts', () => {
 });
 
 test.describe('progressive render', () => {
-  test('first systems fast, the rest in idle time, nothing to redo afterwards', async ({
-    page,
-  }) => {
-    await mockSignedIn(page);
-    await page.goto('/#/editor?fixture=benchmark100&width=1100');
-    await page.waitForSelector('svg.pm-score .vf-pm-system', { state: 'attached' });
-    await page.waitForFunction(() => (window as unknown as { __polymnia?: unknown }).__polymnia);
-    const r = await page.evaluate(async () => {
-      const w = window as unknown as {
-        __polymnia: {
-          score: unknown;
-          engraver: {
-            stats: EngravingStats;
-            svg: SVGSVGElement;
-            render(score: unknown, width: number, o?: { progressive: boolean }): EngravingStats;
-            settled(): Promise<void>;
+  test(
+    'first systems fast, the rest in idle time, nothing to redo afterwards',
+    { tag: '@perf' },
+    async ({ page }) => {
+      await mockSignedIn(page);
+      await page.goto('/#/editor?fixture=benchmark100&width=1100');
+      await page.waitForSelector('svg.pm-score .vf-pm-system', { state: 'attached' });
+      await page.waitForFunction(() => (window as unknown as { __polymnia?: unknown }).__polymnia);
+      const r = await page.evaluate(async () => {
+        const w = window as unknown as {
+          __polymnia: {
+            score: unknown;
+            engraver: {
+              stats: EngravingStats;
+              svg: SVGSVGElement;
+              render(score: unknown, width: number, o?: { progressive: boolean }): EngravingStats;
+              settled(): Promise<void>;
+            };
           };
         };
-      };
-      const { engraver, score } = w.__polymnia;
-      const stats = { ...engraver.stats };
-      const systems = engraver.svg.querySelectorAll('.vf-pm-system').length;
-      const again = engraver.render(score, 1100); // same score and width: nothing to engrave
-      // A new width engraves again, progressively: the full layout is there, the drawing is not.
-      const first = engraver.render(score, 1000, { progressive: true });
-      const heightAtOnce = Number(engraver.svg.getAttribute('height'));
-      const drawnAtOnce = engraver.svg.querySelectorAll('.vf-pm-system').length;
-      await engraver.settled();
-      const last = { ...engraver.stats };
-      const drawnAtEnd = engraver.svg.querySelectorAll('.vf-pm-system').length;
-      return { stats, systems, again, first, heightAtOnce, drawnAtOnce, last, drawnAtEnd };
-    });
-    console.log(
-      `PERF first system ${r.stats.firstSystemMs.toFixed(0)} ms, complete after ${r.stats.ms.toFixed(0)} ms ` +
-        `(${r.drawnAtOnce} of ${r.last.systems} systems before the first idle chunk)`,
-    );
-    expect(r.stats.complete).toBe(true);
-    expect(r.systems).toBe(r.stats.systems);
-    expect(r.heightAtOnce).toBeGreaterThan(5000); // the full height is known at once
-    expect(r.first.complete).toBe(false);
-    expect(r.drawnAtOnce).toBeLessThan(r.last.systems);
-    expect(r.last.complete).toBe(true);
-    expect(r.drawnAtEnd).toBe(r.last.systems);
-    expect(r.stats.firstSystemMs).toBeLessThan(100);
-    expect(r.again).toMatchObject({ drawn: 0, complete: true, reused: r.stats.systems });
-  });
+        const { engraver, score } = w.__polymnia;
+        const stats = { ...engraver.stats };
+        const systems = engraver.svg.querySelectorAll('.vf-pm-system').length;
+        const again = engraver.render(score, 1100); // same score and width: nothing to engrave
+        // Warm-up and samples of the first-system time: progressive re-flows at alternating widths.
+        const firsts: number[] = [];
+        for (let i = 0; i < 14; i++) {
+          const st = engraver.render(score, i % 2 ? 1000 : 1060, { progressive: true });
+          if (i >= 4) firsts.push(st.firstSystemMs);
+          await engraver.settled();
+        }
+        engraver.render(score, 1100);
+        await engraver.settled();
+        // A new width engraves again, progressively: the full layout is there, the drawing is not.
+        const first = engraver.render(score, 1000, { progressive: true });
+        const heightAtOnce = Number(engraver.svg.getAttribute('height'));
+        const drawnAtOnce = engraver.svg.querySelectorAll('.vf-pm-system').length;
+        await engraver.settled();
+        const last = { ...engraver.stats };
+        const drawnAtEnd = engraver.svg.querySelectorAll('.vf-pm-system').length;
+        return {
+          firsts,
+          stats,
+          systems,
+          again,
+          first,
+          heightAtOnce,
+          drawnAtOnce,
+          last,
+          drawnAtEnd,
+        };
+      });
+      console.log(
+        `PERF first system ${r.stats.firstSystemMs.toFixed(0)} ms, complete after ${r.stats.ms.toFixed(0)} ms ` +
+          `(${r.drawnAtOnce} of ${r.last.systems} systems before the first idle chunk)`,
+      );
+      expect(r.stats.complete).toBe(true);
+      expect(r.systems).toBe(r.stats.systems);
+      expect(r.heightAtOnce).toBeGreaterThan(5000); // the full height is known at once
+      expect(r.first.complete).toBe(false);
+      expect(r.drawnAtOnce).toBeLessThan(r.last.systems);
+      expect(r.last.complete).toBe(true);
+      expect(r.drawnAtEnd).toBe(r.last.systems);
+      expectBudget('first system', r.firsts, { medianMs: 100 });
+      expect(r.again).toMatchObject({ drawn: 0, complete: true, reused: r.stats.systems });
+    },
+  );
 });

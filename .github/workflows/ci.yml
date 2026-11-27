@@ -51,7 +51,11 @@ jobs:
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+      # Functional specs first (parallel, one retry), then the performance specs alone: one worker,
+      # nothing else running, no retry (a retry would hide a regression). See docs/development.md.
       - run: npm run test:e2e
+      - name: Performance tests (serialized, no retry)
+        run: npm run test:perf
 
       # TEMPORARY artifact quota safeguard: artifacts count against the account
       # storage quota, so nothing is uploaded on success. The report is kept
