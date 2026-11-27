@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../i18n/i18n';
 import type { Score } from '../score/types';
-import type { Engraver } from './engraver';
+import type { Engraver, ensureChordLibrary as EnsureChordLibrary } from './engraver';
 import type { HitResult } from './hitTest';
+import { needsChordLibrary } from './chords';
 import { preloadEngravingFonts } from './fonts';
 import './engraving.css';
 
@@ -57,6 +58,9 @@ export function ScoreView({
   const preview = useMemo(() => previewParams(), []);
   const hostRef = useRef<HTMLDivElement>(null);
   const [engraver, setEngraver] = useState<Engraver | null>(null);
+  /** Loads the chord library (diagrams); set with the engraver chunk. */
+  const ensureLibrary = useRef<typeof EnsureChordLibrary | null>(null);
+  const libraryReady = useRef(false);
   const [width, setWidth] = useState(preview.width ?? 0);
   const [fixtureScore, setFixtureScore] = useState<Score | null>(null);
 
@@ -82,18 +86,21 @@ export function ScoreView({
     let created: Engraver | null = null;
     // The music font downloads in parallel with the chunk (preload), then the first render starts.
     preloadEngravingFonts();
-    void import('./engraver').then(async ({ Engraver: Ctor, loadEngravingFonts }) => {
-      if (cancelled) return;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      await Promise.race([
-        loadEngravingFonts(),
-        new Promise<void>((resolve) => (timer = setTimeout(resolve, FONT_WAIT_MS))),
-      ]);
-      clearTimeout(timer);
-      if (cancelled) return;
-      created = new Ctor(host);
-      setEngraver(created);
-    });
+    void import('./engraver').then(
+      async ({ Engraver: Ctor, loadEngravingFonts, ensureChordLibrary }) => {
+        if (cancelled) return;
+        ensureLibrary.current = ensureChordLibrary;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          loadEngravingFonts(),
+          new Promise<void>((resolve) => (timer = setTimeout(resolve, FONT_WAIT_MS))),
+        ]);
+        clearTimeout(timer);
+        if (cancelled) return;
+        created = new Ctor(host);
+        setEngraver(created);
+      },
+    );
     return () => {
       cancelled = true;
       created?.destroy();
@@ -122,20 +129,30 @@ export function ScoreView({
 
   useEffect(() => {
     if (!engraver || !effective || width <= 0) return;
-    // Visible systems now, the others in idle time; layout and hit testing are complete at once.
-    engraver.render(effective, width, { progressive: true });
-    if (preview.fixture || score) {
-      // The test hook appears once every system is engraved. Merged: the editor adds its store.
-      let cancelled = false;
-      void engraver.settled().then(() => {
-        if (cancelled) return;
-        const w = window as unknown as { __polymnia?: Record<string, unknown> };
-        w.__polymnia = { ...w.__polymnia, engraver, score: effective, width };
+    let cancelled = false;
+    const draw = () => {
+      // Visible systems now, the others in idle time; layout and hit testing are complete at once.
+      engraver.render(effective, width, { progressive: true });
+      if (preview.fixture || score) {
+        // The test hook appears once every system is engraved. Merged: the editor adds its store.
+        void engraver.settled().then(() => {
+          if (cancelled) return;
+          const w = window as unknown as { __polymnia?: Record<string, unknown> };
+          w.__polymnia = { ...w.__polymnia, engraver, score: effective, width };
+        });
+      }
+    };
+    if (libraryReady.current || !needsChordLibrary(effective)) draw();
+    else {
+      // Fretboard diagrams need the chord library, a small lazy chunk fetched once.
+      void ensureLibrary.current?.(effective).then(() => {
+        libraryReady.current = true;
+        if (!cancelled) draw();
       });
-      return () => {
-        cancelled = true;
-      };
     }
+    return () => {
+      cancelled = true;
+    };
   }, [engraver, effective, width, preview.fixture, score]);
 
   // Screen reader summary of the whole score (the selected event goes through the live region).

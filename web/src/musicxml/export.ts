@@ -14,6 +14,9 @@ import {
   type Tuplet,
   type Voice,
 } from '../score';
+import { lookupShape } from '../chords/library';
+import { diagramPlan } from '../engraving/chords';
+import { harmonyXml } from './harmony';
 import { MUSICXML_DIVISIONS } from './limits';
 import { escapeXml as esc } from './xml';
 
@@ -40,6 +43,10 @@ export const INSTRUMENT_SOUND: Readonly<Record<string, string>> = {
 
 /** Name of the `<miscellaneous-field>` that keeps the exact catalog id of a part. */
 export const INSTRUMENT_FIELD = 'polymnia-instrument-';
+/** Chord options of a part (diagram mode, capo shapes, per-chord diagram flags), see docs/musicxml.md. */
+export const CHORD_DIAGRAMS_FIELD = 'polymnia-chord-diagrams-';
+export const CHORD_CAPO_FIELD = 'polymnia-chord-capo-shapes-';
+export const CHORD_FLAGS_FIELD = 'polymnia-chord-flags-';
 /** Text of the `other-technical` element that marks a fingering the user chose (see docs/musicxml.md). */
 export const MANUAL_FRETTING = 'polymnia-manual-fingering';
 
@@ -281,6 +288,19 @@ function scorePartXml(part: Part, index: number): string {
   return xml + '</score-part>';
 }
 
+/** Explicit per-chord diagram flags of a part: measure.staff.tick=1 or 0, separated by semicolons. */
+function chordFlags(part: Part): string {
+  const list: string[] = [];
+  part.staves.forEach((staff, si) =>
+    staff.measures.forEach((sm, m) =>
+      sm.chords?.forEach((c) => {
+        if (c.diagram !== undefined) list.push(`${m}.${si}.${c.tick}=${c.diagram ? 1 : 0}`);
+      }),
+    ),
+  );
+  return list.join(';');
+}
+
 /** Exports the score as an uncompressed MusicXML 4.0 partwise document. */
 export function scoreToMusicXml(score: Score): string {
   return exportWithReport(score).xml;
@@ -301,11 +321,28 @@ export function exportWithReport(score: Score): { xml: string; dropped: Record<s
       `<miscellaneous-field name="${INSTRUMENT_FIELD}P${i + 1}">${esc(part.instrument)}</miscellaneous-field>`,
     );
   });
+  score.parts.forEach((part, i) => {
+    if (part.chordDiagrams) {
+      out.push(
+        `<miscellaneous-field name="${CHORD_DIAGRAMS_FIELD}P${i + 1}">${part.chordDiagrams}</miscellaneous-field>`,
+      );
+    }
+    if (part.chordCapoShapes) {
+      out.push(`<miscellaneous-field name="${CHORD_CAPO_FIELD}P${i + 1}">1</miscellaneous-field>`);
+    }
+    const flags = chordFlags(part);
+    if (flags) {
+      out.push(
+        `<miscellaneous-field name="${CHORD_FLAGS_FIELD}P${i + 1}">${flags}</miscellaneous-field>`,
+      );
+    }
+  });
   out.push('</miscellaneous></identification><part-list>');
   score.parts.forEach((part, i) => out.push(scorePartXml(part, i)));
   out.push('</part-list>');
 
   const slurs = assignSlurNumbers(score);
+  const diagrams = diagramPlan(score);
   const lengths: number[] = [];
   let time = score.measures[0]?.time ?? { beats: 4, beatType: 4 };
   for (const m of score.measures) {
@@ -357,6 +394,22 @@ export function exportWithReport(score: Score): { xml: string; dropped: Record<s
           );
         }
       }
+
+      // Chord symbols (and the diagrams that are shown) come before the notes, placed by offset.
+      const tuning = partTuning(part);
+      part.staves.forEach((staff, si) =>
+        staff.measures[m]?.chords?.forEach((c) => {
+          const shown = diagrams.has(c.id) && tuning;
+          const frame = c.frame ?? (shown ? lookupShape(c, tuning, part.capo ?? 0) : undefined);
+          out.push(
+            harmonyXml(c, {
+              staffNumber: si + 1,
+              multi,
+              frame: shown || c.frame ? frame : undefined,
+            }),
+          );
+        }),
+      );
 
       const voices: { si: number; vi: number; voice: Voice }[] = [];
       part.staves.forEach((staff, si) =>

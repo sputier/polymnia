@@ -11,10 +11,22 @@ import type { Score } from '../score/types';
 import { shortPartName } from '../score/instruments';
 import { eventBox, hitTest, type EventBox, type HitResult, type Rect } from './hitTest';
 import { LayoutCache, layoutScore, type Layout, type SystemLayout } from './layout';
+import { needsChordLibrary } from './chords';
 import { drawSystem } from './draw';
+import { hasShapeLookup, setShapeLookup } from './drawChords';
 import './vexflowSetup';
 
 export { loadEngravingFonts } from './vexflowSetup';
+
+/**
+ * Loads the chord library (a separate lazy chunk) the first time a score shows fretboard diagrams.
+ * Call it before `render`: it does nothing for a score without diagrams and resolves at once afterwards.
+ */
+export async function ensureChordLibrary(score: Score): Promise<void> {
+  if (hasShapeLookup() || !needsChordLibrary(score)) return;
+  const { lookupShape } = await import('../chords/library');
+  setShapeLookup(lookupShape);
+}
 
 export interface RenderStats {
   /** Wall time of the whole render call, ms. */
@@ -518,6 +530,7 @@ function systemSignature(
     m.clefs,
     m.final,
     m.colX,
+    m.shape.chords,
   ]);
   const names = system.names
     ? score.parts.map((p) => (system.shortNames ? shortPartName(p) : p.name))
@@ -531,6 +544,8 @@ function systemSignature(
     placement,
     slurs,
     score.parts.map((p) => p.staves.map((s) => (s.showRests ? `${s.type}+rests` : s.type))),
+    // Diagrams depend on the tuning and the capo; the symbols on the capo shapes option.
+    score.parts.map((p) => [p.instrument, p.tuning, p.capo, p.chordDiagrams, p.chordCapoShapes]),
   ]);
   return { key, refs };
 }

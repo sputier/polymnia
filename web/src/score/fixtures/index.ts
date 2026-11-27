@@ -3,7 +3,29 @@
  * Used by the tests (round trip, schema, validation) and by later features as sample documents.
  */
 import type { Score } from '../types';
+import { setChord, setChordCapoShapes, setChordDiagramMode } from '../commands/chords';
+import { parseChord } from '../chords';
 import { buildScore } from './dsl';
+
+/** Adds chord symbols (`[measure, tick, text]`) to the first staff of a part, and the part's options. */
+function withChords(
+  score: Score,
+  partIndex: number,
+  list: readonly (readonly [number, number, string])[],
+  options: { diagrams?: 'first' | 'all'; capoShapes?: boolean } = {},
+): Score {
+  const part = score.parts[partIndex]!;
+  let out = score;
+  for (const [measure, tick, text] of list) {
+    const chord = parseChord(text);
+    if (!chord) throw new Error(`Bad chord "${text}"`);
+    out = setChord({ staffId: part.staves[0]!.id, measure, tick, chord }).apply(out);
+  }
+  if (options.diagrams)
+    out = setChordDiagramMode({ partId: part.id, mode: options.diagrams }).apply(out);
+  if (options.capoShapes) out = setChordCapoShapes({ partId: part.id, on: true }).apply(out);
+  return out;
+}
 
 /** "Au clair de la lune" (traditional), first phrase, voice. */
 export const auClairDeLaLune: Score = buildScore({
@@ -255,6 +277,98 @@ export const celloClefChanges: Score = buildScore({
   ],
 });
 
+/** Steel-string guitar with chord symbols and a diagram for the first occurrence of each chord. */
+export const guitarChords: Score = withChords(
+  buildScore({
+    title: 'Chords on guitar',
+    parts: [
+      {
+        name: 'Guitar',
+        instrument: 'guitar-steel',
+        staves: [
+          {
+            measures: [
+              'G4:h B4:h',
+              'E4:h G4:h',
+              'C5:h E5:h',
+              'D5:h F#4:h',
+              'G4:h B4:h',
+              'A4:h C5:h',
+              'B4:h D5:h',
+              'G4:w',
+            ],
+          },
+        ],
+      },
+    ],
+  }),
+  0,
+  [
+    [0, 0, 'G'],
+    [1, 0, 'Em7'],
+    [2, 0, 'C'],
+    [3, 0, 'D/F#'],
+    [4, 0, 'G'],
+    [5, 0, 'Am7'],
+    [6, 0, 'Bm'],
+    [7, 0, 'G'],
+  ],
+  { diagrams: 'first' },
+);
+
+/** Ukulele with a capo on fret 2: symbols name the sounding chords, with the shapes to play. */
+export const ukuleleChords: Score = withChords(
+  buildScore({
+    title: 'Ukulele with a capo',
+    parts: [
+      {
+        name: 'Ukulele',
+        instrument: 'ukulele-concert',
+        capo: 2,
+        staves: [{ measures: ['E5:h F#5:h', 'E5:h D5:h', 'F#5:h A5:h', 'E5:w'] }],
+      },
+    ],
+  }),
+  0,
+  [
+    [0, 0, 'D'],
+    [0, 1920, 'A7'],
+    [1, 0, 'Bm'],
+    [2, 0, 'G'],
+    [2, 1920, 'A'],
+    [3, 0, 'D'],
+  ],
+  { diagrams: 'all', capoShapes: true },
+);
+
+/** Piano with chord symbols only: typography of extensions, alterations and slash chords. */
+export const pianoChords: Score = withChords(
+  buildScore({
+    title: 'Chord symbols',
+    parts: [
+      {
+        name: 'Piano',
+        instrument: 'piano',
+        staves: [
+          { clef: 'treble', measures: ['C5:w', 'B4:w', 'C5:w', 'B4:w'] },
+          { clef: 'bass', measures: ['C3:w', 'F#2:w', 'Bb2:w', 'E2:w'] },
+        ],
+      },
+    ],
+  }),
+  0,
+  [
+    [0, 0, 'Cmaj7'],
+    [0, 1920, 'Dsus4'],
+    [1, 0, 'F#m7b5'],
+    [1, 1920, 'B7#9'],
+    [2, 0, 'Bbmaj7'],
+    [2, 1920, 'C6/9'],
+    [3, 0, 'E7b9/G#'],
+    [3, 1920, 'Cadd9'],
+  ],
+);
+
 export const FIXTURES: Readonly<Record<string, Score>> = {
   auClairDeLaLune,
   pianoGrandStaff,
@@ -267,4 +381,7 @@ export const FIXTURES: Readonly<Record<string, Score>> = {
   guitarTabFeatures,
   ukuleleMelody,
   celloClefChanges,
+  guitarChords,
+  ukuleleChords,
+  pianoChords,
 };

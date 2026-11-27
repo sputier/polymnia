@@ -1,0 +1,247 @@
+/**
+ * Chord symbols and fretboard diagrams, the pure part: typography (runs of text with sizes and
+ * offsets), widths for the layout, and which chords show a diagram. No VexFlow, no DOM.
+ *
+ * Typography: the symbol is set in the UI font (Inter) at 15 px. The root and bass letters are on
+ * the baseline; `m`, `maj`, `dim`, `aug` and `sus` stay on it too; numbers, alterations and added
+ * tones are raised and smaller. Sharps and flats are Bravura glyphs (SMuFL), never the characters
+ * `#` and `b`, so they look like music accidentals and export as vector outlines.
+ */
+import { formatChord, qualityRuns, shapeOf, type ChordData } from '../score/chords';
+import { partTuning } from '../score/instruments';
+import type { ChordNote, ChordSymbol, Part, Score } from '../score/types';
+
+export const CHORD = {
+  /** Font size of the symbol, px. */
+  size: 15,
+  supSize: 10.5,
+  capoSize: 12,
+  /** Baseline offset of raised text, px (up). */
+  supRaise: 5.5,
+  /** Height of one row of symbols, px. */
+  row: 20,
+  /** Baseline of the symbol above the top staff line (no diagram), px. */
+  baseline: 18,
+  /** Space between a diagram and the staff, px. */
+  clearance: 12,
+  stringGap: 6,
+  fretGap: 8,
+  /** Rows of frets drawn. */
+  frets: 4,
+  /** Row of open and muted markers above the nut, px. */
+  marker: 9,
+  /** Room left of the grid for the fret number of a shape that is not at the nut, px. */
+  labelWidth: 9,
+  /** Minimum clear space between two symbols, px. */
+  gap: 6,
+} as const;
+
+/** Height of a diagram box (markers + fret rows). */
+export const DIAGRAM_HEIGHT = CHORD.marker + CHORD.frets * CHORD.fretGap + 2;
+/** Extra height reserved above a staff that carries diagrams. */
+export const DIAGRAM_BAND = DIAGRAM_HEIGHT + 4;
+
+export function diagramWidth(strings: number): number {
+  return (strings - 1) * CHORD.stringGap + CHORD.labelWidth + 4;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Text runs
+// ---------------------------------------------------------------------------------------------
+
+export interface TextRun {
+  readonly text: string;
+  /** `music` is a SMuFL code point drawn with Bravura. */
+  readonly font: 'text' | 'music';
+  readonly size: number;
+  readonly x: number;
+  /** Offset from the baseline, px (negative = up). */
+  readonly dy: number;
+}
+
+export interface ChordLabel {
+  readonly runs: readonly TextRun[];
+  readonly width: number;
+}
+
+const GLYPH = { sharp: '', flat: '', doubleSharp: '', doubleFlat: '' };
+/** Advance of the accidental glyphs, in em. */
+const GLYPH_ADVANCE: Record<string, number> = {
+  [GLYPH.sharp]: 0.3,
+  [GLYPH.flat]: 0.24,
+  [GLYPH.doubleSharp]: 0.3,
+  [GLYPH.doubleFlat]: 0.46,
+};
+
+const NARROW = new Set('ijlt1fr()/,.');
+const WIDE = new Set('mwMW');
+
+/** Width of text in Inter, in em (an estimate that is good enough to keep symbols apart). */
+function charEm(ch: string): number {
+  if (WIDE.has(ch)) return ch === 'M' || ch === 'W' ? 0.9 : 0.86;
+  if (ch === '(' || ch === ')') return 0.34;
+  if (ch === '/') return 0.4;
+  if (NARROW.has(ch)) return 0.33;
+  if (ch >= 'A' && ch <= 'Z') return 0.68;
+  if (ch >= '0' && ch <= '9') return 0.6;
+  return 0.56;
+}
+
+class Builder {
+  runs: TextRun[] = [];
+  x = 0;
+
+  text(text: string, size: number, dy = 0): void {
+    if (text === '') return;
+    this.runs.push({ text, font: 'text', size, x: this.x, dy });
+    for (const ch of text) this.x += charEm(ch) * size;
+  }
+
+  accidental(alter: number, size: number, dy = 0): void {
+    const list =
+      alter === 1
+        ? [GLYPH.sharp]
+        : alter === -1
+          ? [GLYPH.flat]
+          : alter === 2
+            ? [GLYPH.doubleSharp]
+            : alter === -2
+              ? [GLYPH.doubleFlat]
+              : [];
+    for (const g of list) {
+      // SMuFL accidentals are centred on the staff line they sit on: lift them to the x-height.
+      const lift = g === GLYPH.flat || g === GLYPH.doubleFlat ? 0.2 : 0.3;
+      this.runs.push({ text: g, font: 'music', size, x: this.x + 0.5, dy: dy - lift * size });
+      this.x += (GLYPH_ADVANCE[g] ?? 0.3) * size + 1;
+    }
+  }
+
+  note(n: ChordNote, size: number): void {
+    this.text(n.step, size);
+    this.accidental(n.alter, size);
+  }
+
+  /** Raised text where `#` and `b` followed by a digit are accidentals. */
+  raised(text: string): void {
+    const size = CHORD.supSize;
+    const dy = -CHORD.supRaise;
+    let plain = '';
+    const flush = () => {
+      this.text(plain, size, dy);
+      plain = '';
+    };
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i]!;
+      const next = text[i + 1];
+      if (ch === '#') {
+        flush();
+        this.accidental(1, size, dy);
+      } else if (ch === 'b' && next !== undefined && next >= '0' && next <= '9') {
+        flush();
+        this.accidental(-1, size, dy);
+      } else plain += ch;
+    }
+    flush();
+  }
+}
+
+function chordRuns(b: Builder, chord: ChordData, size: number): void {
+  b.note(chord.root, size);
+  for (const run of qualityRuns(chord.quality)) {
+    if (run.sup) b.raised(run.text);
+    else b.text(run.text, size);
+  }
+  if (chord.bass) {
+    b.text('/', size);
+    b.note(chord.bass, size);
+  }
+}
+
+/**
+ * The text of a chord symbol. With `shape`, the shape the player forms with a capo follows in
+ * parentheses and a smaller size: `D (C)`.
+ */
+export function chordLabel(chord: ChordData, shape?: ChordData): ChordLabel {
+  const b = new Builder();
+  chordRuns(b, chord, CHORD.size);
+  if (shape) {
+    b.x += 3;
+    b.text('(', CHORD.capoSize);
+    chordRuns(b, shape, CHORD.capoSize);
+    b.text(')', CHORD.capoSize);
+  }
+  return { runs: b.runs, width: b.x };
+}
+
+/** Text read by screen readers and tooltips (`F#m7b5/A`). */
+export function chordText(chord: ChordData): string {
+  return formatChord(chord);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Which chords show a diagram, and how wide a chord is
+// ---------------------------------------------------------------------------------------------
+
+/** Number of strings a part's diagrams have (undefined: no diagrams for this instrument). */
+export function diagramStrings(part: Part): number | undefined {
+  return partTuning(part)?.length;
+}
+
+/**
+ * Ids of the chord symbols that show a diagram: for parts with strings, the part's mode (first
+ * occurrence of each chord, or all) and the per-chord flag, which wins over the mode.
+ */
+export function diagramPlan(score: Score): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const part of score.parts) {
+    if (diagramStrings(part) === undefined) continue;
+    const mode = part.chordDiagrams;
+    const seen = new Set<string>();
+    for (const staff of part.staves) {
+      for (const sm of staff.measures) {
+        for (const c of sm.chords ?? []) {
+          const key = formatChord(c) + (c.frame ? '|f' : '');
+          const first = !seen.has(key);
+          seen.add(key);
+          if (c.diagram !== undefined ? c.diagram : mode === 'all' || (mode === 'first' && first))
+            ids.add(c.id);
+        }
+      }
+    }
+  }
+  return ids;
+}
+
+/** True when any chord of the score can ask for a diagram (loads the chord library). */
+export function needsChordLibrary(score: Score): boolean {
+  for (const part of score.parts) {
+    if (diagramStrings(part) === undefined) continue;
+    if (part.chordDiagrams) {
+      for (const staff of part.staves)
+        for (const sm of staff.measures) if (sm.chords?.length) return true;
+    } else {
+      for (const staff of part.staves)
+        for (const sm of staff.measures) if (sm.chords?.some((c) => c.diagram)) return true;
+    }
+  }
+  return false;
+}
+
+/** The shape chord for display next to a symbol, or undefined when it is not wanted. */
+export function capoShape(part: Part, chord: ChordSymbol): ChordData | undefined {
+  if (!part.chordCapoShapes || !part.capo) return undefined;
+  return shapeOf(chord, part.capo);
+}
+
+export interface ChordWidthOptions {
+  readonly part: Part;
+  readonly diagram: boolean;
+}
+
+/** Horizontal room a chord needs, label and diagram together, px. */
+export function chordWidth(chord: ChordSymbol, opts: ChordWidthOptions): number {
+  const label = chordLabel(chord, capoShape(opts.part, chord));
+  const strings = diagramStrings(opts.part);
+  const d = opts.diagram && strings !== undefined ? diagramWidth(strings) : 0;
+  return Math.max(label.width, d);
+}

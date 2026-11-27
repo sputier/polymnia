@@ -27,6 +27,7 @@ export function normalizeScore(score: Score): unknown {
       staves: {
         id: string;
         measures: {
+          chords?: { id: string }[];
           voices: {
             id: string;
             events: { id: string }[];
@@ -44,6 +45,7 @@ export function normalizeScore(score: Score): unknown {
     for (const s of p.staves) {
       s.id = rename(s.id, 's');
       for (const sm of s.measures) {
+        for (const c of sm.chords ?? []) c.id = rename(c.id, 'c');
         for (const v of sm.voices) {
           v.id = rename(v.id, 'v');
           for (const e of v.events) e.id = rename(e.id, 'e');

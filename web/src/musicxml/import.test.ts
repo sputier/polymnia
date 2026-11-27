@@ -145,6 +145,12 @@ describe('import: tablature, tuning, capo, transposition', () => {
 describe('import: unsupported elements', () => {
   const { score, report } = parseMusicXml(fixture('unsupported-elements.musicxml'));
 
+  it('keeps the chord symbol at its position', () => {
+    const chords = score.parts[0]!.staves[0]!.measures[0]!.chords!;
+    expect(chords).toHaveLength(1);
+    expect(chords[0]).toMatchObject({ tick: 1920, root: { step: 'C', alter: 0 }, quality: '' });
+  });
+
   it('keeps the music and counts every dropped element type', () => {
     expect(validateScore(score)).toEqual([]);
     expect(describeVoice(score, 0, 0, 0)).toEqual([
@@ -170,7 +176,6 @@ describe('import: unsupported elements', () => {
       words: 1,
       wedge: 1,
       lyric: 1,
-      harmony: 1,
       unpitched: 1,
       repeat: 2,
       ending: 1,

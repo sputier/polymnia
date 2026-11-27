@@ -198,6 +198,8 @@ export function parseQuality(text: string): Quality | null {
   if (d.aug && d.alt.has('#5')) d.alt.delete('#5');
   if (d.sixth && d.seventh) return null;
   if (d.alt.has('b5') && d.alt.has('#5')) return null;
+  // A sixth with an added ninth is the six-nine chord.
+  if (d.sixth === 6 && d.add.has(9)) d.sixth = 69;
   // Added tones that the stack already contains are redundant.
   if (d.sixth === 69) d.add.delete(9);
   if (d.ext >= 9) d.add.delete(9);

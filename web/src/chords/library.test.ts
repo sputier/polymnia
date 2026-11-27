@@ -92,11 +92,11 @@ describe('guitar, standard tuning', () => {
   it('draws a barre for the F chord only', () => {
     expect(shapeFor('F', GUITAR)!.barre).toEqual({ fret: 1, from: 1, to: 6 });
     expect(shapeFor('C', GUITAR)!.barre).toBeUndefined();
-    expect(shapeFor('Bm', GUITAR)).toMatchObject({ base: 1, barre: { fret: 2, from: 1, to: 5 } });
+    expect(shapeFor('Bm', GUITAR)).toMatchObject({ base: 2, barre: { fret: 2, from: 1, to: 5 } });
   });
 
   it('moves the window up the neck', () => {
-    expect(shapeFor('F#m', GUITAR)!.base).toBe(1);
+    expect(shapeFor('F#m', GUITAR)!.base).toBe(2);
     expect(shapeFor('Gm', GUITAR)!.base).toBe(3);
     expect(shapeFor('C', GUITAR)!.base).toBe(1);
   });

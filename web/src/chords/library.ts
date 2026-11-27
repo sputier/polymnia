@@ -221,14 +221,17 @@ export function makeShape(fretsHighFirst: readonly number[]): ChordShape {
   const fretted = fretsHighFirst.filter((f) => f > 0);
   const lo = fretted.length > 0 ? Math.min(...fretted) : 1;
   const hi = fretted.length > 0 ? Math.max(...fretted) : 1;
-  const base = hi <= 4 ? 1 : lo;
+  // Open strings need the nut. A shape without any (a barre chord) is shown from its first fret.
+  const open = fretsHighFirst.some((f) => f === 0);
+  const base = open ? (hi <= 4 ? 1 : lo) : hi - lo < 4 && lo > 1 ? lo : hi <= 4 ? 1 : lo;
   const barre = findBarre(fretsHighFirst, lo);
   return { frets: [...fretsHighFirst], base, ...(barre ? { barre } : {}) };
 }
 
 /** A barre lies on the lowest fretted fret when it holds the finger on 2+ strings without a gap. */
 function findBarre(frets: readonly number[], lo: number): ChordBarre | undefined {
-  if (lo <= 0) return undefined;
+  // A barre chord has no open string (it would not move up the neck).
+  if (lo <= 0 || frets.some((f) => f === 0)) return undefined;
   const at: number[] = [];
   frets.forEach((f, i) => {
     if (f === lo) at.push(i + 1);

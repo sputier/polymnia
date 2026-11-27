@@ -51,6 +51,7 @@ import {
   clefChangeAt,
   clefGlyph,
 } from './notation';
+import { drawChordsOf } from './drawChords';
 import { METRICS, type PlacedMeasure, type StaffSlot, type SystemLayout } from './layout';
 
 const KEY_NAMES = [
@@ -520,6 +521,15 @@ export function drawSystem(
     const ta = tabTwin.get(s.startEventId);
     const tb = tabTwin.get(s.endEventId);
     if (ta || tb) drawSlur(ta, tb);
+  }
+
+  // ---- Chord symbols and diagrams ----------------------------------------------------------
+  for (const m of system.measures) {
+    system.staves.forEach((slot, slotIndex) => {
+      const part = score.parts[slot.partIndex]!;
+      const chords = part.staves[slot.staffIndex]!.measures[m.index]!.chords;
+      if (chords) drawChordsOf(ctx, part, slot, m, slotIndex, chords);
+    });
   }
 
   // ---- Connectors, names ------------------------------------------------------------------

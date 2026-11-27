@@ -19,6 +19,7 @@ import type {
   StaffType,
   TimeSignature,
 } from '../score/types';
+import { DIAGRAM_BAND, chordWidth, diagramPlan, diagramStrings, CHORD } from './chords';
 import {
   STAFF_SPACE,
   TAB_SPACE,
@@ -76,6 +77,12 @@ export interface StaffSlot {
   /** Y of the top staff line, relative to the top of the system. */
   readonly top: number;
   readonly height: number;
+  /** Fretboard diagrams are drawn above this staff (room is reserved above it). */
+  readonly diagrams: boolean;
+  /** Baseline of the chord symbols, relative to the top of the system. */
+  readonly chordY: number;
+  /** Top of the fretboard diagrams, relative to the top of the system (diagrams only). */
+  readonly diagramY: number;
 }
 
 export interface Column {
@@ -86,6 +93,17 @@ export interface Column {
   readonly glyph: number;
   /** Proportional space after, from the time to the next column. */
   readonly stretch: number;
+}
+
+/** A chord symbol of a staff measure, placed on a column. */
+export interface ChordSlot {
+  readonly id: string;
+  readonly tick: number;
+  readonly col: number;
+  /** Room the symbol (and its diagram) needs, px. */
+  readonly width: number;
+  /** A fretboard diagram is drawn with it. */
+  readonly diagram: boolean;
 }
 
 export interface EventSlot {
@@ -110,6 +128,8 @@ export interface MeasureShape {
   readonly stretch: number;
   /** Events of each staff slot (flat index over parts and staves). */
   readonly staves: readonly (readonly EventSlot[])[];
+  /** Chord symbols of each staff slot (empty list when the staff has none here). */
+  readonly chords: readonly (readonly ChordSlot[])[];
   /** Only rests: the rest is centered in the measure. */
   readonly restOnly: boolean;
 }
@@ -185,7 +205,10 @@ export class LayoutCache {
   readonly shapes = new Map<number, CachedShape>();
 }
 
-export function staffSlots(score: Score): StaffSlot[] {
+export function staffSlots(
+  score: Score,
+  plan: ReadonlySet<string> = diagramPlan(score),
+): StaffSlot[] {
   const slots: StaffSlot[] = [];
   let y: number = METRICS.topPad;
   score.parts.forEach((part, partIndex) => {
@@ -193,6 +216,10 @@ export function staffSlots(score: Score): StaffSlot[] {
       const lines = staff.type === 'tab' ? tabLines(part) : 5;
       const space = staff.type === 'tab' ? TAB_SPACE : STAFF_SPACE;
       const height = (lines - 1) * space;
+      // Diagrams need room above the staff; symbols alone fit in the usual gap.
+      const diagrams =
+        plan.size > 0 && staff.measures.some((sm) => sm.chords?.some((c) => plan.has(c.id)));
+      if (diagrams) y += DIAGRAM_BAND;
       slots.push({
         partIndex,
         staffIndex,
@@ -203,6 +230,9 @@ export function staffSlots(score: Score): StaffSlot[] {
         space,
         top: y,
         height,
+        diagrams,
+        chordY: y - CHORD.baseline - (diagrams ? DIAGRAM_BAND : 0),
+        diagramY: y - CHORD.clearance - (DIAGRAM_BAND - 4),
       });
       const last = staffIndex === part.staves.length - 1;
       y += height + (last ? METRICS.partGap : METRICS.staffGap);
@@ -268,6 +298,7 @@ export function computeShape(
   measure: number,
   slots: readonly StaffSlot[],
   refs: readonly StaffMeasure[],
+  plan: ReadonlySet<string> = new Set(),
 ): MeasureShape {
   const key = keyFifthsAt(score, measure);
   const length = measureLength(score, measure);
@@ -286,6 +317,11 @@ export function computeShape(
       byTick.set(k, raw);
     }
     return raw;
+  };
+  /** A column that only carries a chord symbol: no notehead, so no glyph width. */
+  const touchChord = (tick: number): void => {
+    const k = tickKey(tick);
+    if (!byTick.has(k)) byTick.set(k, { tick: k, ticks: 0, lead: 0, glyph: 0 });
   };
   const staffEvents: { event: ScoreEvent; voice: number; tick: number }[][] = slots.map(() => []);
 
@@ -327,7 +363,46 @@ export function computeShape(
     });
   });
 
+  // Chord symbols: each sits on a column (a chord between two notes gets a column of its own, with
+  // no glyph) and keeps clear of the next symbol of its staff and of the end of the measure.
+  const chordLists: { id: string; tick: number; width: number; diagram: boolean }[][] = slots.map(
+    (slot, s) => {
+      const chords = refs[s]!.chords;
+      if (!chords) return [];
+      const part = score.parts[slot.partIndex]!;
+      return chords.map((c) => {
+        const diagram = plan.has(c.id);
+        touchChord(c.tick);
+        return {
+          id: c.id,
+          tick: tickKey(c.tick),
+          width: chordWidth(c, { part, diagram }),
+          diagram,
+        };
+      });
+    },
+  );
+
   const ordered = [...byTick.values()].sort((a, b) => a.tick - b.tick);
+  if (chordLists.some((l) => l.length > 0)) {
+    const index = new Map(ordered.map((r, i) => [r.tick, i]));
+    for (const list of chordLists) {
+      list.forEach((c, i) => {
+        const from = index.get(c.tick)!;
+        const nextChord = list[i + 1];
+        const to = nextChord ? index.get(nextChord.tick)! : ordered.length;
+        // Distance between the notehead x of the two columns, without the proportional space.
+        let room = nextChord ? 0 : METRICS.padRight;
+        for (let k = from; k < to; k++) {
+          room += ordered[k]!.glyph;
+          if (k > from) room += ordered[k]!.lead;
+        }
+        if (nextChord) room += ordered[to]!.lead;
+        const need = c.width + CHORD.gap;
+        if (room < need) ordered[to - 1]!.glyph += need - room;
+      });
+    }
+  }
   const columns: Column[] = ordered.map((raw, i) => {
     const next = ordered[i + 1]?.tick ?? length;
     return {
@@ -363,17 +438,44 @@ export function computeShape(
     fixed: columns.reduce((sum, c) => sum + c.lead + c.glyph, 0),
     stretch: columns.reduce((sum, c) => sum + c.stretch, 0),
     staves: eventSlots,
-    restOnly: columns.length === 1 && eventSlots.every((l) => l.every((e) => e.kind === 'rest')),
+    chords: chordLists.map((list) =>
+      list.map((c) => ({
+        id: c.id,
+        tick: c.tick,
+        col: colByTick.get(c.tick)!,
+        width: c.width,
+        diagram: c.diagram,
+      })),
+    ),
+    restOnly:
+      columns.length === 1 &&
+      chordLists.every((l) => l.length === 0) &&
+      eventSlots.every((l) => l.every((e) => e.kind === 'rest')),
   };
 }
 
-function shapeKey(score: Score, measure: number, slots: readonly StaffSlot[]): string {
+function shapeKey(
+  score: Score,
+  measure: number,
+  slots: readonly StaffSlot[],
+  plan: ReadonlySet<string>,
+): string {
   const t = timeSignatureAt(score, measure);
   const clefs = slots.map((s) => {
     const staff = score.parts[s.partIndex]!.staves[s.staffIndex]!;
     return clefAt(staff, measure);
   });
-  return `${keyFifthsAt(score, measure)}|${t.beats}/${t.beatType}|${measureLength(score, measure)}|${clefs.join(',')}`;
+  // Chord symbols widen the measure: what decides their width is part of the cache identity.
+  const chords = slots
+    .map((s) => {
+      const sm = score.parts[s.partIndex]!.staves[s.staffIndex]!.measures[measure]!;
+      if (!sm.chords) return '';
+      const part = score.parts[s.partIndex]!;
+      const flags = sm.chords.map((c) => (plan.has(c.id) ? 1 : 0)).join('');
+      return `${flags}/${diagramStrings(part) ?? 0}/${part.capo ?? 0}/${part.chordCapoShapes ? 1 : 0}`;
+    })
+    .join(',');
+  return `${keyFifthsAt(score, measure)}|${t.beats}/${t.beatType}|${measureLength(score, measure)}|${clefs.join(',')}|${chords}`;
 }
 
 function staffMeasureRefs(
@@ -389,12 +491,13 @@ function getShape(
   measure: number,
   slots: readonly StaffSlot[],
   cache: LayoutCache,
+  plan: ReadonlySet<string>,
 ): MeasureShape {
   const refs = staffMeasureRefs(score, measure, slots);
   const prevRefs = measure > 0 ? staffMeasureRefs(score, measure - 1, slots) : [];
   // Accidentals depend on the previous measure only through ties: include it in the cache identity.
   const all = [...refs, ...prevRefs];
-  const ctx = shapeKey(score, measure, slots);
+  const ctx = shapeKey(score, measure, slots, plan);
   const hit = cache.shapes.get(measure);
   if (
     hit &&
@@ -404,7 +507,7 @@ function getShape(
   ) {
     return hit.shape;
   }
-  const shape = computeShape(score, measure, slots, refs);
+  const shape = computeShape(score, measure, slots, refs, plan);
   cache.shapes.set(measure, { refs: all, ctx, shape });
   return shape;
 }
@@ -506,7 +609,8 @@ export function layoutScore(
   options: { width: number },
   cache: LayoutCache = new LayoutCache(),
 ): Layout {
-  const slots = staffSlots(score);
+  const plan = diagramPlan(score);
+  const slots = staffSlots(score, plan);
   const sysHeight = systemHeight(slots);
   const count = score.measures.length;
   const names = nameBlock(score);
@@ -517,7 +621,7 @@ export function layoutScore(
   const right = Math.max(options.width - METRICS.marginX, firstX + METRICS.minNoteArea);
 
   const shapes: MeasureShape[] = [];
-  for (let m = 0; m < count; m++) shapes.push(getShape(score, m, slots, cache));
+  for (let m = 0; m < count; m++) shapes.push(getShape(score, m, slots, cache, plan));
   for (const k of [...cache.shapes.keys()]) if (k >= count) cache.shapes.delete(k);
 
   const systems: SystemLayout[] = [];
