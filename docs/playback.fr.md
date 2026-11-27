@@ -77,6 +77,16 @@ Auteurs, URL et textes de licence sont dans [`THIRD_PARTY_NOTICES.md`](../THIRD_
 5. Ajouter l'identifiant du jeu à `instrumentSets.ts` (`SampleSetId`, `SAMPLE_SET_IDS`) et y rattacher les identifiants du catalogue ; ajouter son temps de relâchement dans `toneBackend.ts` ; ajouter l'instrument à `web/src/score/instruments.ts` s'il n'est pas dans le catalogue.
 6. `npm test` (`samples.test.ts` vérifie que chaque jeu couvre son étendue sans grand trou), mettre à jour le tableau ci-dessus et `THIRD_PARTY_NOTICES.md`.
 
+## Lecture des accords
+
+Les accords (voir [editor.fr.md](editor.fr.md#accords)) peuvent s'écouter. C'est une option du mixeur (mode Avancé, « Accords ») : **Muets** (par défaut), **Accords plaqués** (toutes les notes ensemble) ou **Arpégés (strum)** (les cordes l'une après l'autre, de la grave à l'aiguë, à 36 ticks d'écart, environ 19 ms à 120 bpm). Code : `web/src/playback/chordVoicing.ts` (pur) et `timeline.ts` (`buildTimeline(score, { chords, lookup })`) ; `PlaybackController.setChordPlayback(mode)`.
+
+- **Sur l'instrument de la partie.** Les notes d'accord appartiennent à la portée qui porte les accords : elles sont donc jouées par l'échantillonneur de cette portée (un accord de guitare avec les échantillons de guitare, un accord d'ukulélé avec ceux de l'ukulélé) et suivent sa sourdine et son solo.
+- **Réalisation.** Sur une partie à cordes, les notes sont la **forme du diagramme** : corde par corde, hauteur de la corde à vide plus capodastre plus case (la hauteur qui sonne est celle de l'accord, quel que soit le capodastre), donc ce qu'on entend est ce que montre le diagramme ; un doigté personnalisé (`frame`) est joué tel qu'il est dessiné. Sinon (piano, voix...) une réalisation serrée : la basse (la basse de l'accord, sinon la fondamentale) dans l'octave sous le do central, les notes de l'accord au-dessus, dans une octave à partir du do central, cinq au plus (la quinte saute en premier dans un accord de 9e, 11e ou 13e). La bibliothèque d'accords est chargée la première fois que l'option est activée, jamais autrement.
+- **Durée.** Un accord résonne jusqu'à l'accord suivant de sa mesure, ou jusqu'à la fin de la mesure ; un accord ne passe pas la barre de mesure (réécrivez l'accord à la mesure suivante, comme sur une grille).
+- **Muets par défaut, sans surbrillance.** Option désactivée, la timeline n'a aucune note d'accord ; les notes d'accord n'ont pas d'identifiant d'événement : elles n'allument aucune note ni ne déplacent le curseur, et elles ne sont pas dans l'export MIDI (qui est celui des notes de la partition).
+- **Changer l'option** arrête la lecture, reconstruit la timeline et garde la tête de lecture. La timeline est reconstruite comme après une édition : paresseusement.
+
 ## Performance
 
 Mesuré dans Chromium (portable Windows 11, build de production, serveur local, sans limitation réseau ; le chiffre est dominé par le décodage et la planification, le téléchargement représente environ 60 Ko gzip de Tone plus le jeu).
@@ -94,6 +104,7 @@ Sur un vrai réseau, la première note ajoute le téléchargement du chunk Tone 
 
 ## Tests
 
+- Accords : `chordPlayback.test.ts` (réalisations à la guitare, à l'ukulélé et au clavier, capodastre, doigté personnalisé, timelines plaquée et arpégée, ordre, option du contrôleur, tête de lecture conservée), `e2e/chords.spec.ts` (l'option du mixeur, muette par défaut).
 - Unitaires : `timeline.test.ts` (tempo et changements de tempo, points, liaisons y compris sur une barre de mesure et par hauteur d'accord, triolets, silences, accords, voix, plusieurs parties et portées, transposition, capodastre, levée, temps), `clock.test.ts` (bouclage, mute/solo), `controller.test.ts` (instants programmés, anticipation, pause/reprise, arrêt, déplacement, jouer depuis la sélection, tempo, boucle, métronome, mute/solo, images, modifications de la partition, aperçu, échec audio), `samples.test.ts`.
 - Navigateur, audio simulé (`e2e/playback.spec.ts`, `window.__polymniaAudio = 'mock'` ; le moteur enregistre ses appels dans `window.__polymniaAudioLog`) : lecture/arrêt, curseur et surbrillance, `Espace`/`Origine`, `Espace` ignoré dans un champ texte, jouer depuis la sélection et boucle, aperçu à la saisie, tempo et métronome, mute/solo, défilement de la page.
 - Navigateur, vrai moteur (`e2e/playback-audio.spec.ts`) : décodage des vrais échantillons, délai avant la première note à froid et en cache, fichiers hachés de même origine, aucune violation de politique.

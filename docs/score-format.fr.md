@@ -10,6 +10,102 @@ Le modèle de partition est la source de vérité unique partagée par la gravur
 Score { schemaVersion: 1, id?, meta, measures[], parts[], slurs[] }
   meta     { title, composer, tempoBpm }
   measures MeasureInfo[]            communes à toutes les portées : { id, time?, keyFifths?, tempoBpm?, length? }
+  parts    Part[]                   { id, name, instrument, transposition, tuning?, capo?, chordDiagrams?, chordCapoShapes?, staves[] }
+    Staff  { id, clef, type, showRests?, measures[] }     measures[i] appartient à score.measures[i]
+      StaffMeasure { clef?, voices[], chords? }              chords?: ChordSymbol[], voir « Accords »
+        Voice { id, events[], tuplets[] }
+          Note { kind: 'note', id, duration, pitches[] }     un accord a plusieurs hauteurs
+          Rest { kind: 'rest', id, duration }
+  slurs    Slur[]                   { id, startEventId, endEventId }
+```
+
+- **Attributs de mesure clairsemés.** `time`, `keyFifths` et `tempoBpm` ne sont écrits que là où ils changent ; la première mesure doit définir `time` et `keyFifths`. Aides : `timeSignatureAt`, `keyFifthsAt`, `tempoAt`, `measureLength`.
+- **Mesure d'anacrouse.** `MeasureInfo.length` est la longueur réelle en ticks d'une mesure plus courte (anacrouse, dernière mesure tronquée). Multiple de 120, au plus la longueur de la métrique.
+- **Voix.** Une mesure de portée contient de 1 à 4 voix ; chaque voix remplit la mesure à elle seule.
+- **Ordre des parties.** `parts[i].staves[j]` est dessiné de haut en bas. Un piano est une partie à deux portées.
+
+## Le temps : des ticks entiers
+
+`TICKS_PER_QUARTER = 960`, divisible par 2^n, 3 et 5 : les triolets et quintolets sont exacts. Aucun nombre flottant dans le modèle.
+
+| Durée                | Ticks |
+| -------------------- | ----- |
+| ronde                | 3840  |
+| blanche              | 1920  |
+| noire                | 960   |
+| croche               | 480   |
+| double croche (16th) | 240   |
+| triple croche (32nd) | 120   |
+
+Une durée est `{ base, dots }` (`dots` de 0 à 2) : ticks = base x (2 - 1/2^dots). L'interface V1 propose de la ronde à la double croche ; le modèle accepte la triple croche. Les positions dans une mesure et les longueurs de mesure sont des multiples de 120 (une triple croche). Une triple croche pointée ou doublement pointée (180 et 210 ticks) sort de cette grille : les commandes la refusent (`invalid-argument`).
+
+Les **nolets** sont des groupes `{ id, actual, normal, eventIds }` stockés dans la voix (un triolet vaut `actual: 3, normal: 2`). Les membres sont des événements consécutifs ; chacun dure `nominal x normal / actual` ticks, un entier. `createTriplet` fabrique un triolet 3:2.
+
+## Identifiants
+
+Chaque objet (mesure, partie, portée, voix, événement, nolet, liaison de phrase) a un **identifiant texte stable** conforme à `^[A-Za-z0-9_.-]{1,64}$`. Ils sont uniques dans toute la partition et servent à la sélection, au hit-testing et au rendu incrémental. Un id ne change jamais quand on modifie un événement (`setPitch`, `changeDuration`, `deleteEvent` le conservent). Les nouveaux ids viennent de `newId()` (aléatoire) ou sont dérivés d'une graine stockée dans la commande, pour que le « rétablir » produise les mêmes ids.
+
+## Hauteur, transposition et instruments
+
+Une hauteur est **épelée**, pas un numéro MIDI : `{ step: 'C'..'B', alter: -2..2, octave: -1..9 }`, donc `C#4` et `Db4` restent distincts (nécessaire à la gravure et aux aller-retours MusicXML). `pitchToMidi` et `midiToPitch(midi, keyFifths)` convertissent.
+
+**On stocke la hauteur écrite**, comme MusicXML : les notes portent la hauteur **écrite** sur la portée, et la partie porte `transposition` (demi-tons, écrit vers sonore ; la guitare classique vaut `-12`, écrite une octave au-dessus du son). La lecture audio appelle `soundingPitch(pitch, part.transposition)` ou `soundingMidi`. La gravure, l'éditeur et l'export MusicXML restent simples ; seule la lecture convertit.
+
+`instruments.ts` est un catalogue : id, noms français et anglais, clés par défaut, transposition, tessiture sonore, programme General MIDI et, pour les instruments à frettes, les cordes à vide `strings` (hauteurs sonores, de la corde aiguë à la grave) et `frets`. Instruments fournis : piano, voix, flûte, clarinette (si♭, transposition -2), violon, violoncelle (clés de fa, d'ut quatrième et de sol), contrebasse (transposition -12), guitare classique et folk, ukulélé soprano / concert / ténor / ténor sol grave / baryton. Une partie stocke l'id de l'instrument et copie `transposition` : la partition reste valide si le catalogue change ou si l'id est inconnu (les instruments personnalisés sont permis).
+
+- **Accordage et capodastre.** `Part.tuning` (hauteurs sonores, de l'aigu au grave) remplace l'accordage du catalogue (drop D, ...) ; `Part.capo` monte chaque corde d'autant de demi-tons.
+- **Clés.** `treble`, `bass`, `alto`, `tenor`, `treble-8vb` (guitare), `percussion` (réservée). `Staff.clef` est la clé initiale ; `StaffMeasure.clef` est un changement de clé au début de la mesure (`clefAt(staff, measure)`, `setClef`). Les changements de clé en milieu de mesure ne sont pas modélisés.
+- **Type de portée.** `standard` ou `tab`. Une partie à frettes s'écrit `standard`, `tab` ou les deux (deux portées ; `setStaffLayout` construit la seconde à partir de la première et `syncCompanionStaff` les garde synchronisées pendant l'édition) ; `putEvent` sur une tablature déduit la case.
+- **Doigté (frettes).** Une hauteur de note peut porter `fretting: { string, fret, manual? }` (`string` 1 = corde la plus aiguë ; `fret` se compte depuis le capodastre). `validateScore` vérifie que la corde existe, que la case ne dépasse pas le nombre de frettes, et que corde + capodastre + case sonne la même note MIDI que la hauteur écrite plus la transposition. `manual: true` (optionnel, additif) signifie que l'utilisateur l'a choisi : le doigté automatique ne change jamais un doigté manuel encore valide. Absent = déduit par l'algorithme de doigté.
+- **Silences en tablature.** `Staff.showRests: true` (optionnel, additif, portées de tablature seulement) dessine les silences de cette tablature ; absent = masqués, comme dans la plupart des tablatures de guitare (`setTabRests`).
+- **Algorithme de doigté.** `fingering.ts` (pur, numéros MIDI en entrée, `{ string, fret }` en sortie) choisit une corde et une case pour chaque note et accord d'une voix : Viterbi sur les quelques candidats les moins coûteux de chaque événement, qui minimise le déplacement de la main (la position de la main est la case jouée la plus basse ; les cordes à vide ne la déplacent pas et la position se conserve par-dessus), préfère les cordes à vide et les positions basses, une note par corde, 4 cases au plus entre les notes appuyées d'un accord (5 avec pénalité), peu de cordes sautées dans un accord, aucun cas particulier pour les accordages re-entrants (les cordes sont cherchées par hauteur). Une hauteur qu'aucune corde ne peut jouer n'a pas de doigté. `fretting.ts` l'applique aux portées : `refretStaffNotes(part, staff, keep)` recalcule les doigtés d'une portée en gardant tous les doigtés valides (`valid`), seulement les manuels valides (`manual`) ou aucun, en réutilisant les objets inchangés ; `unplayableEvents(score)` liste les notes des tablatures qu'aucune corde ne peut jouer (dessinées `?`, listées dans l'inspecteur). Coût : 2,5 µs par note, 4,5 µs par note d'accord (les tests exigent < 1 ms).
+- **Stabilité.** Modifier une partie « portée + tablature » reconstruit l'autre portée, mais une note dont la hauteur n'a pas changé garde son doigté (position par position), manuel ou déduit ; seules les notes nouvelles ou modifiées sont doigtées, d'après leurs voisines. Un changement d'accordage ou de capodastre recalcule les doigtés déduits et garde les manuels encore valides. `ensureFretting` (exécuté par l'éditeur après chaque modification) complète les doigtés manquants d'une tablature.
+- **Changer d'instrument.** `changeInstrument` déplace chaque hauteur écrite de `ancienneTransposition - nouvelleTransposition` (orthographe selon l'armure de chaque mesure ; liaisons revérifiées), garde les clés permises et remplace les autres par celle de l'instrument, ajoute une portée de basse vide pour le piano, ne supprime les portées en trop que si elles sont vides (`not-empty`), réinitialise accordage et capodastre et recalcule les cases. Une tablature qui répète une portée standard de la même partie n'est pas jouée (la lecture et la table de mixage l'ignorent).
+- **Accordages prédéfinis.** `tuningPresets(instrumentId)` (guitare : standard, drop D, DADGAD, sol ouvert, ré ouvert, demi-ton et ton plus bas ; ukulélé : GCEA, sol grave, baryton, accordage en ré), `matchTuningPreset`, `assignFretting` (une note seule : corde préférée conservée, sinon cordes à vide puis case la plus basse ; dans `fretting.ts`) et `partRange` (tessiture du catalogue étendue vers le bas jusqu'à la corde la plus grave d'un accordage personnalisé) sont dans `tuning.ts`.
+- **Tessiture.** `isInRange(instrument, pitch)` et `rangeWarnings(score)` signalent les notes hors tessiture sonore comme avertissements, jamais comme erreurs.
+
+## Liaisons de prolongation et de phrase
+
+- **Liaison de prolongation** : `tieToNext: true` sur une hauteur d'une note. Valide seulement si l'événement suivant de la même voix (en continuant dans la mesure suivante, même indice de voix) est une note contenant la même hauteur épelée. Les commandes effacent les liaisons devenues invalides.
+- **Liaison de phrase** : un intervalle `{ id, startEventId, endEventId }` au niveau de la partition. Les deux événements existent sur la même portée, le début strictement avant la fin. Elle peut traverser les barres de mesure. Supprimer un événement supprime ses liaisons de phrase.
+
+## Accords
+
+Les accords et les diagrammes de manche ont été ajoutés à la version 1 comme des **champs facultatifs, additifs** (une partition qui n'en a pas est inchangée, et un ancien lecteur qui refuse les propriétés inconnues ne refuse que les partitions qui les utilisent). Code : `web/src/score/chords.ts` (analyseur, orthographe, transposition, notes de l'accord), `diagrams.ts` (quels accords montrent un diagramme), `commands/chords.ts`.
+
+```
+StaffMeasure { clef?, voices[], chords? }
+  ChordSymbol { id, tick, root, quality, bass?, diagram?, frame? }
+    root, bass   { step: 'A'..'G', alter: -2..2 }          orthographiées, sans octave
+    quality      "" | "m7" | "maj7" | "7#9" | "m7b5" | "sus4" | "6/9" | ...   suffixe normalisé
+    tick         décalage depuis le début de la mesure, 0 <= tick < longueur de la mesure, unique par mesure, liste triée par tick
+    diagram      true : toujours montrer le diagramme, false : jamais (absent : suit la partie)
+    frame        { frets[], base, barre? }  doigté personnalisé (voir plus bas)
+Part { ..., chordDiagrams?: 'first' | 'all', chordCapoShapes?: true }
+```
+
+- **Où.** Sur une mesure de portée, à un tick : en général la première portée d'une partie (la portée standard d'une partie « standard + TAB »). Les accords ne sont **pas** des voix et n'ont pas de durée : ils ne font pas partie des notes qu'une partie « standard + TAB » garde synchronisées, et une mesure qui raccourcit (métrique, longueur d'anacrouse) perd les accords qui n'y tiennent plus.
+- **Hauteurs réelles.** Un accord nomme l'accord qui sonne, quels que soient la `transposition` ou le `capo` de la partie (`D` avec un capodastre en case 2 est un accord de ré joué avec la forme de do). Transposer des notes, changer d'instrument ou de capodastre ne change jamais un accord ; `transposeChords` est explicite.
+- **Orthographié, normalisé.** `root` et `bass` gardent leur orthographe (`Gb` n'est pas `F#`). `quality` est le texte canonique de la qualité analysée : `parseQuality(texte)` donne une structure (mineur, diminué, augmenté, accord de quinte, suspension, septième, extension 9/11/13, sixte ou six-neuf, altérations dans l'ordre `b5 #5 b9 #9 #11 b13`, notes ajoutées), `formatQuality` la réécrit : `CM7`, `C^7`, `CΔ7` et `Cmaj7` donnent tous `maj7` ; `Co7` donne `dim7` ; `Cø` donne `m7b5` ; `C69` donne `6/9` ; `C7(#9)` donne `7#9` ; mineur-majeur s'écrit `m(maj7)`. Le texte n'utilise que `A-Z a-z 0-9 # / + ( ) -` (24 caractères au plus). Le validateur exige une qualité que l'analyseur sait lire, ce sur quoi s'appuient la lecture, les diagrammes et MusicXML.
+- **Analyse.** `parseChord(texte)` accepte les lettres (toute casse), `#` `b` `♯` `♭` `x`, les noms français (`Do Ré Mi Fa Sol La Si`, toute casse), les écritures de qualité ci-dessus et `/basse` ; il renvoie `null` pour le reste (`H`, `C2`, `Csus5`, `Cmm`, vide). Une lecture doit s'analyser entièrement : `Faug` est fa augmenté, pas le « Fa » français suivi de « ug ». `formatChord(accord, 'letters' | 'solfege')` écrit `F#m7b5/A` ou `Fa#m7b5/La`.
+- **Notes de l'accord.** `chordTones(accord)` donne les classes de hauteur qu'une réalisation doit contenir (fondamentale, tierce ou suspension, septième, extension la plus haute, altérations, notes ajoutées, la basse) et les facultatives (la quinte si elle n'est pas altérée, les extensions plus basses) : diagrammes et lecture s'en servent.
+- **Transposition et orthographe** (`transposeChord(accord, demiTons, { fifths })`, commande `transposeChords`). Les octaves entières gardent l'orthographe. Sinon une touche noire s'écrit d'après l'armure de la mesure quand elle a des altérations (dièses dans les tonalités à dièses, bémols dans celles à bémols), sinon les noms d'accords usuels : fondamentales majeures Db, Eb, F#, Ab, Bb ; mineures C#m, Ebm, F#m, G#m, Bbm. La basse suit la famille de la nouvelle fondamentale. Un `frame` personnalisé est supprimé (il ne convient plus).
+- **Options de diagramme.** `Part.chordDiagrams` montre le diagramme de la première apparition de chaque accord (même fondamentale, qualité et basse) ou de chaque accord, sur les parties à cordes (un accordage, du catalogue ou de `Part.tuning`) ; `ChordSymbol.diagram` le remplace pour un accord. `Part.chordCapoShapes` écrit à côté de l'accord la forme jouée avec un capodastre, `D (C)`. Les diagrammes comptent les cases depuis le capodastre.
+- **Doigté personnalisé.** `frame` : `frets` a une entrée par corde de la partie, la plus aiguë d'abord (comme `Fretting.string`, 1 = la plus aiguë) : -1 étouffée, 0 à vide, sinon la case depuis le sillet ; `base` est la première case de la fenêtre (1 = au sillet) ; `barre` est `{ fret, from, to }` (cordes numérotées depuis 1, `from <= to`). Écrit par l'import MusicXML pour un diagramme qui n'est pas la forme de la bibliothèque ; le validateur vérifie le nombre de cordes par rapport à l'accordage.
+- **Commandes** (`commands/chords.ts`, toutes via `History`) : `setChord({ staffId, measure, tick, chord })` (remplace l'accord au tick et garde son id, son indicateur `diagram` et son frame seulement si l'accord est inchangé), `removeChord`, `setChordDiagram` (`true`, `false` ou `null`), `setChordDiagramMode` (`'first'`, `'all'`, `null`), `setChordCapoShapes`, `transposeChords({ semitones, staffIds?, keyFifths? })`. `staffChords(score, staffId)` liste les accords d'une portée dans l'ordre ; `chordStaffId(part)` est la portée qui les porte.
+- **Codes de validation.** `chord-position` (tick hors de la mesure), `chord-order` (non triés, ou deux accords sur le même tick), `chord-quality` (qualité inconnue), `chord-frame` (un frame avec un autre nombre de cordes que la partie, ou une barre hors des cordes), plus le `duplicate-id` habituel pour les identifiants d'accords.
+- **Limites** (schéma et décodeur, tenus d'accord par un test) : 32 accords au plus par mesure de portée, `quality` de 24 caractères au plus selon `^[A-Za-z0-9#/+()-]*# Format de partition
+
+[English](score-format.md) · **Français**
+
+Le modèle de partition est la source de vérité unique partagée par la gravure, l'éditeur, la lecture audio, l'import/export MusicXML et l'API. Il vit dans [`web/src/score/`](../web/src/score) (TypeScript pur, aucune dépendance à l'exécution, ni React ni VexFlow). Le format JSON est décrit par [`schema/score.v1.schema.json`](../schema/score.v1.schema.json) (JSON Schema draft 2020-12), que l'API réutilise pour valider les envois et stocker les partitions en `jsonb` PostgreSQL.
+
+## Forme
+
+```
+Score { schemaVersion: 1, id?, meta, measures[], parts[], slurs[] }
+  meta     { title, composer, tempoBpm }
+  measures MeasureInfo[]            communes à toutes les portées : { id, time?, keyFifths?, tempoBpm?, length? }
   parts    Part[]                   { id, name, instrument, transposition, tuning?, capo?, staves[] }
     Staff  { id, clef, type, showRests?, measures[] }     measures[i] appartient à score.measures[i]
       StaffMeasure { clef?, voices[] }
@@ -68,6 +164,8 @@ Une hauteur est **épelée**, pas un numéro MIDI : `{ step: 'C'..'B', alter: -2
 
 - **Liaison de prolongation** : `tieToNext: true` sur une hauteur d'une note. Valide seulement si l'événement suivant de la même voix (en continuant dans la mesure suivante, même indice de voix) est une note contenant la même hauteur épelée. Les commandes effacent les liaisons devenues invalides.
 - **Liaison de phrase** : un intervalle `{ id, startEventId, endEventId }` au niveau de la partition. Les deux événements existent sur la même portée, le début strictement avant la fin. Elle peut traverser les barres de mesure. Supprimer un événement supprime ses liaisons de phrase.
+
+, `tick` entier à partir de 0, un frame de 1 à 12 cordes avec des cases de -1 à 36. L'API valide tout cela avec le schéma (structure et limites) ; les règles sémantiques ci-dessus sont vérifiées par le modèle côté client, comme les autres règles sémantiques.
 
 ## Commandes, annuler et rétablir
 
