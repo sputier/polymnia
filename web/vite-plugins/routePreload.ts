@@ -29,8 +29,20 @@ const ENGRAVING_ROUTES = ['score', 'editor', 'shared'];
 
 export const SCRIPT_NAME = 'route-preload.js';
 
+/** JSON that is safe inside generated JavaScript (and inside an HTML script): no `<`, `>`, `&`, U+2028 or U+2029. */
+function safeJson(value: unknown): string {
+  const unsafe = new RegExp(
+    `[<>&${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]`,
+    'g',
+  );
+  return JSON.stringify(value).replace(
+    unsafe,
+    (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'),
+  );
+}
+
 export function preloadScript(map: Record<string, string[]>): string {
-  return `(function(){var R=${JSON.stringify(map)};
+  return `(function(){var R=${safeJson(map)};
 var h=location.hash.split('?')[0],k='library';
 if(/^#\\/scores\\/[^/]+\\/?$/.test(h))k='score';
 else if(/^#\\/s\\/[A-Za-z0-9_-]{1,128}\\/?$/.test(h))k='shared';

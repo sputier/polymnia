@@ -6,6 +6,7 @@ import { parseRoute } from './useRoute';
 // The generated route-preload.js duplicates the route and language detection of the app (it runs before the
 // bundle): these tests keep both in step.
 
+const LS = String.fromCharCode(0x2028); // line separator
 const MAP: Record<string, string[]> = {
   library: ['assets/L.js'],
   score: ['assets/S.js'],
@@ -62,6 +63,23 @@ describe('route-preload.js', () => {
     expect(preloaded('#/', null, ['de-DE', 'fr-CA'])).toContain('/assets/fr.js');
     expect(preloaded('#/', '<script>', ['de'])).toContain('/assets/en.js');
     expect(preloaded('#/', null, ['de'])).toContain('/assets/en.js');
+  });
+
+  it('escapes characters that could end the script or the line, whatever the chunk names', () => {
+    const script = preloadScript({ ...MAP, library: [`assets/</script>${LS}&x.js`] });
+    expect(script).not.toContain('</script');
+    expect(script).not.toContain(LS);
+    const hrefs: string[] = [];
+    runInNewContext(script, {
+      location: { hash: '#/' },
+      localStorage: { getItem: () => 'en' },
+      navigator: { languages: ['en'], language: 'en' },
+      document: {
+        head: { appendChild: (link: { href: string }) => hrefs.push(link.href) },
+        createElement: () => ({}),
+      },
+    });
+    expect(hrefs[0]).toBe(`/assets/</script>${LS}&x.js`);
   });
 
   it('never throws when storage is blocked', () => {
