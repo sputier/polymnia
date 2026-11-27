@@ -9,11 +9,17 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
 {
     private const string PostgresUniqueViolation = "23505";
 
-    /// <summary>Returns the internal id of the user for this Google subject (created if new).</summary>
-    public async Task<Guid> SignInAsync(
+    /// <summary>
+    /// Returns the internal id of the user for this Google subject (created if new), or <c>null</c> when the user is new
+    /// and <paramref name="maxNewAccountsPerDay"/> accounts were already created in the last 24 hours. The count comes from
+    /// <c>registration_events</c> (never decremented, so deleting accounts does not reopen registrations) and the check and
+    /// the insert run under one advisory lock, so simultaneous first sign-ins cannot exceed the cap.
+    /// </summary>
+    public async Task<Guid?> SignInAsync(
         string googleSubject,
         string? displayName,
         string? avatarUrl,
+        int? maxNewAccountsPerDay = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(googleSubject);
@@ -55,15 +61,40 @@ public sealed class UserProvisioner(PolymniaDbContext db, TimeProvider time)
                 CreatedAt = now,
                 LastSeenAt = now,
             };
-            db.Users.Add(user);
             try
             {
+                await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+                // One lock for the whole instance: the count and the insert of a registration cannot interleave.
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT pg_advisory_xact_lock(hashtextextended('polymnia.registrations', 0))", cancellationToken);
+
+                // A simultaneous sign-in of the same person (two tabs) may have created the account while this one waited
+                // for the lock: it is not a new registration, take the "existing user" branch on the next attempt.
+                if (await db.Users.AsNoTracking().AnyAsync(u => u.GoogleSubject == googleSubject, cancellationToken))
+                {
+                    db.ChangeTracker.Clear();
+                    continue;
+                }
+
+                if (maxNewAccountsPerDay is { } cap)
+                {
+                    DateTimeOffset since = now - TimeSpan.FromDays(1);
+                    if (await db.RegistrationEvents.AsNoTracking().CountAsync(e => e.CreatedAt > since, cancellationToken) >= cap)
+                    {
+                        return null;
+                    }
+                }
+
+                db.Users.Add(user);
+                db.RegistrationEvents.Add(new RegistrationEvent { CreatedAt = now });
                 await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
                 return user.Id;
             }
             catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresUniqueViolation })
             {
-                db.Entry(user).State = EntityState.Detached;
+                db.ChangeTracker.Clear();
             }
         }
 

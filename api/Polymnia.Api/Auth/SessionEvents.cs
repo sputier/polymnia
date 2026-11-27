@@ -48,28 +48,28 @@ internal static class SessionEvents
         UserProvisioner provisioner = context.HttpContext.RequestServices.GetRequiredService<UserProvisioner>();
 
         // Registration brakes: only a person with no account yet is subject to them (existing users are unaffected).
-        if (!await provisioner.ExistsAsync(subject, context.HttpContext.RequestAborted))
+        // The per-address budget is in memory; the daily cap is enforced by the provisioner under a database lock.
+        ILogger audit = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category);
+        AuthOptions authOptions = context.HttpContext.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value;
+        if (!await provisioner.ExistsAsync(subject, context.HttpContext.RequestAborted)
+            && !context.HttpContext.RequestServices.GetRequiredService<RegistrationGate>()
+                .TryTakeAddress(AuthExtensions.ClientKey(context.HttpContext.Connection.RemoteIpAddress) ?? "unknown"))
         {
-            RegistrationGate gate = context.HttpContext.RequestServices.GetRequiredService<RegistrationGate>();
-            string? refused = await gate.CheckAsync(
-                context.HttpContext.RequestServices.GetRequiredService<PolymniaDbContext>(),
-                AuthExtensions.ClientKey(context.HttpContext.Connection.RemoteIpAddress) ?? "unknown",
-                context.HttpContext.RequestAborted);
-            if (refused is not null)
-            {
-                AuthLog.RegistrationClosed(
-                    context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(AuthLog.Category), refused);
-                context.Response.Redirect("/?signin=closed");
-                context.HandleResponse();
-                return;
-            }
+            CloseRegistration(context, audit, "address");
+            return;
         }
 
-        Guid userId = await provisioner.SignInAsync(
+        Guid? created = await provisioner.SignInAsync(
             subject,
             google.FindFirstValue("name"),
             google.FindFirstValue("picture"),
+            authOptions.Registration.MaxNewAccountsPerDay,
             context.HttpContext.RequestAborted);
+        if (created is not { } userId)
+        {
+            CloseRegistration(context, audit, "instance");
+            return;
+        }
 
         TimeSpan idle = context.HttpContext.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value.IdleTimeout;
         TimeProvider time = context.HttpContext.RequestServices.GetRequiredService<TimeProvider>();
@@ -170,6 +170,13 @@ internal static class SessionEvents
         ArgumentNullException.ThrowIfNull(context);
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
         return Task.CompletedTask;
+    }
+
+    private static void CloseRegistration(TicketReceivedContext context, ILogger audit, string scope)
+    {
+        AuthLog.RegistrationClosed(audit, scope);
+        context.Response.Redirect("/?signin=closed");
+        context.HandleResponse();
     }
 
     /// <summary>Front-channel logout is not supported: the request is answered 404 and the session is left alone.</summary>

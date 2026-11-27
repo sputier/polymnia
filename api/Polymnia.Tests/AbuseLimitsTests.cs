@@ -199,7 +199,7 @@ public sealed class AbuseLimitsTests(PostgresFixture postgres) : IClassFixture<P
         using (IServiceScope scope = app.Services.CreateScope())
         {
             // The database is shared by the tests of this class: start from no account at all.
-            await scope.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.PolymniaDbContext>().Database.ExecuteSqlRawAsync("DELETE FROM users", Ct);
+            await scope.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.PolymniaDbContext>().Database.ExecuteSqlRawAsync("DELETE FROM users; DELETE FROM registration_events", Ct);
         }
 
         string first = "sub-" + Guid.NewGuid().ToString("N");
@@ -220,6 +220,85 @@ public sealed class AbuseLimitsTests(PostgresFixture postgres) : IClassFixture<P
         {
             Assert.NotNull(existing.SessionCookie);
         }
+    }
+
+    private static async Task ResetRegistrationsAsync(TestApp app)
+    {
+        using IServiceScope scope = app.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.PolymniaDbContext>().Database
+            .ExecuteSqlRawAsync("DELETE FROM users; DELETE FROM registration_events", Ct);
+    }
+
+    [Fact]
+    public async Task Creating_and_deleting_accounts_does_not_reset_the_daily_cap()
+    {
+        using TestApp app = await StartAsync(new() { ["Auth:Registration:MaxNewAccountsPerDay"] = "1" });
+        await ResetRegistrationsAsync(app);
+        string first = "sub-" + Guid.NewGuid().ToString("N");
+        var browser = new TestBrowser(app);
+        using (await SignInAsync(app, browser, first, "10.1.1.1"))
+        {
+            Assert.NotNull(browser.SessionCookie);
+        }
+
+        // The account is deleted (as the user's own deletion does): the registration stays counted, and holds no personal data.
+        using (IServiceScope scope = app.Services.CreateScope())
+        {
+            Polymnia.Infrastructure.PolymniaDbContext db = scope.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.PolymniaDbContext>();
+            Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM users WHERE google_subject = {first}", Ct));
+            Assert.Equal(1, await db.RegistrationEvents.CountAsync(Ct));
+        }
+
+        var late = new TestBrowser(app);
+        using HttpResponseMessage closed = await SignInAsync(app, late, "sub-" + Guid.NewGuid().ToString("N"), "10.2.2.2");
+        Assert.Equal("/?signin=closed", closed.Headers.Location!.OriginalString);
+        Assert.Null(late.SessionCookie);
+    }
+
+    [Fact]
+    public async Task Simultaneous_first_sign_ins_one_below_the_cap_let_exactly_one_through()
+    {
+        using TestApp app = await StartAsync();
+        await ResetRegistrationsAsync(app);
+        const int cap = 3;
+
+        async Task<Guid?> TrySignInAsync()
+        {
+            using IServiceScope scope = app.Services.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.Users.UserProvisioner>()
+                .SignInAsync("sub-" + Guid.NewGuid().ToString("N"), "Someone", null, cap, Ct);
+        }
+
+        for (int i = 0; i < cap - 1; i++)
+        {
+            Assert.NotNull(await TrySignInAsync());
+        }
+
+        Guid?[] results = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => TrySignInAsync()));
+
+        Assert.Equal(1, results.Count(r => r is not null));
+        using IServiceScope check = app.Services.CreateScope();
+        Assert.Equal(cap, await check.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.PolymniaDbContext>().RegistrationEvents.CountAsync(Ct));
+    }
+
+    [Fact]
+    public async Task Two_simultaneous_first_sign_ins_of_the_same_person_on_the_last_place_both_succeed()
+    {
+        using TestApp app = await StartAsync();
+        await ResetRegistrationsAsync(app);
+        string subject = "sub-" + Guid.NewGuid().ToString("N");
+
+        async Task<Guid?> TrySignInAsync()
+        {
+            using IServiceScope scope = app.Services.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<Polymnia.Infrastructure.Users.UserProvisioner>()
+                .SignInAsync(subject, "Someone", null, 1, Ct);
+        }
+
+        Guid?[] results = await Task.WhenAll(TrySignInAsync(), TrySignInAsync(), TrySignInAsync());
+
+        Assert.All(results, r => Assert.NotNull(r));
+        Assert.Single(results.Distinct());
     }
 
     // ---- database size alert ---------------------------------------------------------------------------------

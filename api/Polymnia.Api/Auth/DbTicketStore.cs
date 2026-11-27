@@ -226,6 +226,10 @@ internal sealed class SessionCleanupService(
                     .Where(s => s.ExpiresAt <= now)
                     .ExecuteDeleteAsync(stoppingToken);
                 AuthLog.SessionsRemoved(logger, removed);
+
+                // The registration counter only needs the last day; two days are kept.
+                DateTimeOffset keepFrom = now - TimeSpan.FromDays(2);
+                await db.RegistrationEvents.Where(e => e.CreatedAt < keepFrom).ExecuteDeleteAsync(stoppingToken);
             }
 #pragma warning disable CA1031 // A failed cleanup must never stop the host; it is retried at the next tick.
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)

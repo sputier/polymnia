@@ -25,6 +25,8 @@ public sealed class PolymniaDbContext(DbContextOptions<PolymniaDbContext> option
 
     public DbSet<Polymnia.Core.Contact.ContactMessage> ContactMessages => Set<Polymnia.Core.Contact.ContactMessage>();
 
+    public DbSet<RegistrationEvent> RegistrationEvents => Set<RegistrationEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);

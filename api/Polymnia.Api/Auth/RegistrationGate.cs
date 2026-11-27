@@ -1,47 +1,30 @@
 using System.Threading.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Polymnia.Infrastructure;
 
 namespace Polymnia.Api.Auth;
 
 /// <summary>
-/// Decides whether a person who has no account yet may create one now (see <see cref="RegistrationOptions"/>).
-/// The instance-wide count comes from the users table (rolling 24 hours); the per-address budget is a fixed 24-hour
-/// window in memory. Only called for a sign-in that would create a user: existing accounts never pass through it.
+/// The per-address budget of new accounts (see <see cref="RegistrationOptions"/>): a fixed 24-hour window in memory,
+/// per instance. Only taken for a sign-in that would create a user. The instance-wide daily cap is not here: it is
+/// enforced exactly, under a database lock, by <c>UserProvisioner</c> (counted in <c>registration_events</c>).
 /// </summary>
 internal sealed class RegistrationGate : IDisposable
 {
-    private static readonly TimeSpan Window = TimeSpan.FromDays(1);
-
-    private readonly IOptions<AuthOptions> _options;
-    private readonly TimeProvider _time;
     private readonly PartitionedRateLimiter<string> _perAddress;
 
-    public RegistrationGate(IOptions<AuthOptions> options, TimeProvider time)
+    public RegistrationGate(IOptions<AuthOptions> options)
     {
-        _options = options;
-        _time = time;
         int perAddress = options.Value.Registration.MaxNewAccountsPerAddressPerDay;
         _perAddress = PartitionedRateLimiter.Create<string, string>(key => RateLimitPartition.GetFixedWindowLimiter(
             key,
-            _ => new FixedWindowRateLimiterOptions { PermitLimit = perAddress, Window = Window, QueueLimit = 0 }));
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = perAddress, Window = TimeSpan.FromDays(1), QueueLimit = 0 }));
     }
 
-    /// <summary>The refused scope (<c>"instance"</c> or <c>"address"</c>), or <c>null</c> when the account may be created.</summary>
-    public async Task<string?> CheckAsync(PolymniaDbContext db, string addressKey, CancellationToken ct)
+    /// <summary>True when this address may still create an account today (one permit is spent).</summary>
+    public bool TryTakeAddress(string addressKey)
     {
-        ArgumentNullException.ThrowIfNull(db);
-
-        DateTimeOffset since = _time.GetUtcNow() - Window;
-        int recent = await db.Users.AsNoTracking().CountAsync(u => u.CreatedAt > since, ct);
-        if (recent >= _options.Value.Registration.MaxNewAccountsPerDay)
-        {
-            return "instance";
-        }
-
         using RateLimitLease lease = _perAddress.AttemptAcquire(addressKey);
-        return lease.IsAcquired ? null : "address";
+        return lease.IsAcquired;
     }
 
     public void Dispose() => _perAddress.Dispose();
