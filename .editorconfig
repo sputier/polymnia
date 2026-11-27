@@ -16,3 +16,10 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+[**/Migrations/*.cs]
+generated_code = true
+
+[api/Polymnia.Tests/**.cs]
+# Test names use underscores for readability.
+dotnet_diagnostic.CA1707.severity = none

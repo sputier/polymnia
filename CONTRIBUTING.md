@@ -37,6 +37,13 @@ npm run size
 npm run test:e2e
 ```
 
+Back end, from the repository root (Docker is needed for the PostgreSQL integration tests):
+
+```
+dotnet build api/Polymnia.slnx -warnaserror
+dotnet test --solution api/Polymnia.slnx
+```
+
 ## Commit messages
 
 We use [Conventional Commits](https://www.conventionalcommits.org/):

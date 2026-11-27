@@ -76,51 +76,33 @@ jobs:
         with:
           persist-credentials: false
 
-      # The back end lands in a separate pull request. Until api/Polymnia.slnx
-      # exists, the job stays green without doing anything, so the required
-      # check is never left pending.
-      - name: Detect back end
-        id: detect
-        run: |
-          if [ -f api/Polymnia.slnx ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::api/Polymnia.slnx not found, skipping the api checks."
-          fi
-
-      - if: steps.detect.outputs.present == 'true'
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      # The SDK comes from global.json (repository root).
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
           cache: true
           cache-dependency-path: |
             api/**/*.csproj
-            api/**/packages.lock.json
-            api/**/Directory.Packages.props
+            api/Directory.Packages.props
 
       - name: Restore
-        if: steps.detect.outputs.present == 'true'
-        working-directory: api
-        run: dotnet restore Polymnia.slnx
+        run: dotnet restore api/Polymnia.slnx
 
       - name: Build
-        if: steps.detect.outputs.present == 'true'
-        working-directory: api
-        run: dotnet build Polymnia.slnx --no-restore -c Release -warnaserror
+        run: dotnet build api/Polymnia.slnx --no-restore -c Release -warnaserror
 
-      # Integration tests use Testcontainers (PostgreSQL); Docker is available
-      # on ubuntu-latest. Results are printed in the log, no artifact upload.
+      # xunit.v3 runs on Microsoft.Testing.Platform (set in global.json), hence --solution.
+      # CI=true: the Testcontainers PostgreSQL tests must run (Docker is available on
+      # ubuntu-latest) and fail, not skip, if Docker is missing.
+      # Results are printed in the log, no artifact upload.
       - name: Test
-        if: steps.detect.outputs.present == 'true'
-        working-directory: api
-        run: dotnet test Polymnia.slnx --no-build -c Release --logger "console;verbosity=normal"
+        env:
+          CI: "true"
+        run: dotnet test --solution api/Polymnia.slnx --no-build -c Release
 
       - name: Audit NuGet packages
-        if: steps.detect.outputs.present == 'true'
-        working-directory: api
         run: |
-          dotnet list Polymnia.slnx package --vulnerable --include-transitive | tee "$RUNNER_TEMP/vulnerable.txt"
+          dotnet list api/Polymnia.slnx package --vulnerable --include-transitive | tee "$RUNNER_TEMP/vulnerable.txt"
           if grep -Eq '^\s*>.*\s(High|Critical)\s' "$RUNNER_TEMP/vulnerable.txt"; then
             echo "::error::High or Critical vulnerable NuGet package found."
             exit 1

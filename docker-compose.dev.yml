@@ -1,0 +1,23 @@
+# Local development database only. Not a production deployment file.
+# Usage: copy .env.example to .env, set POSTGRES_PASSWORD, then `docker compose -f docker-compose.dev.yml up -d`.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-polymnia}
+      POSTGRES_DB: ${POSTGRES_DB:-polymnia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+    ports:
+      # Bound to loopback only: the dev database is never exposed to the network.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - polymnia-dev-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  polymnia-dev-db:

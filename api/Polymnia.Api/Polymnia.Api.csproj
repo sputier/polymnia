@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>polymnia-api</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Polymnia.Core\Polymnia.Core.csproj" />
+    <ProjectReference Include="..\Polymnia.Infrastructure\Polymnia.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Polymnia.Tests" />
+  </ItemGroup>
+</Project>
