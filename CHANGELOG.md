@@ -11,7 +11,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 - Engraving density (#46): tighter, engraving-like spacing in the editor and in the exports. Logarithmic duration spacing (`1 + 8 x log2(gap / 120 + 1)`, a quarter 26 px instead of 43), real glyph widths for noteheads, dots and accidentals, shorter clef, time and padding values (VexFlow's own room is the floor), smaller vertical gaps, a last system under 60 % full is no longer stretched, and abbreviated part names (`Pno.`, `Vln.`...: catalog short names in English and French) after the first system. Print size is a 1.75 mm staff space (`staffSpaceMm`, was 2.1 mm) and pages spread their leftover height between systems. A 4/4 piano score of quarter and half notes now has 4 to 5 measures per system and 100 measures take 3 A4 pages instead of 7. Visual baselines regenerated. See `docs/engraving.md`, `docs/export.md` and their French versions.
-
 - The Content Security Policy now allows images from `https://*.googleusercontent.com` (Google avatars). An unsafe method on any `/api` route without a valid antiforgery token now answers `400`, before routing.
 
 ### Added
