@@ -465,7 +465,7 @@ test.describe('export and playback', () => {
   });
 });
 
-test.describe('performance', () => {
+test.describe('performance', { tag: '@perf' }, () => {
   const BUDGET_MS = process.env.CI ? 32 : 16;
 
   test('writing a chord on a filled 100-measure score: p95 under 16 ms', async ({ page }) => {

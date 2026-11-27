@@ -177,6 +177,48 @@ describe('library tables', () => {
   );
 });
 
+describe('lookup', () => {
+  const QUALITIES = [
+    '',
+    'm',
+    '7',
+    'm7',
+    'maj7',
+    'sus4',
+    'sus2',
+    'dim',
+    'dim7',
+    'aug',
+    'm7b5',
+    '6',
+    '9',
+    'add9',
+    '5',
+  ];
+  const ROOTS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  it.each([
+    ['guitar', GUITAR],
+    ['dropD', DROP_D],
+    ['ukulele', UKE],
+    ['ukulele low G', UKE_LOW_G],
+    ['baritone', BARITONE],
+  ] as const)(
+    '%s: every shape returned has the root, the third (or sus note) and every defining extension',
+    (name, tuning) => {
+      for (const root of ROOTS)
+        for (const q of QUALITIES) {
+          const chord = parseChord(root + q)!;
+          const shape = lookupShape(chord, tuning, 0);
+          if (!shape) continue;
+          const pcs = sounded(shape, tuning);
+          // `required` holds the root, the third or sus note, the 7th/6th/9th that define the chord.
+          for (const p of chordTones(chord).required)
+            expect(pcs, `${name} ${root}${q} ${text(shape)}`).toContain(p);
+        }
+    },
+  );
+});
+
 describe('ukulele', () => {
   it.each([
     ['C', '0003'],
