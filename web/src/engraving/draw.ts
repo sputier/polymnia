@@ -25,7 +25,7 @@ import {
   type Note,
   type RenderContext,
   type StemmableNote,
-} from 'vexflow/bravura';
+} from 'vexflow/core';
 import type {
   Clef,
   Duration,

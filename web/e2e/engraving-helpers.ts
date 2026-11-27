@@ -6,6 +6,8 @@ export interface EngravingStats {
   drawn: number;
   reused: number;
   overflow: number;
+  firstSystemMs: number;
+  complete: boolean;
 }
 
 /** Opens the editor on a fixture (see "preview hook" in docs/engraving.md) and waits for the engraving. */
@@ -13,6 +15,7 @@ export async function openFixture(page: Page, fixture: string, width?: number): 
   const query = `fixture=${fixture}${width ? `&width=${width}` : ''}`;
   await page.goto(`/#/editor?${query}`);
   await page.waitForSelector('svg.pm-score .vf-pm-system', { state: 'attached' });
+  await page.waitForFunction(() => (window as unknown as { __polymnia?: unknown }).__polymnia);
   await page.evaluate(() => document.fonts.ready);
 }
 

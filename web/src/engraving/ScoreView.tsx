@@ -3,6 +3,7 @@ import { useI18n } from '../i18n/i18n';
 import type { Score } from '../score/types';
 import type { Engraver } from './engraver';
 import type { HitResult } from './hitTest';
+import { preloadEngravingFonts } from './fonts';
 import './engraving.css';
 
 export interface ScoreViewProps {
@@ -19,6 +20,8 @@ export interface ScoreViewProps {
 }
 
 const RESIZE_DEBOUNCE_MS = 120;
+/** The first render does not wait longer than this for the music font (it shows up when it arrives). */
+const FONT_WAIT_MS = 2500;
 
 /** Test and preview hook: `#/editor?fixture=<name>&width=<px>` (see docs/engraving.md). */
 function previewParams(): { fixture?: string; width?: number } {
@@ -65,7 +68,16 @@ export function ScoreView({ score, selection, playing, onHit, liveMessage }: Sco
     if (!host) return;
     let cancelled = false;
     let created: Engraver | null = null;
-    void import('./engraver').then(({ Engraver: Ctor }) => {
+    // The music font downloads in parallel with the chunk (preload), then the first render starts.
+    preloadEngravingFonts();
+    void import('./engraver').then(async ({ Engraver: Ctor, loadEngravingFonts }) => {
+      if (cancelled) return;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        loadEngravingFonts(),
+        new Promise<void>((resolve) => (timer = setTimeout(resolve, FONT_WAIT_MS))),
+      ]);
+      clearTimeout(timer);
       if (cancelled) return;
       created = new Ctor(host);
       setEngraver(created);
@@ -98,12 +110,21 @@ export function ScoreView({ score, selection, playing, onHit, liveMessage }: Sco
 
   useEffect(() => {
     if (!engraver || !effective || width <= 0) return;
-    engraver.render(effective, width);
+    // Visible systems now, the others in idle time; layout and hit testing are complete at once.
+    engraver.render(effective, width, { progressive: true });
     if (preview.fixture) {
-      (window as unknown as { __polymnia?: unknown }).__polymnia = {
-        engraver,
-        score: effective,
-        width,
+      // The test hook appears once every system is engraved.
+      let cancelled = false;
+      void engraver.settled().then(() => {
+        if (cancelled) return;
+        (window as unknown as { __polymnia?: unknown }).__polymnia = {
+          engraver,
+          score: effective,
+          width,
+        };
+      });
+      return () => {
+        cancelled = true;
       };
     }
   }, [engraver, effective, width, preview.fixture]);

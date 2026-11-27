@@ -6,11 +6,14 @@
  *
  * This module imports VexFlow (through ./draw): load it with a dynamic import().
  */
-import { Renderer, type RenderContext } from 'vexflow/bravura';
+import { Renderer, type RenderContext } from 'vexflow/core';
 import type { Score } from '../score/types';
 import { eventBox, hitTest, type EventBox, type HitResult } from './hitTest';
 import { LayoutCache, layoutScore, type Layout, type SystemLayout } from './layout';
 import { drawSystem } from './draw';
+import './vexflowSetup';
+
+export { loadEngravingFonts } from './vexflowSetup';
 
 export interface RenderStats {
   /** Wall time of the whole render call, ms. */
@@ -22,6 +25,38 @@ export interface RenderStats {
   readonly reused: number;
   /** Systems whose start modifiers were wider than the layout reserved (a layout bug, expected 0). */
   readonly overflow: number;
+  /** Time from the call to the first system engraved, ms (0 when nothing had to be engraved). */
+  readonly firstSystemMs: number;
+  /** False while systems are still queued for idle time (progressive render). */
+  readonly complete: boolean;
+}
+
+export interface RenderOptions {
+  /**
+   * Engrave the systems on screen now and the others in idle time (the layout, hit testing and
+   * boxes are available at once). `settled()` tells when everything is drawn.
+   */
+  readonly progressive?: boolean;
+}
+
+type IdleScheduler = (
+  cb: (d: { timeRemaining(): number }) => void,
+  o?: { timeout: number },
+) => number;
+
+/** Time slice of one idle chunk, ms. */
+const CHUNK_MS = 20;
+
+interface Job {
+  readonly score: Score;
+  queue: { system: SystemLayout; key: string; refs: unknown[] }[];
+  readonly t0: number;
+  drawn: number;
+  firstSystemMs: number;
+  done: Promise<void>;
+  resolve: () => void;
+  handle?: number | undefined;
+  cancel?: ((handle: number) => void) | undefined;
 }
 
 interface Entry {
@@ -37,11 +72,20 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 export class Engraver {
   readonly svg: SVGSVGElement;
   layout: Layout;
-  stats: RenderStats = { ms: 0, systems: 0, drawn: 0, reused: 0, overflow: 0 };
+  stats: RenderStats = {
+    ms: 0,
+    systems: 0,
+    drawn: 0,
+    reused: 0,
+    overflow: 0,
+    firstSystemMs: 0,
+    complete: true,
+  };
   private readonly ctx: RenderContext;
   private readonly overlay: SVGGElement;
   private readonly cache = new LayoutCache();
-  private entries: Entry[] = [];
+  private entries: (Entry | undefined)[] = [];
+  private job: Job | undefined;
   private eventSystem = new Map<string, number>();
   private selected = new Set<string>();
   private playing = new Set<string>();
@@ -61,8 +105,9 @@ export class Engraver {
   }
 
   /** Renders `score` for an available width in px. Only changed systems are engraved again. */
-  render(score: Score, width: number): RenderStats {
+  render(score: Score, width: number, options: RenderOptions = {}): RenderStats {
     const t0 = performance.now();
+    this.cancelJob();
     this.layout = layoutScore(score, { width }, this.cache);
     const layout = this.layout;
 
@@ -74,52 +119,169 @@ export class Engraver {
       }
     }
 
-    const previous = this.entries;
-    const reusedEntries = new Set<Entry>();
-    const next: Entry[] = [];
-    let drawn = 0;
-    let overflow = 0;
-    layout.systems.forEach((system) => {
-      const { key, refs } = systemSignature(score, system, this.eventSystem);
-      let entry = previous.find(
-        (p) => !reusedEntries.has(p) && p.key === key && sameRefs(p.refs, refs),
-      );
-      if (entry) {
-        reusedEntries.add(entry);
-      } else {
-        const inSystem = (id: string) => this.eventSystem.get(id) === system.index;
-        const result = drawSystem(this.ctx, score, system, score.slurs, inSystem);
-        entry = {
-          key,
-          refs,
-          group: result.group,
-          elements: result.elements,
-          overflow: result.overflow,
-        };
-        drawn++;
-      }
-      overflow += entry.overflow;
-      entry.group.setAttribute('transform', `translate(0 ${system.y})`);
-      this.svg.insertBefore(entry.group, this.overlay);
-      next.push(entry);
-    });
-    for (const old of previous) if (!reusedEntries.has(old)) old.group.remove();
-    this.entries = next;
-
     const height = Math.max(layout.height, 1);
     this.svg.setAttribute('width', String(width));
     this.svg.setAttribute('height', String(height));
     this.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
-    this.applyHighlights();
-    this.stats = {
-      ms: performance.now() - t0,
-      systems: layout.systems.length,
-      drawn,
-      reused: layout.systems.length - drawn,
-      overflow,
+    // Reuse what is unchanged (cheap: signatures only), remember what must be engraved.
+    const previous = this.entries.filter((e): e is Entry => e !== undefined);
+    const reusedEntries = new Set<Entry>();
+    const next: (Entry | undefined)[] = [];
+    const pending: { system: SystemLayout; key: string; refs: unknown[] }[] = [];
+    for (const system of layout.systems) {
+      const { key, refs } = systemSignature(score, system, this.eventSystem);
+      const entry = previous.find(
+        (p) => !reusedEntries.has(p) && p.key === key && sameRefs(p.refs, refs),
+      );
+      if (entry) {
+        reusedEntries.add(entry);
+        entry.group.setAttribute('transform', `translate(0 ${system.y})`);
+      } else {
+        pending.push({ system, key, refs });
+      }
+      next.push(entry);
+    }
+    for (const old of previous) if (!reusedEntries.has(old)) old.group.remove();
+    this.entries = next;
+
+    const total = layout.systems.length;
+    const job: Job = {
+      score,
+      queue: pending,
+      t0,
+      drawn: 0,
+      firstSystemMs: pending.length === 0 ? 0 : -1,
+      done: Promise.resolve(),
+      resolve: () => {},
     };
-    return this.stats;
+    this.job = job;
+    job.done = new Promise<void>((resolve) => (job.resolve = resolve));
+
+    // Systems on screen are engraved now; with `progressive`, the others wait for idle time.
+    const eager = options.progressive ? this.visibleRange() : undefined;
+    if (eager) {
+      // Engrave the visible ones now, keep the rest queued in score order.
+      const rest: typeof pending = [];
+      for (const p of pending) {
+        if (p.system.y < eager.bottom && p.system.y + p.system.height > eager.top) {
+          this.drawPending(job, p);
+        } else {
+          rest.push(p);
+        }
+      }
+      job.queue = rest;
+      if (rest.length === 0 && job.firstSystemMs < 0) job.firstSystemMs = performance.now() - t0;
+    } else {
+      for (const p of pending) this.drawPending(job, p);
+      job.queue = [];
+    }
+
+    if (job.queue.length === 0) this.finishJob(job);
+    else this.scheduleChunk(job);
+
+    this.applyHighlights();
+    return this.snapshotStats(job, total);
+  }
+
+  /** Resolves when every system of the last render call is engraved (immediately if it is). */
+  settled(): Promise<void> {
+    return this.job ? this.job.done : Promise.resolve();
+  }
+
+  private cancelJob(): void {
+    const job = this.job;
+    if (!job) return;
+    if (job.handle !== undefined) job.cancel?.(job.handle);
+    this.job = undefined;
+    job.resolve(); // nobody waits forever on a superseded render
+  }
+
+  /** Vertical range (SVG coordinates) that is on screen, with a small margin. */
+  private visibleRange(): { top: number; bottom: number } {
+    const rect = this.svg.getBoundingClientRect();
+    const margin = 120;
+    // Before the first layout of the page the rect is empty: assume the top of the page.
+    const viewport = typeof window === 'undefined' ? 800 : window.innerHeight || 800;
+    const top = -rect.top - margin;
+    const bottom = viewport - rect.top + margin;
+    return { top, bottom };
+  }
+
+  private drawPending(job: Job, p: { system: SystemLayout; key: string; refs: unknown[] }): void {
+    const { system, key, refs } = p;
+    const inSystem = (id: string) => this.eventSystem.get(id) === system.index;
+    const result = drawSystem(this.ctx, job.score, system, job.score.slurs, inSystem);
+    const entry: Entry = {
+      key,
+      refs,
+      group: result.group,
+      elements: result.elements,
+      overflow: result.overflow,
+    };
+    entry.group.setAttribute('transform', `translate(0 ${system.y})`);
+    // Keep the DOM in score order: before the next system already present, else before the overlay.
+    let anchor: Node = this.overlay;
+    for (let i = system.index + 1; i < this.entries.length; i++) {
+      const later = this.entries[i];
+      if (later) {
+        anchor = later.group;
+        break;
+      }
+    }
+    this.svg.insertBefore(entry.group, anchor);
+    this.entries[system.index] = entry;
+    job.drawn++;
+    if (job.firstSystemMs < 0) job.firstSystemMs = performance.now() - job.t0;
+    this.applyHighlightsTo(entry);
+  }
+
+  private scheduleChunk(job: Job): void {
+    const idle = (globalThis as { requestIdleCallback?: IdleScheduler }).requestIdleCallback;
+    const cancelIdle = (globalThis as { cancelIdleCallback?: (h: number) => void })
+      .cancelIdleCallback;
+    const run = (deadline?: { timeRemaining(): number }) => {
+      job.handle = undefined;
+      if (this.job !== job) return;
+      const start = performance.now();
+      const budget = Math.min(deadline?.timeRemaining() ?? CHUNK_MS, CHUNK_MS);
+      do {
+        const next = job.queue.shift();
+        if (!next) break;
+        this.drawPending(job, next);
+      } while (job.queue.length > 0 && performance.now() - start < budget);
+      if (job.queue.length === 0) this.finishJob(job);
+      else this.scheduleChunk(job);
+    };
+    if (idle) {
+      job.handle = idle(run, { timeout: 120 });
+      job.cancel = cancelIdle;
+    } else {
+      job.handle = setTimeout(() => run(), 0) as unknown as number;
+      job.cancel = (h) => clearTimeout(h);
+    }
+  }
+
+  private finishJob(job: Job): void {
+    this.stats = this.snapshotStats(job, this.layout.systems.length);
+    this.job = undefined;
+    job.resolve();
+  }
+
+  private snapshotStats(job: Job, total: number): RenderStats {
+    let overflow = 0;
+    for (const e of this.entries) overflow += e?.overflow ?? 0;
+    const stats: RenderStats = {
+      ms: performance.now() - job.t0,
+      systems: total,
+      drawn: job.drawn,
+      reused: this.entries.filter(Boolean).length - job.drawn,
+      overflow,
+      firstSystemMs: Math.max(job.firstSystemMs, 0),
+      complete: job.queue.length === 0,
+    };
+    this.stats = stats;
+    return stats;
   }
 
   hitTest(x: number, y: number): HitResult | null {
@@ -150,16 +312,18 @@ export class Engraver {
     els?.forEach((el) => el.classList.toggle(cls, on));
   }
 
-  private applyHighlights(): void {
-    for (const entry of this.entries) {
-      for (const els of entry.elements.values()) {
-        els.forEach((el) => {
-          const id = el.getAttribute('data-event-id')!;
-          el.classList.toggle('pm-selected', this.selected.has(id));
-          el.classList.toggle('pm-playing', this.playing.has(id));
-        });
-      }
+  private applyHighlightsTo(entry: Entry): void {
+    for (const els of entry.elements.values()) {
+      els.forEach((el) => {
+        const id = el.getAttribute('data-event-id')!;
+        el.classList.toggle('pm-selected', this.selected.has(id));
+        el.classList.toggle('pm-playing', this.playing.has(id));
+      });
     }
+  }
+
+  private applyHighlights(): void {
+    for (const entry of this.entries) if (entry) this.applyHighlightsTo(entry);
     this.overlay.replaceChildren();
     for (const id of this.selected) {
       const box = eventBox(this.layout, id);
@@ -176,6 +340,7 @@ export class Engraver {
   }
 
   destroy(): void {
+    this.cancelJob();
     this.svg.remove();
     this.entries = [];
   }
